@@ -85,10 +85,6 @@ app.use('/api/leave-records', leaveRecordsRoutes);
 const mayorRoutes = require('./routes/mayor');
 app.use('/api/mayor', mayorRoutes);
 
-// FCM routes
-const fcmRoutes = require('./routes/fcm');
-app.use('/api/auth', fcmRoutes);
-
 // Notification routes
 const notificationRoutes = require('./routes/notifications');
 app.use('/api/notifications', notificationRoutes);
