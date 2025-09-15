@@ -19,7 +19,10 @@ router.get('/profile', protect, getProfile);
 router.post('/profile/image', protect, upload.single('profileImage'), updateProfileImage);
 
 // Save FCM token (protected route)
-router.post('/save-fcm-token', protect, saveFcmToken);
+router.post('/save-fcm-token', protect, (req, res, next) => {
+  console.log('FCM token save route called'); // Add this log
+  next();
+}, saveFcmToken);
 
 // Logout user
 router.post('/logout', logout);

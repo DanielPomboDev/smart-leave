@@ -156,9 +156,14 @@ const Profile = () => {
       setTokenSaveError('');
       
       const token = await requestForToken();
+      console.log('FCM Token retrieved:', token); // Add this log
+      
       if (token) {
         // Send token to server
+        console.log('Sending FCM token to server...'); // Add this log
         const response = await axios.post('/api/auth/save-fcm-token', { fcmToken: token });
+        console.log('Server response:', response.data); // Add this log
+        
         if (response.data.success) {
           console.log('FCM token saved successfully');
         } else {

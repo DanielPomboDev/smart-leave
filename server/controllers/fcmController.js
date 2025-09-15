@@ -6,6 +6,8 @@ exports.saveFcmToken = async (req, res) => {
     const { fcmToken } = req.body;
     const userId = req.user.id; // Assuming you have middleware that sets req.user
     
+    console.log('Received FCM token save request:', { fcmToken, userId }); // Add this log
+    
     // Validate input
     if (!fcmToken) {
       return res.status(400).json({ 
@@ -20,6 +22,8 @@ exports.saveFcmToken = async (req, res) => {
       { fcm_token: fcmToken },
       { new: true, runValidators: true }
     );
+    
+    console.log('User after FCM token update:', user); // Add this log
     
     if (!user) {
       return res.status(404).json({ 
