@@ -156,13 +156,13 @@ const Profile = () => {
       setTokenSaveError('');
       
       const token = await requestForToken();
-      console.log('FCM Token retrieved:', token); // Add this log
+      console.log('FCM Token retrieved:', token);
       
       if (token) {
         // Send token to server
-        console.log('Sending FCM token to server...'); // Add this log
+        console.log('Sending FCM token to server...');
         const response = await axios.post('/api/auth/save-fcm-token', { fcmToken: token });
-        console.log('Server response:', response.data); // Add this log
+        console.log('Server response:', response.data);
         
         if (response.data.success) {
           console.log('FCM token saved successfully');
@@ -174,6 +174,7 @@ const Profile = () => {
       }
     } catch (error) {
       console.error('Error saving FCM token:', error);
+      console.error('Error response:', error.response?.data);
       setTokenSaveError(error.response?.data?.message || 'Failed to save notification token');
     } finally {
       setSavingToken(false);
