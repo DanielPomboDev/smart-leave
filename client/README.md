@@ -68,3 +68,20 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+## Firebase Configuration
+
+This project uses Firebase Cloud Messaging for push notifications. The Firebase configuration is set in the `.env` file:
+
+```
+REACT_APP_FIREBASE_API_KEY=AIzaSyB5jcugxxICocTxt3nJMo2h1c8LSPB8DXU
+REACT_APP_FIREBASE_AUTH_DOMAIN=smart-leave-mern.firebaseapp.com
+REACT_APP_FIREBASE_PROJECT_ID=smart-leave-mern
+REACT_APP_FIREBASE_STORAGE_BUCKET=smart-leave-mern.firebasestorage.app
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID=361014009148
+REACT_APP_FIREBASE_APP_ID=1:361014009148:web:0de0f7a74bb4b151ca1239
+REACT_APP_FIREBASE_MEASUREMENT_ID=G-ZJ1R3HRWMP
+REACT_APP_FIREBASE_VAPID_KEY=BHroHGuwF2NVg-1ePIetoamuQbGto79TEErzfGYjDwXl7kZDXOlGLq3ekgOjnfjfaoWd-O5Ao0_nR9PM7yVm9-I
+```
+
+Make sure to keep these values secure and never commit actual keys to version control.

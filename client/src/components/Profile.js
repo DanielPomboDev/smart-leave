@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
+import { requestForToken } from '../firebase';
 
 const Profile = () => {
   const [user, setUser] = useState(null);
@@ -10,6 +11,9 @@ const Profile = () => {
   const [uploadError, setUploadError] = useState('');
   const [previewImage, setPreviewImage] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+  const [savingToken, setSavingToken] = useState(false);
+  const [tokenSaveError, setTokenSaveError] = useState('');
   const fileInputRef = useRef(null);
 
   // Fetch user profile data
@@ -123,6 +127,52 @@ const Profile = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`;
+  };
+
+  // Request notification permission and get FCM token
+  const requestNotificationPermission = async () => {
+    if (Notification.permission === 'granted') {
+      setNotificationPermission('granted');
+      await getAndSaveToken();
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      
+      if (permission === 'granted') {
+        await getAndSaveToken();
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
+  };
+
+  // Get FCM token and save it to the server
+  const getAndSaveToken = async () => {
+    try {
+      setSavingToken(true);
+      setTokenSaveError('');
+      
+      const token = await requestForToken();
+      if (token) {
+        // Send token to server
+        const response = await axios.post('/api/auth/save-fcm-token', { fcmToken: token });
+        if (response.data.success) {
+          console.log('FCM token saved successfully');
+        } else {
+          setTokenSaveError(response.data.message || 'Failed to save notification token');
+        }
+      } else {
+        setTokenSaveError('Failed to get notification token');
+      }
+    } catch (error) {
+      console.error('Error saving FCM token:', error);
+      setTokenSaveError(error.response?.data?.message || 'Failed to save notification token');
+    } finally {
+      setSavingToken(false);
+    }
   };
 
   // Handle image change
@@ -357,6 +407,73 @@ const Profile = () => {
                       <p className="text-lg font-semibold text-gray-800">
                         {user.email || 'Not provided'}
                       </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Notification Settings Card */}
+            <div className="card bg-white shadow-md">
+              <div className="card-body">
+                <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
+                  <i className="fas fa-bell text-blue-500 mr-2"></i>
+                  Notification Settings
+                </h2>
+                
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Push Notifications</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Enable push notifications to receive updates about your leave requests and other important events.
+                    </p>
+                    
+                    {tokenSaveError && (
+                      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-4">
+                        {tokenSaveError}
+                      </div>
+                    )}
+                    
+                    <div className="mt-4">
+                      {notificationPermission === 'granted' ? (
+                        <div className="flex items-center">
+                          <div className="badge badge-success gap-2 mr-4">
+                            <i className="fas fa-check"></i> Enabled
+                          </div>
+                          <button 
+                            className="btn btn-sm btn-outline"
+                            onClick={getAndSaveToken}
+                            disabled={savingToken}
+                          >
+                            {savingToken ? (
+                              <>
+                                <span className="loading loading-spinner loading-sm"></span>
+                                Updating...
+                              </>
+                            ) : (
+                              'Refresh Token'
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          className={`btn btn-primary ${savingToken ? 'opacity-90' : ''}`}
+                          onClick={requestNotificationPermission}
+                          disabled={savingToken}
+                        >
+                          {savingToken ? (
+                            <>
+                              <span className="loading loading-spinner loading-sm mr-2"></span>
+                              Enabling...
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-bell mr-2"></i>
+                              Enable Notifications
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
