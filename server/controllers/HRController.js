@@ -128,7 +128,6 @@ const getHRLeaveRequests = async (req, res) => {
     // Apply status filter
     if (status !== 'all') {
       const statusMap = {
-        'pending': 'pending',
         'recommended': 'recommended',
         'hr_approved': 'hr_approved',
         'approved': 'approved',
@@ -140,8 +139,8 @@ const getHRLeaveRequests = async (req, res) => {
         conditions.status = statusMap[status];
       }
     } else {
-      // By default show recommended and HR approved like dashboard
-      conditions.status = { $in: ['recommended', 'hr_approved', 'cancelled'] };
+      // Exclude 'pending' status when 'all' is selected
+      conditions.status = { $ne: 'pending' };
     }
 
     // Apply department filter

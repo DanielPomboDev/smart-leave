@@ -114,7 +114,7 @@ const HRLeaveRequests = () => {
       case 'pending':
         return 'Pending';
       case 'disapproved':
-        return 'Rejected';
+        return 'Disapproved';
       case 'recommended':
         return 'Recommended';
       case 'hr_approved':
@@ -180,11 +180,10 @@ const HRLeaveRequests = () => {
                 onChange={(e) => handleFilterChange('status', e.target.value)}
               >
                 <option value="all">All Status</option>
-                <option value="pending">Pending</option>
                 <option value="recommended">Recommended</option>
                 <option value="hr_approved">HR Approved</option>
                 <option value="approved">Approved</option>
-                <option value="disapproved">Rejected</option>
+                <option value="disapproved">Disapproved</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
