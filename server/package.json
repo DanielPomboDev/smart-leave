@@ -24,7 +24,8 @@
     "mongoose": "^8.18.1",
     "mongoose-paginate-v2": "^1.9.1",
     "multer": "^2.0.2",
-    "multer-storage-cloudinary": "^4.0.0"
+    "multer-storage-cloudinary": "^4.0.0",
+    "nodemailer": "^7.0.6"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

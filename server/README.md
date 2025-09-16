@@ -9,6 +9,7 @@ This is the backend server for the SmartLeave application, built with Node.js, E
 - Node.js (v14 or higher)
 - MongoDB (v4.4 or higher)
 - Firebase Account (for push notifications)
+- Email Service Account (for email notifications)
 
 ### Installation
 
@@ -30,6 +31,13 @@ CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 FIREBASE_VAPID_PUBLIC_KEY=your_firebase_vapid_public_key
 FIREBASE_VAPID_PRIVATE_KEY=your_firebase_vapid_private_key
+# Email Configuration
+EMAIL_HOST=your_email_host
+EMAIL_PORT=your_email_port
+EMAIL_USER=your_email_user
+EMAIL_PASS=your_email_password
+EMAIL_FROM=your_email_from_address
+FRONTEND_URL=your_frontend_url
 ```
 
 ### Firebase Configuration for Push Notifications
@@ -44,6 +52,31 @@ This server uses Firebase Cloud Messaging (FCM) for push notifications. To set u
 6. Click the three dots menu (...) next to your key pair and select "Manage key pair"
 7. Copy both the "Public key" and "Private key" values
 8. Add these values to your `.env` file as `FIREBASE_VAPID_PUBLIC_KEY` and `FIREBASE_VAPID_PRIVATE_KEY`
+
+### Email Configuration
+
+This server uses email notifications as a fallback or alternative to push notifications. You can use any SMTP service:
+
+#### Brevo (Sendinblue) - Recommended
+```
+EMAIL_HOST=smtp-relay.brevo.com
+EMAIL_PORT=587
+EMAIL_USER=your_brevo_email
+EMAIL_PASS=your_brevo_smtp_key
+EMAIL_FROM=your_verified_sender_email
+```
+
+#### Gmail
+```
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your_gmail_address@gmail.com
+EMAIL_PASS=your_gmail_app_password
+EMAIL_FROM=your_gmail_address@gmail.com
+```
+
+#### Other SMTP services
+Replace the host, port, user, and password with your service's values.
 
 ### Running the Server
 

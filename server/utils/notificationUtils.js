@@ -1,5 +1,6 @@
 const { createNotification } = require('../controllers/NotificationController');
 const { sendPushNotification } = require('./pushNotifications');
+const { sendNewLeaveRequestEmail, sendLeaveStatusUpdateEmail } = require('./emailService');
 const User = require('../models/User');
 
 // Notification types
@@ -25,6 +26,7 @@ const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) 
     message: `New leave request from ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     status: 'new',
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
+    requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
     start_date: leaveRequest.start_date,
     end_date: leaveRequest.end_date,
@@ -33,6 +35,16 @@ const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) 
 
   // Use departmentAdminId which should be the MongoDB _id
   const notification = await createNotification('department_admin', departmentAdminId.toString(), NOTIFICATION_TYPES.NEW_LEAVE_REQUEST, data);
+  
+  // Send email notification if user has email
+  try {
+    const user = await User.findById(departmentAdminId);
+    if (user && user.email) {
+      await sendNewLeaveRequestEmail(user, data);
+    }
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+  }
   
   // Send push notification if user has FCM token
   try {
@@ -67,6 +79,7 @@ const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
     message: `Leave request from ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} recommended for approval`,
     status: 'recommended',
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
+    requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
     start_date: leaveRequest.start_date,
     end_date: leaveRequest.end_date,
@@ -74,6 +87,16 @@ const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
   };
 
   const notification = await createNotification('hr', hrId.toString(), NOTIFICATION_TYPES.LEAVE_RECOMMENDED, data);
+  
+  // Send email notification if user has email
+  try {
+    const user = await User.findById(hrId);
+    if (user && user.email) {
+      await sendNewLeaveRequestEmail(user, data);
+    }
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+  }
   
   // Send push notification if user has FCM token
   try {
@@ -108,6 +131,7 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
     message: `Leave request from ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} approved by HR`,
     status: 'hr_approved',
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
+    requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
     start_date: leaveRequest.start_date,
     end_date: leaveRequest.end_date,
@@ -115,6 +139,16 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
   };
 
   const notification = await createNotification('mayor', mayorId.toString(), NOTIFICATION_TYPES.LEAVE_HR_APPROVED, data);
+  
+  // Send email notification if user has email
+  try {
+    const user = await User.findById(mayorId);
+    if (user && user.email) {
+      await sendNewLeaveRequestEmail(user, data);
+    }
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+  }
   
   // Send push notification if user has FCM token
   try {
@@ -201,6 +235,16 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
   if (userId && userType) {
     const notification = await createNotification(userType, userId.toString(), notificationType, data);
     
+    // Send email notification if user has email
+    try {
+      const user = await User.findById(userId);
+      if (user && user.email) {
+        await sendLeaveStatusUpdateEmail(user, data);
+      }
+    } catch (error) {
+      console.error('Error sending email notification:', error);
+    }
+    
     // Send push notification if user has FCM token
     try {
       const user = await User.findById(userId);
@@ -226,6 +270,17 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
   // The leaveRequest.user_id._id should be the MongoDB ObjectId
   const employeeId = leaveRequest.user_id._id ? leaveRequest.user_id._id.toString() : leaveRequest.user_id.user_id;
   const notification = await createNotification('employee', employeeId, notificationType, data);
+  
+  // Send email notification to employee
+  try {
+    // Get the employee user object
+    const employeeUser = await User.findOne({ user_id: employeeId });
+    if (employeeUser && employeeUser.email) {
+      await sendLeaveStatusUpdateEmail(employeeUser, data);
+    }
+  } catch (error) {
+    console.error('Error sending email notification to employee:', error);
+  }
   
   // Send push notification to employee if they have FCM token
   try {
