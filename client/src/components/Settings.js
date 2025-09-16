@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { requestForToken } from '../firebase';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -16,14 +15,6 @@ const Settings = () => {
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
-  const [savingToken, setSavingToken] = useState(false);
-  const [tokenSaveError, setTokenSaveError] = useState('');
-
-  useEffect(() => {
-    // Check current notification permission status
-    setNotificationPermission(Notification.permission);
-  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -188,58 +179,6 @@ const Settings = () => {
 
   const handleCancel = () => {
     navigate(-1); // Go back to previous page
-  };
-
-  // Request notification permission and get FCM token
-  const requestNotificationPermission = async () => {
-    if (Notification.permission === 'granted') {
-      setNotificationPermission('granted');
-      await getAndSaveToken();
-      return;
-    }
-
-    try {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
-      
-      if (permission === 'granted') {
-        await getAndSaveToken();
-      }
-    } catch (error) {
-      console.error('Error requesting notification permission:', error);
-    }
-  };
-
-  // Get FCM token and save it to the server
-  const getAndSaveToken = async () => {
-    try {
-      setSavingToken(true);
-      setTokenSaveError('');
-      
-      const token = await requestForToken();
-      console.log('FCM Token retrieved:', token);
-      
-      if (token) {
-        // Send token to server
-        console.log('Sending FCM token to server...');
-        const response = await axios.post('/api/auth/save-fcm-token', { fcmToken: token });
-        console.log('Server response:', response.data);
-        
-        if (response.data.success) {
-          console.log('FCM token saved successfully');
-        } else {
-          setTokenSaveError(response.data.message || 'Failed to save notification token');
-        }
-      } else {
-        setTokenSaveError('Failed to get notification token');
-      }
-    } catch (error) {
-      console.error('Error saving FCM token:', error);
-      console.error('Error response:', error.response?.data);
-      setTokenSaveError(error.response?.data?.message || 'Failed to save notification token');
-    } finally {
-      setSavingToken(false);
-    }
   };
 
   const { strength, feedback } = checkPasswordStrength(formData.password);
@@ -407,7 +346,8 @@ const Settings = () => {
               </div>
             </div>
 
-            {/* Notification Settings Card */}
+            {/* Notification Settings Card - Temporarily commented out */}
+            {/* 
             <div className="card bg-white shadow-md">
               <div className="card-body">
                 <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
@@ -486,6 +426,7 @@ const Settings = () => {
                 </div>
               </div>
             </div>
+            */}
           </div>
         </div>
       </main>
