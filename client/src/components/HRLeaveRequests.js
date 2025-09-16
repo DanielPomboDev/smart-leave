@@ -275,7 +275,7 @@ const HRLeaveRequests = () => {
                         {leaveRequest.number_of_days}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(leaveRequest.status)}`}>
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusClass(leaveRequest.status)}`}>
                           {getStatusText(leaveRequest.status)}
                         </span>
                       </td>
