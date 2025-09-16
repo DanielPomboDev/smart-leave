@@ -218,13 +218,15 @@ exports.show = async (req, res) => {
     const vacationSummary = {
       earned: allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0),
       used: allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0),
-      balance: allLeaveRecords.length > 0 ? allLeaveRecords[0].vacation_balance : 0
+      balance: allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0) - 
+               allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0)
     };
     
     const sickSummary = {
       earned: allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0),
       used: allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0),
-      balance: allLeaveRecords.length > 0 ? allLeaveRecords[0].sick_balance : 0
+      balance: allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0) - 
+               allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0)
     };
     
     res.json({
