@@ -214,14 +214,28 @@ exports.show = async (req, res) => {
       return res.status(404).json({ message: 'Employee not found' });
     }
     
-    // Get leave records for this employee, ordered by year/month descending
+    // Get leave records for this employee, ordered by year/month ascending
     const allLeaveRecords = await LeaveRecord.find({ user_id: employee.user_id })
-      .sort({ year: -1, month: -1 })
+      .sort({ year: 1, month: 1 })
       .exec();
     
-    // Group by year
+    let vacationBalance = 0;
+    let sickBalance = 0;
+
+    const processedRecords = allLeaveRecords.map(record => {
+      vacationBalance += record.vacation_earned - record.vacation_used;
+      sickBalance += record.sick_earned - record.sick_used;
+      
+      return {
+        ...record.toObject(),
+        vacation_balance: vacationBalance,
+        sick_balance: sickBalance
+      };
+    });
+
+    // Group by year, sorted descending
     const leaveRecords = {};
-    allLeaveRecords.forEach(record => {
+    processedRecords.reverse().forEach(record => {
       if (!leaveRecords[record.year]) {
         leaveRecords[record.year] = [];
       }
@@ -232,15 +246,13 @@ exports.show = async (req, res) => {
     const vacationSummary = {
       earned: allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0),
       used: allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0),
-      balance: allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0) - 
-               allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0)
+      balance: vacationBalance
     };
     
     const sickSummary = {
       earned: allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0),
       used: allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0),
-      balance: allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0) - 
-               allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0)
+      balance: sickBalance
     };
     
     res.json({
