@@ -174,12 +174,18 @@ class MayorController {
         .sort({ createdAt: -1 })
         .limit(5);
 
-      // Map leave requests to include id field
+      // Map leave requests to include id field and employee info
       const mappedLeaveRequests = leaveRequests.map(request => {
         const requestObj = request.toObject();
         return {
           ...requestObj,
-          id: requestObj._id.toString()
+          id: requestObj._id.toString(),
+          employeeName: requestObj.user_id ? `${requestObj.user_id.first_name} ${requestObj.user_id.last_name}` : 'Unknown',
+          employeePosition: requestObj.user_id ? requestObj.user_id.position : 'Position not specified',
+          leaveType: requestObj.leave_type,
+          startDate: requestObj.start_date,
+          endDate: requestObj.end_date,
+          numberOfDays: requestObj.number_of_days
         };
       });
 

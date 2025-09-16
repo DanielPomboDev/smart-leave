@@ -14,6 +14,15 @@ const MayorLeaveRequestDetails = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  // Debug: Log the ID parameter
+  useEffect(() => {
+    console.log('Leave request ID from URL params:', id);
+    if (!id) {
+      console.error('No ID provided in URL params');
+      setError('Invalid leave request ID');
+    }
+  }, [id]);
+
   useEffect(() => {
     const fetchLeaveRequest = async () => {
       try {
@@ -38,6 +47,17 @@ const MayorLeaveRequestDetails = () => {
   const submitDecision = async () => {
     setShowConfirmModal(false);
     setProcessing(true);
+    
+    // Debug: Log the ID and decision before processing
+    console.log('Processing leave request with ID:', id, 'and decision:', decision);
+    
+    // Check if ID is valid before processing
+    if (!id) {
+      console.error('Cannot process leave request: ID is missing or undefined');
+      setError('Invalid leave request ID. Please try again.');
+      setProcessing(false);
+      return;
+    }
     
     try {
       await processLeaveRequest(id, decision);

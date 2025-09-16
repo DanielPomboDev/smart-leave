@@ -93,6 +93,10 @@ export const getLeaveRequestDetails = async (id) => {
 export const processLeaveRequest = async (id, decision) => {
   try {
     console.log('Processing leave request:', id, 'with decision:', decision);
+    // Validate ID before making the request
+    if (!id) {
+      throw new Error('Invalid leave request ID');
+    }
     const response = await apiClient.post(`${MAYOR_API_BASE_URL}/leave-requests/${id}/process`, {
       decision
     });
