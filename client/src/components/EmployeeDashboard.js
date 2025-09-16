@@ -200,6 +200,24 @@ const EmployeeDashboard = () => {
         [name]: ''
       });
     }
+    
+    // Special handling for locationType to also clear locationSpecify error
+    if (name === 'locationType' && quickLeaveErrors.locationSpecify) {
+      setQuickLeaveErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.locationSpecify;
+        return newErrors;
+      });
+    }
+    
+    // Special handling for locationSpecify to also clear locationType error
+    if (name === 'locationSpecify' && quickLeaveErrors.locationType) {
+      setQuickLeaveErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.locationType;
+        return newErrors;
+      });
+    }
   };
 
   // Calculate number of days between start and end dates
@@ -271,12 +289,17 @@ const EmployeeDashboard = () => {
     } else if (step === 3) {
       if (!quickLeaveData.locationType) {
         errors.locationType = 'Please select where the leave will be spent';
-      }
-      
-      if (quickLeaveData.locationType === 'abroad' && !quickLeaveData.locationSpecify.trim()) {
-        errors.locationSpecify = 'Please specify the country';
-      } else if (quickLeaveData.locationType === 'outpatient' && !quickLeaveData.locationSpecify.trim()) {
-        errors.locationSpecify = 'Please specify the location';
+      } else {
+        // Validate locationSpecify based on locationType
+        if (quickLeaveData.locationType === 'abroad') {
+          if (!quickLeaveData.locationSpecify || !quickLeaveData.locationSpecify.trim()) {
+            errors.locationSpecify = 'Please specify the country';
+          }
+        } else if (quickLeaveData.locationType === 'outpatient') {
+          if (!quickLeaveData.locationSpecify || !quickLeaveData.locationSpecify.trim()) {
+            errors.locationSpecify = 'Please specify the location';
+          }
+        }
       }
     }
 
