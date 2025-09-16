@@ -220,33 +220,33 @@ const HRLeaveRecord = () => {
       <div className="card bg-white shadow-lg mb-6">
         <div className="card-body p-6">
           {/* Employee Information Header */}
-          <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-200">
-            <div className="flex items-center">
-              <div className="avatar mr-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8 pb-6 border-b border-gray-200">
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="avatar">
                 <div className="mask mask-squircle w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600">
                   <span className="text-white text-2xl font-bold flex items-center justify-center w-full h-full">
                     {employee.first_name?.charAt(0)?.toUpperCase()}{employee.last_name?.charAt(0)?.toUpperCase() || 'N/A'}
                   </span>
                 </div>
               </div>
-              <div>
-                <h2 className="text-3xl font-bold text-gray-800 mb-2">
+              <div className="text-center sm:text-left">
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">
                   {employee.first_name} {employee.last_name}
                 </h2>
-                <p className="text-lg text-gray-600 mb-1">
+                <p className="text-base sm:text-lg text-gray-600 mb-1">
                   {employee.department_id?.name || 'No Department'} • {employee.position || 'No Position'}
                 </p>
                 <p className="text-sm text-gray-500">Employee ID: {employee.user_id}</p>
               </div>
             </div>
-            <button onClick={openAddUndertimeModal} className="btn btn-primary">
+            <button onClick={openAddUndertimeModal} className="btn btn-primary btn-sm sm:btn-md whitespace-nowrap">
               <i className="fas fa-plus mr-2"></i>
               Add Undertime
             </button>
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 gap-6 mb-8">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 shadow-sm">
               <h3 className="font-semibold text-blue-800 text-lg mb-4">Vacation Leave Summary</h3>
               <div className="space-y-3">
@@ -355,7 +355,7 @@ const HRLeaveRecord = () => {
                   <div className="p-6 space-y-4">
                     {/* Leave Entries */}
                     {record.vacation_entries && record.vacation_entries.map((vacation, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                             <i className="fas fa-umbrella-beach text-gray-600"></i>
@@ -372,14 +372,14 @@ const HRLeaveRecord = () => {
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right sm:text-left">
                           <p className="text-sm text-gray-500">For: {vacation.start_date} - {vacation.end_date}</p>
                         </div>
                       </div>
                     ))}
 
                     {record.sick_entries && record.sick_entries.map((sick, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                             <i className="fas fa-thermometer-half text-gray-600"></i>
@@ -396,14 +396,14 @@ const HRLeaveRecord = () => {
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right sm:text-left">
                           <p className="text-sm text-gray-500">For: {sick.start_date} - {sick.end_date}</p>
                         </div>
                       </div>
                     ))}
 
                     {record.undertime_hours > 0 && (
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                             <i className="fas fa-clock text-gray-600"></i>
@@ -413,14 +413,14 @@ const HRLeaveRecord = () => {
                             <p className="text-sm text-gray-600">{record.formatted_undertime} days</p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right sm:text-left">
                           <p className="text-sm text-gray-500">For: {record.month_year} 1 - 30, {record.year}</p>
                         </div>
                       </div>
                     )}
 
                     {/* Monthly Balance */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <h5 className="font-medium text-gray-800 mb-2">Vacation Leave</h5>
                         <div className="space-y-1 text-sm">
