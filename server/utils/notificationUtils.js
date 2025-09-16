@@ -110,7 +110,7 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
     leave_type: leaveRequest.leave_type,
     start_date: leaveRequest.start_date,
     end_date: leaveRequest.end_date,
-    number_of_.days
+    number_of_days: leaveRequest.number_of_days
   };
 
   const notification = await createNotification('mayor', mayorId.toString(), NOTIFICATION_TYPES.LEAVE_HR_APPROVED, data);
