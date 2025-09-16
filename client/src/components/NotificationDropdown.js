@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../services/notificationService';
 
-const NotificationDropdown = ({ userId, userType }) => {
+const NotificationDropdown = ({ userId, userType, notificationCount, fetchNotificationCount }) => {
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
@@ -24,19 +23,24 @@ const NotificationDropdown = ({ userId, userType }) => {
     };
   }, []);
 
-  // Fetch notifications
+  // Fetch notifications when dropdown is opened
   useEffect(() => {
     if (isOpen) {
       fetchNotifications();
     }
   }, [isOpen, userId, userType]);
 
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [notificationCount, isOpen]);
+
   const fetchNotifications = async () => {
     try {
       setLoading(true);
       const data = await getNotifications({ limit: 5 });
       setNotifications(data.notifications);
-      setUnreadCount(data.notifications.filter(n => !n.readAt).length);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
@@ -48,13 +52,7 @@ const NotificationDropdown = ({ userId, userType }) => {
     if (!notification.readAt) {
       try {
         await markNotificationAsRead(notification._id);
-        // Update the notification as read in the state
-        setNotifications(prev => 
-          prev.map(n => 
-            n._id === notification._id ? { ...n, readAt: new Date() } : n
-          )
-        );
-        setUnreadCount(prev => prev - 1);
+        fetchNotificationCount(); // Refetch notifications and update count
       } catch (error) {
         console.error('Error marking notification as read:', error);
       }
@@ -65,10 +63,7 @@ const NotificationDropdown = ({ userId, userType }) => {
   const handleMarkAllAsRead = async () => {
     try {
       await markAllNotificationsAsRead();
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, readAt: new Date() }))
-      );
-      setUnreadCount(0);
+      fetchNotificationCount(); // Refetch notifications and update count
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
@@ -97,9 +92,9 @@ const NotificationDropdown = ({ userId, userType }) => {
         type="button"
       >
         <i className="fas fa-bell text-xl"></i>
-        {unreadCount > 0 && (
+        {notificationCount > 0 && (
           <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-            {unreadCount}
+            {notificationCount}
           </span>
         )}
       </button>
@@ -112,7 +107,7 @@ const NotificationDropdown = ({ userId, userType }) => {
           <div className="p-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-800">Notifications</h3>
-              {unreadCount > 0 && (
+              {notificationCount > 0 && (
                 <button 
                   className="text-sm text-blue-600 hover:text-blue-800"
                   onClick={handleMarkAllAsRead}
@@ -164,11 +159,6 @@ const NotificationDropdown = ({ userId, userType }) => {
             )}
           </div>
 
-          <div className="p-2 border-t border-gray-200 text-center">
-            <button className="text-sm text-blue-600 hover:text-blue-800">
-              View all notifications
-            </button>
-          </div>
         </div>
       )}
     </div>

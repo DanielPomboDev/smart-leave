@@ -235,10 +235,140 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
   return notification;
 };
 
+// Send notification to department admin about leave request status
+const sendLeaveStatusUpdateToDepartmentAdmin = async (leaveRequest, notificationType, departmentAdminId) => {
+  console.log('Sending leave status update notification to department admin:', { notificationType, departmentAdminId });
+  
+  // Safety check for user data
+  if (!leaveRequest || !leaveRequest.user_id || !leaveRequest.user_id.first_name) {
+    console.error('Invalid leave request data for notification:', leaveRequest);
+    return;
+  }
+  
+  let message = '';
+  let status = '';
+  let title = '';
+
+  switch (notificationType) {
+    case NOTIFICATION_TYPES.LEAVE_HR_APPROVED:
+      message = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been approved by HR and is now waiting for Mayor's approval`;
+      status = 'hr_approved';
+      title = 'Leave Request HR Approved';
+      break;
+    case NOTIFICATION_TYPES.LEAVE_HR_DISAPPROVED:
+      message = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been disapproved by HR`;
+      status = 'hr_disapproved';
+      title = 'Leave Request HR Disapproved';
+      break;
+    case NOTIFICATION_TYPES.LEAVE_MAYOR_APPROVED:
+      message = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been final approved by the Mayor`;
+      status = 'mayor_approved';
+      title = 'Leave Request Mayor Approved';
+      break;
+    case NOTIFICATION_TYPES.LEAVE_MAYOR_DISAPPROVED:
+      message = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been final disapproved by the Mayor`;
+      status = 'mayor_disapproved';
+      title = 'Leave Request Mayor Disapproved';
+      break;
+    default:
+      message = `Leave request status of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been updated`;
+      status = 'updated';
+      title = 'Leave Request Status Updated';
+  }
+
+  const data = {
+    message,
+    status,
+    employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
+    leave_type: leaveRequest.leave_type,
+    start_date: leaveRequest.start_date,
+    end_date: leaveRequest.end_date,
+    number_of_days: leaveRequest.number_of_days
+  };
+
+  const notification = await createNotification('department_admin', departmentAdminId.toString(), notificationType, data);
+  
+  // Send email notification if user has email
+  try {
+    const user = await User.findById(departmentAdminId);
+    if (user && user.email) {
+      console.log('Sending email notification to department admin:', user.email);
+      await sendLeaveStatusUpdateEmail(user, data);
+    } else {
+      console.log('Department admin does not have email address or user not found');
+    }
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+  }
+  
+  return notification;
+};
+
+// Send notification to HR about leave request status
+const sendLeaveStatusUpdateToHR = async (leaveRequest, notificationType, hrId) => {
+  console.log('Sending leave status update notification to HR:', { notificationType, hrId });
+  
+  // Safety check for user data
+  if (!leaveRequest || !leaveRequest.user_id || !leaveRequest.user_id.first_name) {
+    console.error('Invalid leave request data for notification:', leaveRequest);
+    return;
+  }
+  
+  let message = '';
+  let status = '';
+  let title = '';
+
+  switch (notificationType) {
+    case NOTIFICATION_TYPES.LEAVE_MAYOR_APPROVED:
+      message = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been final approved by the Mayor`;
+      status = 'mayor_approved';
+      title = 'Leave Request Mayor Approved';
+      break;
+    case NOTIFICATION_TYPES.LEAVE_MAYOR_DISAPPROVED:
+      message = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been final disapproved by the Mayor`;
+      status = 'mayor_disapproved';
+      title = 'Leave Request Mayor Disapproved';
+      break;
+    default:
+      message = `Leave request status of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been updated`;
+      status = 'updated';
+      title = 'Leave Request Status Updated';
+  }
+
+  const data = {
+    message,
+    status,
+    employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
+    leave_type: leaveRequest.leave_type,
+    start_date: leaveRequest.start_date,
+    end_date: leaveRequest.end_date,
+    number_of_days: leaveRequest.number_of_days
+  };
+
+  const notification = await createNotification('hr', hrId.toString(), notificationType, data);
+  
+  // Send email notification if user has email
+  try {
+    const user = await User.findById(hrId);
+    if (user && user.email) {
+      console.log('Sending email notification to HR:', user.email);
+      await sendLeaveStatusUpdateEmail(user, data);
+    } else {
+      console.log('HR user does not have email address or user not found');
+    }
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+  }
+  
+  return notification;
+};
+
 module.exports = {
   NOTIFICATION_TYPES,
   sendNewLeaveRequestNotification,
   sendRecommendedLeaveRequestNotification,
   sendHrApprovedLeaveRequestNotification,
-  sendLeaveStatusUpdateToEmployee
+  sendLeaveStatusUpdateToEmployee,
+  sendLeaveStatusUpdateToDepartmentAdmin,
+  sendLeaveStatusUpdateToHR
 };

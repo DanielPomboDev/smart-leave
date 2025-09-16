@@ -4,7 +4,7 @@ const Department = require('../models/Department');
 const LeaveRecommendation = require('../models/LeaveRecommendation');
 const LeaveApproval = require('../models/LeaveApproval');
 const LeaveRecord = require('../models/LeaveRecord');
-const { sendHrApprovedLeaveRequestNotification, sendLeaveStatusUpdateToEmployee } = require('../utils/notificationUtils');
+const { sendHrApprovedLeaveRequestNotification, sendLeaveStatusUpdateToEmployee, sendLeaveStatusUpdateToDepartmentAdmin } = require('../utils/notificationUtils');
 const { NOTIFICATION_TYPES } = require('../utils/notificationUtils');
 
 // @desc    Get HR dashboard statistics
@@ -455,6 +455,20 @@ const processHRLeaveApproval = async (req, res) => {
           NOTIFICATION_TYPES.LEAVE_HR_DISAPPROVED,
           disapproved_due_to
         );
+        
+        // Send notification to department admin
+        const departmentAdmin = await User.findOne({ 
+          user_type: 'department_admin', 
+          department_id: populatedLeaveRequest.user_id.department_id 
+        });
+        
+        if (departmentAdmin) {
+          await sendLeaveStatusUpdateToDepartmentAdmin(
+            populatedLeaveRequest, 
+            NOTIFICATION_TYPES.LEAVE_HR_DISAPPROVED,
+            departmentAdmin._id
+          );
+        }
       }
     } catch (notificationError) {
       console.error('Error sending notification:', notificationError);

@@ -29,6 +29,7 @@ const getUserNotifications = async (req, res) => {
     const total = await Notification.countDocuments(query);
     
     res.json({
+      success: true,
       notifications,
       total,
       limit: parseInt(limit),

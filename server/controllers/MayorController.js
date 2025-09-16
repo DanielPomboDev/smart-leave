@@ -3,7 +3,7 @@ const User = require('../models/User');
 const LeaveRecommendation = require('../models/LeaveRecommendation');
 const LeaveApproval = require('../models/LeaveApproval');
 const LeaveRecord = require('../models/LeaveRecord');
-const { sendLeaveStatusUpdateToEmployee } = require('../utils/notificationUtils');
+const { sendLeaveStatusUpdateToEmployee, sendLeaveStatusUpdateToDepartmentAdmin, sendLeaveStatusUpdateToHR } = require('../utils/notificationUtils');
 const { NOTIFICATION_TYPES } = require('../utils/notificationUtils');
 const { hasSufficientLeaveCredits } = require('./LeaveRecordController');
 
@@ -410,64 +410,57 @@ class MayorController {
           // Send notification to employee
           await sendLeaveStatusUpdateToEmployee(populatedLeaveRequest, NOTIFICATION_TYPES.LEAVE_MAYOR_APPROVED);
           
-          // Send notification to department admin and HR
+          // Send notification to department admin
           const departmentAdmin = await User.findOne({ 
             user_type: 'department_admin', 
             department_id: populatedLeaveRequest.user_id.department_id 
           });
           
           if (departmentAdmin) {
-            await sendLeaveStatusUpdateToEmployee(
+            await sendLeaveStatusUpdateToDepartmentAdmin(
               populatedLeaveRequest, 
               NOTIFICATION_TYPES.LEAVE_MAYOR_APPROVED,
-              '',
-              departmentAdmin._id,
-              'department_admin'
+              departmentAdmin._id
             );
           }
           
+          // Send notification to HR
           const hrUsers = await User.find({ user_type: 'hr' });
           for (const hrUser of hrUsers) {
-            await sendLeaveStatusUpdateToEmployee(
+            await sendLeaveStatusUpdateToHR(
               populatedLeaveRequest, 
               NOTIFICATION_TYPES.LEAVE_MAYOR_APPROVED,
-              '',
-              hrUser._id,
-              'hr'
+              hrUser._id
             );
           }
         } else {
           // Send notification to employee about Mayor disapproval
           await sendLeaveStatusUpdateToEmployee(
             populatedLeaveRequest, 
-            NOTIFICATION_TYPES.LEAVE_MAYOR_DISAPPROVED,
-            ''
+            NOTIFICATION_TYPES.LEAVE_MAYOR_DISAPPROVED
           );
           
-          // Send notification to department admin and HR
+          // Send notification to department admin
           const departmentAdmin = await User.findOne({ 
             user_type: 'department_admin', 
             department_id: populatedLeaveRequest.user_id.department_id 
           });
           
           if (departmentAdmin) {
-            await sendLeaveStatusUpdateToEmployee(
+            await sendLeaveStatusUpdateToDepartmentAdmin(
               populatedLeaveRequest, 
               NOTIFICATION_TYPES.LEAVE_MAYOR_DISAPPROVED,
-              '',
-              departmentAdmin._id,
-              'department_admin'
+              departmentAdmin._id
             );
           }
           
+          // Send notification to HR
           const hrUsers = await User.find({ user_type: 'hr' });
           for (const hrUser of hrUsers) {
-            await sendLeaveStatusUpdateToEmployee(
+            await sendLeaveStatusUpdateToHR(
               populatedLeaveRequest, 
               NOTIFICATION_TYPES.LEAVE_MAYOR_DISAPPROVED,
-              '',
-              hrUser._id,
-              'hr'
+              hrUser._id
             );
           }
         }

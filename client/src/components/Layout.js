@@ -2,18 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from '../services/api';
 import NotificationDropdown from './NotificationDropdown';
+import { getNotifications } from '../services/notificationService';
 
 const Layout = ({ children, title = "Dashboard" }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [user, setUser] = useState({
     first_name: "John",
     last_name: "Doe",
     user_type: "employee",
     profile_image: null
   });
+
+  const fetchNotificationCount = async () => {
+    try {
+      const data = await getNotifications({ read: false });
+      setNotificationCount(data.total);
+    } catch (error) {
+      console.error('Error fetching notification count:', error);
+    }
+  };
 
   // Fetch user profile on component mount and when location changes
   useEffect(() => {
@@ -33,6 +44,8 @@ const Layout = ({ children, title = "Dashboard" }) => {
 
         if (response.data.success) {
           setUser(response.data.user);
+          console.log('User profile:', response.data.user); // Debug log
+          fetchNotificationCount(); // Fetch notification count after user is loaded
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);
@@ -43,6 +56,11 @@ const Layout = ({ children, title = "Dashboard" }) => {
     };
 
     fetchUserProfile();
+    
+    // Set up periodic refresh of notification count
+    const interval = setInterval(() => {
+      fetchNotificationCount();
+    }, 30000); // Refresh every 30 seconds
     
     // Listen for profile updates
     const handleProfileUpdate = (event) => {
@@ -58,6 +76,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
 
     return () => {
       window.removeEventListener('profileUpdated', handleProfileUpdate);
+      clearInterval(interval); // Clean up interval
     };
   }, [navigate, location]);
 
@@ -199,7 +218,12 @@ const Layout = ({ children, title = "Dashboard" }) => {
             {/* Right side content */}
             <div className="flex items-center space-x-3">
               <div className="relative">
-                <NotificationDropdown userId={user._id} userType={user.user_type} />
+                <NotificationDropdown 
+                  userId={user._id || user.user_id} 
+                  userType={user.user_type} 
+                  notificationCount={notificationCount}
+                  fetchNotificationCount={fetchNotificationCount}
+                />
               </div>
 
               {/* User info and avatar */}
