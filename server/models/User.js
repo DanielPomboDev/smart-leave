@@ -47,9 +47,6 @@ const userSchema = new mongoose.Schema({
   },
   profile_image: {
     type: String
-  },
-  fcm_token: {
-    type: String
   }
 }, {
   timestamps: true
