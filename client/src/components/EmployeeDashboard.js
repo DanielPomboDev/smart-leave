@@ -972,7 +972,11 @@ const EmployeeDashboard = () => {
                 </button>
                 <button 
                   className="btn btn-sm btn-primary inline-flex items-center"
-                  onClick={() => setShowConfirmModal(true)}
+                  onClick={() => {
+                    if (validateQuickStep(3)) {
+                      setShowConfirmModal(true);
+                    }
+                  }}
                   disabled={loading}
                 >
                   {loading ? (
