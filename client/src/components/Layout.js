@@ -191,8 +191,40 @@ const Layout = ({ children, title = "Dashboard" }) => {
             >
               <i className="fas fa-bars text-xl"></i>
             </button>
-            <h1 className="text-lg font-semibold text-gray-800">{title}</h1>
-            <div className="w-8"></div> {/* Spacer for alignment */}
+            <h1 className="text-lg font-semibold text-gray-800 truncate max-w-[40%]">{title}</h1>
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <NotificationDropdown userId={user._id} userType={user.user_type} />
+              </div>
+              <div className="flex flex-col items-end min-w-[60px]">
+                <span className="text-xs font-bold text-gray-600 truncate max-w-[80px]">
+                  {user.first_name} {user.last_name}
+                </span>
+                <span className="text-[0.6rem] font-medium text-gray-500 truncate max-w-[80px]">
+                  {user.user_type === 'department_admin' ? 'Dept Admin' : 
+                   user.user_type === 'hr' ? 'HR Officer' : 
+                   user.user_type === 'mayor' ? 'Mayor' : 
+                   'Employee'}
+                </span>
+              </div>
+              <div className="avatar placeholder">
+                {user?.profile_image ? (
+                  <div className="w-8 rounded-full">
+                    <img 
+                      src={user.profile_image} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-neutral text-neutral-content w-8 rounded-full flex items-center justify-center">
+                    <span className="text-sm">
+                      {user.first_name.charAt(0)}{user.last_name.charAt(0)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -201,7 +233,9 @@ const Layout = ({ children, title = "Dashboard" }) => {
             <h1 className="text-xl md:text-2xl font-semibold text-gray-800 hidden lg:block">{title}</h1>
 
             <div className="flex items-center space-x-4">
-              <NotificationDropdown userId={user._id} userType={user.user_type} />
+              <div className="relative">
+                <NotificationDropdown userId={user._id} userType={user.user_type} />
+              </div>
 
               <div className="flex flex-col items-end">
                 <span className="text-sm font-bold text-gray-600">
@@ -225,7 +259,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
                     />
                   </div>
                 ) : (
-                  <div className="bg-neutral text-neutral-content w-10 md:w-12 rounded-full">
+                  <div className="bg-neutral text-neutral-content w-10 md:w-12 rounded-full flex items-center justify-center">
                     <span className="text-lg md:text-xl">
                       {user.first_name.charAt(0)}{user.last_name.charAt(0)}
                     </span>

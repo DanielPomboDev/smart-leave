@@ -102,7 +102,13 @@ const NotificationDropdown = ({ userId, userType }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+        <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg z-50 border border-gray-200 md:right-0 md:left-auto" 
+             style={{ 
+               left: 'auto', 
+               right: 0,
+               maxWidth: 'calc(100vw - 2rem)',
+               minWidth: '280px'
+             }}>
           <div className="p-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-800">Notifications</h3>
