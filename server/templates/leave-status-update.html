@@ -23,8 +23,8 @@
         </div>
         <div class="content">
             <h2>Leave Request Status Update</h2>
-            <p>Hello <%= employee_name %>,</p>
-            <p>Your leave request status has been updated to: <strong class="<%= status_class %>"><%= status_text %></strong></p>
+            <p>Hello <%= recipient_name %>,</p>
+            <p><%= message %></p>
             
             <h3>Leave Details:</h3>
             <ul>
@@ -33,11 +33,6 @@
                 <li><strong>End Date:</strong> <%= end_date %></li>
                 <li><strong>Number of Days:</strong> <%= number_of_days %></li>
             </ul>
-            
-            <% if (comments && comments.trim() !== '') { %>
-            <h3>Comments:</h3>
-            <p><%= comments %></p>
-            <% } %>
             
             <p><a href="<%= dashboard_url %>" class="button">View Dashboard</a></p>
         </div>

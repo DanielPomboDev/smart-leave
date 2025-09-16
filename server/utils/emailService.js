@@ -59,50 +59,26 @@ const sendLeaveStatusUpdateEmail = async (recipient, data) => {
   try {
     console.log('Sending leave status update email to:', recipient.email);
     
-    // Determine status text and class for styling
-    let statusText = '';
-    let statusClass = '';
-    
-    switch (data.status) {
-      case 'recommended':
-        statusText = 'Recommended';
-        statusClass = 'status-recommended';
-        break;
-      case 'hr_approved':
-        statusText = 'HR Approved';
-        statusClass = 'status-approved';
-        break;
-      case 'hr_disapproved':
-        statusText = 'HR Disapproved';
-        statusClass = 'status-disapproved';
-        break;
-      case 'mayor_approved':
-        statusText = 'Mayor Approved';
-        statusClass = 'status-approved';
-        break;
-      case 'mayor_disapproved':
-        statusText = 'Mayor Disapproved';
-        statusClass = 'status-disapproved';
-        break;
-      case 'department_disapproved':
-        statusText = 'Department Disapproved';
-        statusClass = 'status-disapproved';
-        break;
-      default:
-        statusText = 'Updated';
-        statusClass = '';
-    }
-    
     const html = await compileTemplate('leave-status-update', {
       ...data,
-      status_text: statusText,
-      status_class: statusClass,
       dashboard_url: process.env.FRONTEND_URL || 'https://smart-leave-mern.vercel.app'
     });
     
-    const subject = data.status === 'recommended' 
-      ? 'Your Leave Request Has Been Recommended' 
-      : `Your Leave Request Status: ${statusText}`;
+    // Create subject based on the message content
+    let subject = 'Leave Request Status Update';
+    if (data.status === 'recommended') {
+      subject = 'Your Leave Request Has Been Recommended';
+    } else if (data.status === 'hr_approved') {
+      subject = 'Your Leave Request Has Been Approved by HR';
+    } else if (data.status === 'hr_disapproved') {
+      subject = 'Your Leave Request Has Been Disapproved by HR';
+    } else if (data.status === 'mayor_approved') {
+      subject = 'Your Leave Request Has Been Final Approved by the Mayor';
+    } else if (data.status === 'mayor_disapproved') {
+      subject = 'Your Leave Request Has Been Final Disapproved by the Mayor';
+    } else if (data.status === 'department_disapproved') {
+      subject = 'Your Leave Request Has Been Disapproved by Department Head';
+    }
     
     const result = await sendEmail(
       recipient.email,
