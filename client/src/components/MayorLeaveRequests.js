@@ -329,22 +329,22 @@ const MayorLeaveRequests = () => {
                     <tr key={request.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {request.employeeName}
+                          {request.user_id?.first_name} {request.user_id?.last_name}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {request.employeePosition}
+                          {request.user_id?.position}
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {request.leaveType === 'vacation' ? 'Vacation' : 'Sick'}
+                        {request.leave_type === 'vacation' ? 'Vacation' : 'Sick'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
                         <div>
-                          {new Date(request.startDate).toLocaleDateString()} - {new Date(request.endDate).toLocaleDateString()}
+                          {new Date(request.start_date).toLocaleDateString()} - {new Date(request.end_date).toLocaleDateString()}
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {request.numberOfDays}
+                        {request.number_of_days}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(request.status)}`}>

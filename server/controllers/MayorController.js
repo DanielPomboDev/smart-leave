@@ -174,8 +174,17 @@ class MayorController {
         .sort({ createdAt: -1 })
         .limit(5);
 
-      console.log('Recent leave requests count:', leaveRequests.length);
-      res.json(leaveRequests);
+      // Map leave requests to include id field
+      const mappedLeaveRequests = leaveRequests.map(request => {
+        const requestObj = request.toObject();
+        return {
+          ...requestObj,
+          id: requestObj._id.toString()
+        };
+      });
+
+      console.log('Recent leave requests count:', mappedLeaveRequests.length);
+      res.json(mappedLeaveRequests);
     } catch (error) {
       console.error('Error fetching recent leave requests:', error);
       res.status(500).json({ message: 'Server error', error: error.message });
@@ -207,10 +216,19 @@ class MayorController {
         })
         .sort({ createdAt: -1 });
 
-      console.log('Found leave requests:', leaveRequests.length);
+      // Map leave requests to include id field
+      const mappedLeaveRequests = leaveRequests.map(request => {
+        const requestObj = request.toObject();
+        return {
+          ...requestObj,
+          id: requestObj._id.toString()
+        };
+      });
+
+      console.log('Found leave requests:', mappedLeaveRequests.length);
 
       res.json({
-        leaveRequests
+        leaveRequests: mappedLeaveRequests
       });
     } catch (error) {
       console.error('Error fetching leave requests:', error);
@@ -223,6 +241,13 @@ class MayorController {
     try {
       console.log('Fetching leave request details for ID:', req.params.id);
       console.log('User:', req.user);
+      
+      // Check if ID is provided and valid
+      if (!req.params.id || req.params.id === 'undefined') {
+        console.log('Invalid or missing ID:', req.params.id);
+        return res.status(400).json({ message: 'Invalid leave request ID' });
+      }
+      
       const leaveRequest = await LeaveRequest.findById(req.params.id)
         .populate({
           path: 'user_id',
@@ -266,10 +291,16 @@ class MayorController {
       const leaveRequestWithDetails = leaveRequest.toObject();
       leaveRequestWithDetails.recommendations = recommendations;
       leaveRequestWithDetails.approvals = approvals;
+      // Ensure id field is included
+      leaveRequestWithDetails.id = leaveRequestWithDetails._id.toString();
 
       res.json(leaveRequestWithDetails);
     } catch (error) {
       console.error('Error fetching leave request details:', error);
+      // Handle CastError specifically
+      if (error.name === 'CastError') {
+        return res.status(400).json({ message: 'Invalid leave request ID format' });
+      }
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   }
@@ -279,6 +310,13 @@ class MayorController {
     try {
       console.log('Processing leave request:', req.params.id);
       console.log('User:', req.user);
+      
+      // Check if ID is provided and valid
+      if (!req.params.id || req.params.id === 'undefined') {
+        console.log('Invalid or missing ID:', req.params.id);
+        return res.status(400).json({ message: 'Invalid leave request ID' });
+      }
+      
       const { decision } = req.body;
 
       // Validate decision
@@ -430,9 +468,17 @@ class MayorController {
         // Don't fail the request if notification fails
       }
 
-      res.json({ message: 'Final decision recorded successfully', leaveRequest });
+      // Return the updated leave request with id field
+      const updatedLeaveRequest = leaveRequest.toObject();
+      updatedLeaveRequest.id = updatedLeaveRequest._id.toString();
+      
+      res.json({ message: 'Final decision recorded successfully', leaveRequest: updatedLeaveRequest });
     } catch (error) {
       console.error('Error processing leave request:', error);
+      // Handle CastError specifically
+      if (error.name === 'CastError') {
+        return res.status(400).json({ message: 'Invalid leave request ID format' });
+      }
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   }
