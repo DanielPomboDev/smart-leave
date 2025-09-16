@@ -196,9 +196,9 @@ const Settings = () => {
 
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="flex justify-center">
             {/* Password Change Card */}
-            <div className="card bg-white shadow-md">
+            <div className="card bg-white shadow-md w-full max-w-2xl">
               <div className="card-body">
                 <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
                   <i className="fas fa-lock text-blue-500 mr-2"></i>
@@ -345,88 +345,6 @@ const Settings = () => {
                 </form>
               </div>
             </div>
-
-            {/* Notification Settings Card - Temporarily commented out */}
-            {/* 
-            <div className="card bg-white shadow-md">
-              <div className="card-body">
-                <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
-                  <i className="fas fa-bell text-blue-500 mr-2"></i>
-                  Notification Settings
-                </h2>
-                
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500">Push Notifications</h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Enable push notifications to receive updates about your leave requests and other important events.
-                    </p>
-                    
-                    {tokenSaveError && (
-                      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-4">
-                        {tokenSaveError}
-                      </div>
-                    )}
-                    
-                    <div className="mt-4">
-                      {notificationPermission === 'granted' ? (
-                        <div className="flex items-center">
-                          <div className="badge badge-success gap-2 mr-4">
-                            <i className="fas fa-check"></i> Enabled
-                          </div>
-                          <button 
-                            className="btn btn-sm btn-outline"
-                            onClick={getAndSaveToken}
-                            disabled={savingToken}
-                          >
-                            {savingToken ? (
-                              <>
-                                <span className="loading loading-spinner loading-sm"></span>
-                                Updating...
-                              </>
-                            ) : (
-                              'Refresh Token'
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <button 
-                          className={`btn btn-primary ${savingToken ? 'opacity-90' : ''}`}
-                          onClick={requestNotificationPermission}
-                          disabled={savingToken}
-                        >
-                          {savingToken ? (
-                            <>
-                              <span className="loading loading-spinner loading-sm mr-2"></span>
-                              Enabling...
-                            </>
-                          ) : (
-                            <>
-                              <i className="fas fa-bell mr-2"></i>
-                              Enable Notifications
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <i className="fas fa-info-circle text-blue-500 text-lg"></i>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm text-blue-700">
-                          You'll receive notifications for important events like leave request approvals, status updates, and other system notifications.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            */}
           </div>
         </div>
       </main>
