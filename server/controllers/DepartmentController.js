@@ -378,8 +378,7 @@ const recommendLeaveRequest = async (req, res) => {
         // Send notification to employee about disapproval
         await sendLeaveStatusUpdateToEmployee(
           populatedLeaveRequest, 
-          NOTIFICATION_TYPES.LEAVE_DEPARTMENT_DISAPPROVED,
-          disapproval_reason
+          NOTIFICATION_TYPES.LEAVE_DEPARTMENT_DISAPPROVED
         );
       }
     } catch (notificationError) {

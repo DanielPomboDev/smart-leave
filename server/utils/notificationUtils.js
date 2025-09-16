@@ -156,8 +156,8 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
 };
 
 // Send notification to employee about leave request status
-const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, comments = '', userId = null, userType = null) => {
-  console.log('Sending leave status update notification to employee:', { notificationType, userId, userType });
+const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType) => {
+  console.log('Sending leave status update notification to employee:', { notificationType });
   
   // Safety check for user data
   if (!leaveRequest || !leaveRequest.user_id || !leaveRequest.user_id.first_name) {
@@ -217,64 +217,26 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
     number_of_days: leaveRequest.number_of_days
   };
 
-  // If userId and userType are provided, send to that specific user
-  if (userId && userType) {
-    const notification = await createNotification(userType, userId.toString(), notificationType, data);
-    
-    // Send email notification if user has email
-    try {
-      const user = await User.findById(userId);
-      if (user && user.email) {
-        console.log('Sending email notification to specific user:', user.email);
-        // Update recipient_name and message for non-employee recipients
-        let updatedMessage = '';
-        switch (notificationType) {
-          case NOTIFICATION_TYPES.LEAVE_HR_APPROVED:
-            updatedMessage = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been approved by HR and is now waiting for Mayor's approval`;
-            break;
-          case NOTIFICATION_TYPES.LEAVE_HR_DISAPPROVED:
-            updatedMessage = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been disapproved by HR`;
-            break;
-          case NOTIFICATION_TYPES.LEAVE_MAYOR_APPROVED:
-            updatedMessage = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been final approved by the Mayor`;
-            break;
-          case NOTIFICATION_TYPES.LEAVE_MAYOR_DISAPPROVED:
-            updatedMessage = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been final disapproved by the Mayor`;
-            break;
-          default:
-            updatedMessage = `Leave request of ${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name} has been updated`;
-        }
-        
-        const updatedData = {
-          ...data,
-          recipient_name: `${user.first_name} ${user.last_name}`,
-          message: updatedMessage
-        };
-        await sendLeaveStatusUpdateEmail(user, updatedData);
-      } else {
-        console.log('Specific user does not have email address or user not found');
-      }
-    } catch (error) {
-      console.error('Error sending email notification:', error);
-    }
-    
-    return notification;
+  // Send to the employee who made the request
+  // Retrieve the employee user directly from the database to ensure we have all fields
+  const employeeUserId = leaveRequest.user_id.user_id || leaveRequest.user_id._id;
+  const employeeUser = await User.findOne({ user_id: employeeUserId });
+  
+  if (!employeeUser) {
+    console.log('Employee user not found for user_id:', employeeUserId);
+    return;
   }
-
-  // Otherwise, send to the employee who made the request
-  // The leaveRequest.user_id._id should be the MongoDB ObjectId
-  const employeeId = leaveRequest.user_id._id ? leaveRequest.user_id._id.toString() : leaveRequest.user_id.user_id;
+  
+  const employeeId = employeeUser._id ? employeeUser._id.toString() : employeeUser.user_id;
   const notification = await createNotification('employee', employeeId, notificationType, data);
   
   // Send email notification to employee
   try {
-    // Get the employee user object
-    const employeeUser = await User.findOne({ user_id: employeeId });
     if (employeeUser && employeeUser.email) {
       console.log('Sending email notification to employee:', employeeUser.email);
       await sendLeaveStatusUpdateEmail(employeeUser, data);
     } else {
-      console.log('Employee does not have email address or user not found');
+      console.log('Employee does not have email address');
     }
   } catch (error) {
     console.error('Error sending email notification to employee:', error);

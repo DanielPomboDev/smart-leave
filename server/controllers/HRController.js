@@ -452,8 +452,7 @@ const processHRLeaveApproval = async (req, res) => {
         // Send notification to employee about HR disapproval
         await sendLeaveStatusUpdateToEmployee(
           populatedLeaveRequest, 
-          NOTIFICATION_TYPES.LEAVE_HR_DISAPPROVED,
-          disapproved_due_to
+          NOTIFICATION_TYPES.LEAVE_HR_DISAPPROVED
         );
         
         // Send notification to department admin
