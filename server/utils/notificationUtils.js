@@ -29,8 +29,16 @@ const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) 
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
-    start_date: leaveRequest.start_date,
-    end_date: leaveRequest.end_date,
+    start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
+    end_date: new Date(leaveRequest.end_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
     number_of_days: leaveRequest.number_of_days
   };
 
@@ -69,8 +77,16 @@ const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
-    start_date: leaveRequest.start_date,
-    end_date: leaveRequest.end_date,
+    start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
+    end_date: new Date(leaveRequest.end_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
     number_of_days: leaveRequest.number_of_days
   };
 
@@ -108,8 +124,16 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
-    start_date: leaveRequest.start_date,
-    end_date: leaveRequest.end_date,
+    start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
+    end_date: new Date(leaveRequest.end_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
     number_of_days: leaveRequest.number_of_days
   };
 
@@ -187,8 +211,16 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
     status,
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
-    start_date: leaveRequest.start_date,
-    end_date: leaveRequest.end_date,
+    start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
+    end_date: new Date(leaveRequest.end_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
     number_of_days: leaveRequest.number_of_days,
     comments
   };
@@ -281,8 +313,16 @@ const sendLeaveStatusUpdateToDepartmentAdmin = async (leaveRequest, notification
     status,
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
-    start_date: leaveRequest.start_date,
-    end_date: leaveRequest.end_date,
+    start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
+    end_date: new Date(leaveRequest.end_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
     number_of_days: leaveRequest.number_of_days
   };
 
@@ -340,8 +380,16 @@ const sendLeaveStatusUpdateToHR = async (leaveRequest, notificationType, hrId) =
     status,
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
-    start_date: leaveRequest.start_date,
-    end_date: leaveRequest.end_date,
+    start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
+    end_date: new Date(leaveRequest.end_date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }),
     number_of_days: leaveRequest.number_of_days
   };
 

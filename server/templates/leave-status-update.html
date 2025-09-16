@@ -34,7 +34,7 @@
                 <li><strong>Number of Days:</strong> <%= number_of_days %></li>
             </ul>
             
-            <% if (comments) { %>
+            <% if (comments && comments.trim() !== '') { %>
             <h3>Comments:</h3>
             <p><%= comments %></p>
             <% } %>
