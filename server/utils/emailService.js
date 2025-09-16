@@ -5,6 +5,8 @@ const path = require('path');
 // Function to read and compile email templates
 const compileTemplate = async (templateName, data) => {
   try {
+    console.log(`Compiling email template: ${templateName}`);
+    
     // Read the template file
     const templatePath = path.join(__dirname, '..', 'templates', `${templateName}.html`);
     let template = await fs.readFile(templatePath, 'utf8');
@@ -15,6 +17,7 @@ const compileTemplate = async (templateName, data) => {
       template = template.replace(regex, data[key] || '');
     });
     
+    console.log(`Template ${templateName} compiled successfully`);
     return template;
   } catch (error) {
     console.error(`Error compiling template ${templateName}:`, error);
@@ -25,6 +28,8 @@ const compileTemplate = async (templateName, data) => {
 // Function to send new leave request notification
 const sendNewLeaveRequestEmail = async (recipient, data) => {
   try {
+    console.log('Sending new leave request email to:', recipient.email);
+    
     const html = await compileTemplate('new-leave-request', {
       ...data,
       dashboard_url: process.env.FRONTEND_URL || 'https://smart-leave-mern.vercel.app'
@@ -52,6 +57,8 @@ const sendNewLeaveRequestEmail = async (recipient, data) => {
 // Function to send leave status update notification
 const sendLeaveStatusUpdateEmail = async (recipient, data) => {
   try {
+    console.log('Sending leave status update email to:', recipient.email);
+    
     // Determine status text and class for styling
     let statusText = '';
     let statusClass = '';

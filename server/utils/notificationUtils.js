@@ -16,6 +16,8 @@ const NOTIFICATION_TYPES = {
 
 // Send notification for new leave request to department admin
 const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) => {
+  console.log('Sending new leave request notification to department admin:', departmentAdminId);
+  
   // Safety check for user data
   if (!leaveRequest || !leaveRequest.user_id || !leaveRequest.user_id.first_name) {
     console.error('Invalid leave request data for notification:', leaveRequest);
@@ -40,7 +42,10 @@ const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) 
   try {
     const user = await User.findById(departmentAdminId);
     if (user && user.email) {
+      console.log('Sending email notification to department admin:', user.email);
       await sendNewLeaveRequestEmail(user, data);
+    } else {
+      console.log('Department admin does not have email address or user not found');
     }
   } catch (error) {
     console.error('Error sending email notification:', error);
@@ -50,6 +55,7 @@ const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) 
   try {
     const user = await User.findById(departmentAdminId);
     if (user && user.fcm_token) {
+      console.log('Sending push notification to department admin');
       await sendPushNotification(
         user.fcm_token,
         'New Leave Request',
@@ -59,6 +65,8 @@ const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) 
           leaveRequestId: leaveRequest._id.toString()
         }
       );
+    } else {
+      console.log('Department admin does not have FCM token or user not found');
     }
   } catch (error) {
     console.error('Error sending push notification:', error);
@@ -69,6 +77,8 @@ const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) 
 
 // Send notification for recommended leave request to HR
 const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
+  console.log('Sending recommended leave request notification to HR:', hrId);
+  
   // Safety check for user data
   if (!leaveRequest || !leaveRequest.user_id || !leaveRequest.user_id.first_name) {
     console.error('Invalid leave request data for notification:', leaveRequest);
@@ -92,7 +102,10 @@ const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
   try {
     const user = await User.findById(hrId);
     if (user && user.email) {
+      console.log('Sending email notification to HR:', user.email);
       await sendNewLeaveRequestEmail(user, data);
+    } else {
+      console.log('HR user does not have email address or user not found');
     }
   } catch (error) {
     console.error('Error sending email notification:', error);
@@ -102,6 +115,7 @@ const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
   try {
     const user = await User.findById(hrId);
     if (user && user.fcm_token) {
+      console.log('Sending push notification to HR');
       await sendPushNotification(
         user.fcm_token,
         'Leave Request Recommended',
@@ -111,6 +125,8 @@ const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
           leaveRequestId: leaveRequest._id.toString()
         }
       );
+    } else {
+      console.log('HR user does not have FCM token or user not found');
     }
   } catch (error) {
     console.error('Error sending push notification:', error);
@@ -121,6 +137,8 @@ const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
 
 // Send notification for HR approved leave request to Mayor
 const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => {
+  console.log('Sending HR approved leave request notification to Mayor:', mayorId);
+  
   // Safety check for user data
   if (!leaveRequest || !leaveRequest.user_id || !leaveRequest.user_id.first_name) {
     console.error('Invalid leave request data for notification:', leaveRequest);
@@ -144,7 +162,10 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
   try {
     const user = await User.findById(mayorId);
     if (user && user.email) {
+      console.log('Sending email notification to Mayor:', user.email);
       await sendNewLeaveRequestEmail(user, data);
+    } else {
+      console.log('Mayor user does not have email address or user not found');
     }
   } catch (error) {
     console.error('Error sending email notification:', error);
@@ -154,6 +175,7 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
   try {
     const user = await User.findById(mayorId);
     if (user && user.fcm_token) {
+      console.log('Sending push notification to Mayor');
       await sendPushNotification(
         user.fcm_token,
         'Leave Request HR Approved',
@@ -163,6 +185,8 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
           leaveRequestId: leaveRequest._id.toString()
         }
       );
+    } else {
+      console.log('Mayor user does not have FCM token or user not found');
     }
   } catch (error) {
     console.error('Error sending push notification:', error);
@@ -173,6 +197,8 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
 
 // Send notification to employee about leave request status
 const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, comments = '', userId = null, userType = null) => {
+  console.log('Sending leave status update notification to employee:', { notificationType, userId, userType });
+  
   // Safety check for user data
   if (!leaveRequest || !leaveRequest.user_id || !leaveRequest.user_id.first_name) {
     console.error('Invalid leave request data for notification:', leaveRequest);
@@ -239,7 +265,10 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
     try {
       const user = await User.findById(userId);
       if (user && user.email) {
+        console.log('Sending email notification to specific user:', user.email);
         await sendLeaveStatusUpdateEmail(user, data);
+      } else {
+        console.log('Specific user does not have email address or user not found');
       }
     } catch (error) {
       console.error('Error sending email notification:', error);
@@ -249,6 +278,7 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
     try {
       const user = await User.findById(userId);
       if (user && user.fcm_token) {
+        console.log('Sending push notification to specific user');
         await sendPushNotification(
           user.fcm_token,
           title,
@@ -258,6 +288,8 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
             leaveRequestId: leaveRequest._id.toString()
           }
         );
+      } else {
+        console.log('Specific user does not have FCM token or user not found');
       }
     } catch (error) {
       console.error('Error sending push notification:', error);
@@ -276,7 +308,10 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
     // Get the employee user object
     const employeeUser = await User.findOne({ user_id: employeeId });
     if (employeeUser && employeeUser.email) {
+      console.log('Sending email notification to employee:', employeeUser.email);
       await sendLeaveStatusUpdateEmail(employeeUser, data);
+    } else {
+      console.log('Employee does not have email address or user not found');
     }
   } catch (error) {
     console.error('Error sending email notification to employee:', error);
@@ -287,6 +322,7 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
     // Get the employee user object
     const employeeUser = await User.findOne({ user_id: employeeId });
     if (employeeUser && employeeUser.fcm_token) {
+      console.log('Sending push notification to employee');
       await sendPushNotification(
         employeeUser.fcm_token,
         title,
@@ -296,6 +332,8 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType, c
           leaveRequestId: leaveRequest._id.toString()
         }
       );
+    } else {
+      console.log('Employee does not have FCM token or user not found');
     }
   } catch (error) {
     console.error('Error sending push notification to employee:', error);
