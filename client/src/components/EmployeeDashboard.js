@@ -610,25 +610,25 @@ const EmployeeDashboard = () => {
 
   return (
     <Layout>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Leave Credits Container */}
-        <div className="bg-white rounded-lg shadow p-6 flex flex-col h-full">
+        <div className="bg-white rounded-lg shadow p-4 md:p-6 flex flex-col h-full">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Leave Credits</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-grow">
             {/* Vacation Leave Card - Better centered design */}
             <div className="bg-blue-50 rounded-lg flex flex-col h-full">
               <div className="p-4 flex flex-col items-center justify-center flex-grow text-center">
-                <div className="bg-blue-100 p-4 rounded-full mb-3">
-                  <i className="fas fa-umbrella-beach text-blue-600 text-2xl"></i>
+                <div className="bg-blue-100 p-3 rounded-full mb-3">
+                  <i className="fas fa-umbrella-beach text-blue-600 text-xl md:text-2xl"></i>
                 </div>
                 <div className="text-blue-800 mb-1">
                   <div className="text-sm font-medium">Vacation Leave</div>
                   {loadingCredits ? (
-                    <div className="text-3xl font-semibold mt-1">
+                    <div className="text-2xl md:text-3xl font-semibold mt-1">
                       <span className="loading loading-spinner loading-sm"></span>
                     </div>
                   ) : (
-                    <div className="text-3xl font-semibold mt-1">{vacationBalance.toFixed(3)}</div>
+                    <div className="text-2xl md:text-3xl font-semibold mt-1">{vacationBalance.toFixed(3)}</div>
                   )}
                 </div>
                 <div className="text-xs text-blue-700 mt-2">
@@ -640,17 +640,17 @@ const EmployeeDashboard = () => {
             {/* Sick Leave Card - Better centered design */}
             <div className="bg-green-50 rounded-lg flex flex-col h-full">
               <div className="p-4 flex flex-col items-center justify-center flex-grow text-center">
-                <div className="bg-green-100 p-4 rounded-full mb-3">
-                  <i className="fas fa-thermometer-half text-green-600 text-2xl"></i>
+                <div className="bg-green-100 p-3 rounded-full mb-3">
+                  <i className="fas fa-thermometer-half text-green-600 text-xl md:text-2xl"></i>
                 </div>
                 <div className="text-green-800 mb-1">
                   <div className="text-sm font-medium">Sick Leave</div>
                   {loadingCredits ? (
-                    <div className="text-3xl font-semibold mt-1">
+                    <div className="text-2xl md:text-3xl font-semibold mt-1">
                       <span className="loading loading-spinner loading-sm"></span>
                     </div>
                   ) : (
-                    <div className="text-3xl font-semibold mt-1">{sickBalance.toFixed(3)}</div>
+                    <div className="text-2xl md:text-3xl font-semibold mt-1">{sickBalance.toFixed(3)}</div>
                   )}
                 </div>
                 <div className="text-xs text-green-700 mt-2">
@@ -662,7 +662,7 @@ const EmployeeDashboard = () => {
         </div>
 
         {/* Quick Leave Request */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">
             <i className="fas fa-calendar-plus text-blue-500 mr-2"></i>
             Quick Leave Request
@@ -670,7 +670,7 @@ const EmployeeDashboard = () => {
           
           {/* Step Indicator */}
           <div className="w-full py-2 mb-3">
-            <ul className="steps steps-horizontal w-full steps-sm">
+            <ul className="steps steps-horizontal w-full steps-xs sm:steps-sm">
               <li className={`step ${quickLeaveData.step >= 1 ? 'step-primary' : ''}`}>Type</li>
               <li className={`step ${quickLeaveData.step >= 2 ? 'step-primary' : ''}`}>Dates</li>
               <li className={`step ${quickLeaveData.step >= 3 ? 'step-primary' : ''}`}>Details</li>
@@ -991,16 +991,16 @@ const EmployeeDashboard = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Type
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Dates
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Days
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Status
                     </th>
                   </tr>
@@ -1012,16 +1012,18 @@ const EmployeeDashboard = () => {
                       className="hover:bg-gray-50 cursor-pointer"
                       onClick={() => navigate(`/employee/leave-request/${request._id}`)}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {request.leave_type === 'vacation' ? 'Vacation Leave' : 'Sick Leave'}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {request.leave_type === 'vacation' ? 'Vacation' : 'Sick'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.start_date).toLocaleDateString()} - {new Date(request.end_date).toLocaleDateString()}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        <div className="text-xs md:text-sm">
+                          {new Date(request.start_date).toLocaleDateString()} - {new Date(request.end_date).toLocaleDateString()}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {request.number_of_days}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(request.status)}`}>
                           {getStatusText(request.status)}
                         </span>

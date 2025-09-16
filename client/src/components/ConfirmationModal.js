@@ -4,7 +4,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title = "Confirm Action
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black bg-opacity-50"
@@ -12,7 +12,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title = "Confirm Action
       ></div>
       
       {/* Modal */}
-      <div className="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md z-10 transform transition-all">
+      <div className="bg-white rounded-lg shadow-xl p-4 md:p-6 w-full max-w-md z-10 transform transition-all">
         <div className="text-center">
           <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
             <i className="fas fa-question-circle text-blue-600 text-2xl"></i>

@@ -222,77 +222,78 @@ const HRLeaveRequests = () => {
             <table className="table table-zebra w-full">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="text-gray-600">Employee</th>
-                  <th className="text-gray-600">Leave Type</th>
-                  <th className="text-gray-600">Applied On</th>
-                  <th className="text-gray-600">Period</th>
-                  <th className="text-gray-600">Days</th>
-                  <th className="text-gray-600">Status</th>
-                  <th className="text-gray-600">Action</th>
+                  <th className="text-gray-600 px-4 py-3">Employee</th>
+                  <th className="text-gray-600 px-4 py-3">Type</th>
+                  <th className="text-gray-600 px-4 py-3">Applied</th>
+                  <th className="text-gray-600 px-4 py-3">Period</th>
+                  <th className="text-gray-600 px-4 py-3">Days</th>
+                  <th className="text-gray-600 px-4 py-3">Status</th>
+                  <th className="text-gray-600 px-4 py-3">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {leaveRequests.length > 0 ? (
                   leaveRequests.map(leaveRequest => (
                     <tr key={leaveRequest._id}>
-                      <td className="flex items-center space-x-3">
-                        <div className="avatar">
-                          <div className="mask mask-squircle w-8 h-8">
-                            <span className="bg-blue-500 text-white text-xs font-bold flex items-center justify-center w-full h-full">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center space-x-3">
+                          <div className="avatar">
+                            <div className="mask mask-squircle w-8 h-8">
+                              <span className="bg-blue-500 text-white text-xs font-bold flex items-center justify-center w-full h-full">
+                                {leaveRequest.user_id?.first_name ? 
+                                  `${leaveRequest.user_id.first_name.charAt(0)}${leaveRequest.user_id.last_name.charAt(0)}`.toUpperCase() : 
+                                  'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-bold">
                               {leaveRequest.user_id?.first_name ? 
-                                `${leaveRequest.user_id.first_name.charAt(0)}${leaveRequest.user_id.last_name.charAt(0)}`.toUpperCase() : 
-                                'N/A'}
-                            </span>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="font-bold">
-                            {leaveRequest.user_id?.first_name ? 
-                              `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}` : 
-                              'Unknown Employee'}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {leaveRequest.user_id?.department_id?.name || 'Department not specified'}
+                                `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}` : 
+                                'Unknown Employee'}
+                            </div>
+                            <div className="text-xs opacity-70">
+                              {leaveRequest.user_id?.position || 'Position not specified'}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td>
-                        {leaveRequest.leave_type === 'vacation' ? 'Vacation Leave' : 
-                         leaveRequest.leave_type === 'sick' ? 'Sick Leave' : 
-                         leaveRequest.leave_type}
-                        {leaveRequest.without_pay && (
-                          <span className="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
-                            Without Pay
-                          </span>
-                        )}
+                      <td className="px-4 py-3">
+                        <div className="text-sm">
+                          {leaveRequest.leave_type === 'vacation' ? 'Vacation' : 'Sick'}
+                        </div>
                       </td>
-                      <td>{new Date(leaveRequest.createdAt).toLocaleDateString()}</td>
-                      <td>
-                        {new Date(leaveRequest.start_date).toLocaleDateString() === new Date(leaveRequest.end_date).toLocaleDateString()
-                          ? new Date(leaveRequest.start_date).toLocaleDateString()
-                          : `${new Date(leaveRequest.start_date).toLocaleDateString()}-${new Date(leaveRequest.end_date).toLocaleDateString()}`}
+                      <td className="px-4 py-3 text-sm">
+                        {new Date(leaveRequest.created_at).toLocaleDateString()}
                       </td>
-                      <td>{leaveRequest.number_of_days}</td>
-                      <td>
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(leaveRequest.status)}`}>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="text-xs">
+                          {new Date(leaveRequest.start_date).toLocaleDateString()} - {new Date(leaveRequest.end_date).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {leaveRequest.number_of_days}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(leaveRequest.status)}`}>
                           {getStatusText(leaveRequest.status)}
                         </span>
                       </td>
-                      <td>
-                        <div className="flex space-x-2">
-                          <button 
-                            className="btn btn-xs btn-primary"
-                            onClick={() => navigate(`/hr/leave-request/${leaveRequest._id}`)}
-                          >
-                            View
-                          </button>
-                        </div>
+                      <td className="px-4 py-3">
+                        <button 
+                          className="btn btn-xs btn-primary"
+                          onClick={() => navigate(`/hr/leave-request/${leaveRequest._id}`)}
+                        >
+                          View
+                        </button>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="text-center py-4 text-gray-500">No leave requests found</td>
+                    <td colSpan="7" className="text-center py-8 text-gray-500">
+                      No leave requests found
+                    </td>
                   </tr>
                 )}
               </tbody>

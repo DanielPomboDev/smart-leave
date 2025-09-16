@@ -7,6 +7,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState({
     first_name: "John",
     last_name: "Doe",
@@ -119,19 +120,35 @@ const Layout = ({ children, title = "Dashboard" }) => {
 
   return (
     <div className="flex h-screen bg-base-200">
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+      )}
+
       {/* Sidebar */}
-      <div className="w-72 bg-white shadow-md flex flex-col h-screen">
+      <div className={`fixed lg:static z-50 inset-y-0 left-0 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 ease-in-out w-72 bg-white shadow-md flex flex-col h-screen`}>
         <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center">
-            <div className="avatar">
-              <div className="w-12 rounded-full">
-                <img src="/images/sj-logo.jpg" alt="Logo" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="avatar">
+                <div className="w-12 rounded-full">
+                  <img src="/images/sj-logo.jpg" alt="Logo" />
+                </div>
+              </div>
+              <div className="ml-4">
+                <h1 className="text-xl font-bold text-blue-500">SmartLeave</h1>
+                <h3 className="text-sm font-semibold text-gray-500">LGU San Julian, Eastern Samar</h3>
               </div>
             </div>
-            <div className="ml-4">
-              <h1 className="text-xl font-bold text-blue-500">SmartLeave</h1>
-              <h3 className="text-sm font-semibold text-gray-500">LGU San Julian, Eastern Samar</h3>
-            </div>
+            <button 
+              className="lg:hidden text-gray-500 hover:text-gray-700"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <i className="fas fa-times text-xl"></i>
+            </button>
           </div>
         </div>
 
@@ -143,6 +160,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
               className={`flex items-center px-6 py-3 text-gray-600 font-medium hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200 ${
                 location.pathname === item.route ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-500' : ''
               }`}
+              onClick={() => setSidebarOpen(false)}
             >
               <i className={`${item.icon} mr-3 text-lg`}></i>
               <span>{item.label}</span>
@@ -164,9 +182,23 @@ const Layout = ({ children, title = "Dashboard" }) => {
 
       {/* Main content */}
       <div className="flex-grow overflow-y-auto">
-        <div className="p-6">
+        {/* Mobile top bar */}
+        <div className="lg:hidden bg-white shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <button 
+              className="text-gray-500 hover:text-gray-700"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <i className="fas fa-bars text-xl"></i>
+            </button>
+            <h1 className="text-lg font-semibold text-gray-800">{title}</h1>
+            <div className="w-8"></div> {/* Spacer for alignment */}
+          </div>
+        </div>
+
+        <div className="p-4 md:p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-semibold text-gray-800">{title}</h1>
+            <h1 className="text-xl md:text-2xl font-semibold text-gray-800 hidden lg:block">{title}</h1>
 
             <div className="flex items-center space-x-4">
               <NotificationDropdown userId={user._id} userType={user.user_type} />
@@ -185,7 +217,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
 
               <div className="avatar placeholder">
                 {user?.profile_image ? (
-                  <div className="w-12 rounded-full">
+                  <div className="w-10 md:w-12 rounded-full">
                     <img 
                       src={user.profile_image} 
                       alt="Profile" 
@@ -193,8 +225,8 @@ const Layout = ({ children, title = "Dashboard" }) => {
                     />
                   </div>
                 ) : (
-                  <div className="bg-neutral text-neutral-content w-12 rounded-full">
-                    <span className="text-xl">
+                  <div className="bg-neutral text-neutral-content w-10 md:w-12 rounded-full">
+                    <span className="text-lg md:text-xl">
                       {user.first_name.charAt(0)}{user.last_name.charAt(0)}
                     </span>
                   </div>
@@ -210,7 +242,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black bg-opacity-50"
@@ -218,7 +250,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           ></div>
           
           {/* Modal */}
-          <div className="bg-white rounded-lg shadow-xl p-6 w-96 max-w-md z-10">
+          <div className="bg-white rounded-lg shadow-xl p-4 md:p-6 w-full max-w-md z-10">
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
                 <i className="fas fa-sign-out-alt text-red-600 text-2xl"></i>

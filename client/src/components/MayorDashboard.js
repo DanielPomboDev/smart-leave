@@ -96,16 +96,16 @@ const MayorDashboard = () => {
 
   return (
     <Layout title="Mayor Dashboard">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-6">
         {/* Pending Requests Card */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-blue-600">Pending Requests</p>
-              <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.pending}</h3>
+              <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mt-1">{stats.pending}</h3>
             </div>
-            <div className="bg-blue-100 p-3 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-blue-100 p-2 md:p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -113,14 +113,14 @@ const MayorDashboard = () => {
         </div>
         
         {/* Approved This Month Card */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-green-600">Approved This Month</p>
-              <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.approved_this_month}</h3>
+              <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mt-1">{stats.approved_this_month}</h3>
             </div>
-            <div className="bg-green-100 p-3 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-green-100 p-2 md:p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2l4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -128,14 +128,14 @@ const MayorDashboard = () => {
         </div>
         
         {/* Rejected This Month Card */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-red-600">Rejected This Month</p>
-              <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.rejected_this_month}</h3>
+              <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mt-1">{stats.rejected_this_month}</h3>
             </div>
-            <div className="bg-red-100 p-3 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-red-100 p-2 md:p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12M12 2a10 10 0 100 20 10 10 0 000-20z" />
               </svg>
             </div>
@@ -143,14 +143,14 @@ const MayorDashboard = () => {
         </div>
         
         {/* Total Employees Card */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-purple-600">Total Employees</p>
-              <h3 className="text-3xl font-bold text-gray-800 mt-1">{stats.total_employees}</h3>
+              <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mt-1">{stats.total_employees}</h3>
             </div>
-            <div className="bg-purple-100 p-3 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-purple-100 p-2 md:p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m9-7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             </div>
@@ -177,66 +177,60 @@ const MayorDashboard = () => {
           </div>
         </div>
         
-        <div className="p-6">
+        <div className="p-4 md:p-6">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-100">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Employee
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Leave Type
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Type
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Period
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    No. of Days
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Days
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Status
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {leaveRequests.length > 0 ? (
-                  leaveRequests.map((request) => (
-                    <tr key={request._id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
-                              {request.user_id?.first_name} {request.user_id?.last_name}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {request.user_id?.position}
-                            </div>
-                          </div>
+                  leaveRequests.map((leaveRequest) => (
+                    <tr key={leaveRequest.id}>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {leaveRequest.employeeName || 'Unknown'}
+                        </div>
+                        <div className="text-xs text-gray-500 md:text-sm">
+                          {leaveRequest.employeePosition || 'Position not specified'}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {request.leave_type === 'vacation' ? 'Vacation Leave' : 
-                         request.leave_type === 'sick' ? 'Sick Leave' : 
-                         request.leave_type}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {leaveRequest.leaveType === 'vacation' ? 'Vacation' : 'Sick'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.start_date).toLocaleDateString()} - {new Date(request.end_date).toLocaleDateString()}
+                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 md:text-sm">
+                        {new Date(leaveRequest.startDate).toLocaleDateString()} - {new Date(leaveRequest.endDate).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {request.number_of_days}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {leaveRequest.numberOfDays}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(request.status)}`}>
-                          {getStatusText(request.status)}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(leaveRequest.status)}`}>
+                          {getStatusText(leaveRequest.status)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                         <button
-                          onClick={() => navigate(`/mayor/leave-requests/${request._id}`)}
+                          onClick={() => navigate(`/mayor/leave-requests/${leaveRequest.id}`)}
                           className="btn btn-xs btn-primary"
                         >
                           View
@@ -246,8 +240,8 @@ const MayorDashboard = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
-                      No leave requests awaiting mayor approval
+                    <td colSpan="6" className="px-4 py-4 text-center text-sm text-gray-500">
+                      No leave requests found
                     </td>
                   </tr>
                 )}

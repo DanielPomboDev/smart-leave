@@ -276,19 +276,19 @@ const LeaveHistory = () => {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Type
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Dates
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Days
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -296,40 +296,36 @@ const LeaveHistory = () => {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {filteredRequests.map((request) => (
                           <tr key={request._id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {getLeaveTypeText(request.leave_type)}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                              <div className="text-sm">
+                                {getLeaveTypeText(request.leave_type)}
+                              </div>
                               {request.without_pay && (
-                                <span className="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
+                                <span className="mt-1 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
                                   Without Pay
                                 </span>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatDate(request.start_date)} - {formatDate(request.end_date)}
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                              <div>
+                                {formatDate(request.start_date)} - {formatDate(request.end_date)}
+                              </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                               {request.number_of_days}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-4 py-3 whitespace-nowrap">
                               <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(request.status)}`}>
                                 {getStatusText(request.status)}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              <button 
-                                className="text-blue-600 hover:text-blue-900 mr-3"
-                                onClick={() => handleViewRequest(request._id)}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                              <button
+                                onClick={() => navigate(`/employee/leave-request/${request._id}`)}
+                                className="btn btn-xs btn-primary"
                               >
                                 View
                               </button>
-                              {request.status === 'pending' && (
-                                <button 
-                                  className="text-red-600 hover:text-red-900"
-                                  onClick={() => handleCancelRequest(request._id)}
-                                >
-                                  Cancel
-                                </button>
-                              )}
                             </td>
                           </tr>
                         ))}
