@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { requestForToken } from '../firebase';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -15,6 +16,14 @@ const Settings = () => {
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+  const [savingToken, setSavingToken] = useState(false);
+  const [tokenSaveError, setTokenSaveError] = useState('');
+
+  useEffect(() => {
+    // Check current notification permission status
+    setNotificationPermission(Notification.permission);
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -181,6 +190,58 @@ const Settings = () => {
     navigate(-1); // Go back to previous page
   };
 
+  // Request notification permission and get FCM token
+  const requestNotificationPermission = async () => {
+    if (Notification.permission === 'granted') {
+      setNotificationPermission('granted');
+      await getAndSaveToken();
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      
+      if (permission === 'granted') {
+        await getAndSaveToken();
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
+  };
+
+  // Get FCM token and save it to the server
+  const getAndSaveToken = async () => {
+    try {
+      setSavingToken(true);
+      setTokenSaveError('');
+      
+      const token = await requestForToken();
+      console.log('FCM Token retrieved:', token);
+      
+      if (token) {
+        // Send token to server
+        console.log('Sending FCM token to server...');
+        const response = await axios.post('/api/auth/save-fcm-token', { fcmToken: token });
+        console.log('Server response:', response.data);
+        
+        if (response.data.success) {
+          console.log('FCM token saved successfully');
+        } else {
+          setTokenSaveError(response.data.message || 'Failed to save notification token');
+        }
+      } else {
+        setTokenSaveError('Failed to get notification token');
+      }
+    } catch (error) {
+      console.error('Error saving FCM token:', error);
+      console.error('Error response:', error.response?.data);
+      setTokenSaveError(error.response?.data?.message || 'Failed to save notification token');
+    } finally {
+      setSavingToken(false);
+    }
+  };
+
   const { strength, feedback } = checkPasswordStrength(formData.password);
   const strengthText = formData.password ? 
     (strength < 100 ? `Add ${feedback.join(', ')}` : getPasswordStrengthText(strength)) : 
@@ -190,13 +251,14 @@ const Settings = () => {
     <Layout>
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings & Change Password</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         </div>
       </header>
 
       <main>
-        <div className="min-h-[calc(100vh-200px)] flex items-center justify-center p-4">
-          <div className="w-full max-w-xl">
+        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Password Change Card */}
             <div className="card bg-white shadow-md">
               <div className="card-body">
                 <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
@@ -342,6 +404,86 @@ const Settings = () => {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+
+            {/* Notification Settings Card */}
+            <div className="card bg-white shadow-md">
+              <div className="card-body">
+                <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
+                  <i className="fas fa-bell text-blue-500 mr-2"></i>
+                  Notification Settings
+                </h2>
+                
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Push Notifications</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Enable push notifications to receive updates about your leave requests and other important events.
+                    </p>
+                    
+                    {tokenSaveError && (
+                      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-4">
+                        {tokenSaveError}
+                      </div>
+                    )}
+                    
+                    <div className="mt-4">
+                      {notificationPermission === 'granted' ? (
+                        <div className="flex items-center">
+                          <div className="badge badge-success gap-2 mr-4">
+                            <i className="fas fa-check"></i> Enabled
+                          </div>
+                          <button 
+                            className="btn btn-sm btn-outline"
+                            onClick={getAndSaveToken}
+                            disabled={savingToken}
+                          >
+                            {savingToken ? (
+                              <>
+                                <span className="loading loading-spinner loading-sm"></span>
+                                Updating...
+                              </>
+                            ) : (
+                              'Refresh Token'
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          className={`btn btn-primary ${savingToken ? 'opacity-90' : ''}`}
+                          onClick={requestNotificationPermission}
+                          disabled={savingToken}
+                        >
+                          {savingToken ? (
+                            <>
+                              <span className="loading loading-spinner loading-sm mr-2"></span>
+                              Enabling...
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-bell mr-2"></i>
+                              Enable Notifications
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <i className="fas fa-info-circle text-blue-500 text-lg"></i>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm text-blue-700">
+                          You'll receive notifications for important events like leave request approvals, status updates, and other system notifications.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
