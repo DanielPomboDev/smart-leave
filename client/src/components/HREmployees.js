@@ -299,14 +299,14 @@ const HREmployees = () => {
     <Layout title="Employees">
       <div className="card bg-white shadow-md mb-6">
         <div className="card-body">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
             <h2 className="card-title text-xl font-bold text-gray-800">
               <i className="fas fa-users text-blue-500 mr-2"></i>
               Manage Employees
             </h2>
             
             <button 
-              className="btn btn-primary btn-sm md:btn-md"
+              className="btn btn-primary btn-sm whitespace-nowrap"
               onClick={() => setShowAddModal(true)}
             >
               <i className="fas fa-plus mr-1"></i>

@@ -171,12 +171,12 @@ const HRLeaveRecords = () => {
     <Layout title="Leave Records" header="Leave Records">
       <div className="card bg-white shadow-md mb-6">
         <div className="card-body">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
             <h2 className="card-title text-xl font-bold text-gray-800">
               <i className="fi fi-rr-time-past text-blue-500 mr-2"></i>
               Leave Records
             </h2>
-            <button className="btn btn-primary btn-sm md:btn-md" onClick={() => setIsModalOpen(true)}>
+            <button className="btn btn-primary btn-sm whitespace-nowrap" onClick={() => setIsModalOpen(true)}>
               <i className="fas fa-calculator mr-1"></i>
               Calculate Credits
             </button>
