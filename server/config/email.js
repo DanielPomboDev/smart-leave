@@ -7,7 +7,7 @@ const createTransporter = () => {
   // For production, use a proper email service provider
   
   // Example configuration for Gmail (requires app password)
-  // return nodemailer.createTransporter({
+  // return nodemailer.createTransport({
   //   service: 'gmail',
   //   auth: {
   //     user: process.env.EMAIL_USER,
@@ -16,7 +16,7 @@ const createTransporter = () => {
   // });
   
   // Example configuration for SendGrid or other SMTP services
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
     port: process.env.EMAIL_PORT || 587,
     secure: false, // true for 465, false for other ports

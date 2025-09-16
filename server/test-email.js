@@ -1,4 +1,5 @@
 // Test email functionality
+require('dotenv').config(); // Load environment variables
 const { sendEmail } = require('./config/email');
 
 async function testEmail() {
@@ -6,7 +7,7 @@ async function testEmail() {
     console.log('Testing email functionality...');
     
     // Replace with your actual email address for testing
-    const testEmail = 'your_test_email@example.com';
+    const testEmail = 'danielvincentrombo@gmail.com'; // Use your actual email for testing
     
     const result = await sendEmail(
       testEmail,
