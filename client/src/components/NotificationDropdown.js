@@ -7,11 +7,13 @@ const NotificationDropdown = ({ userId, userType }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target) && 
+          buttonRef.current && !buttonRef.current.contains(event.target)) {
         setIsOpen(false);
       }
     };
@@ -87,8 +89,9 @@ const NotificationDropdown = ({ userId, userType }) => {
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button 
+    <div className="relative">
+      <button
+        ref={buttonRef}
         className="text-gray-600 hover:text-blue-500 focus:outline-none relative"
         onClick={() => setIsOpen(!isOpen)}
         type="button"
@@ -102,13 +105,10 @@ const NotificationDropdown = ({ userId, userType }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg z-50 border border-gray-200 md:right-0 md:left-auto" 
-             style={{ 
-               left: 'auto', 
-               right: 0,
-               maxWidth: 'calc(100vw - 2rem)',
-               minWidth: '280px'
-             }}>
+        <div
+          ref={dropdownRef}
+          className="absolute right-0 mt-2 w-64 md:w-80 bg-white rounded-md shadow-lg z-50 border border-gray-200 transform origin-top-right transition-all duration-200 ease-in-out"
+        >
           <div className="p-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-800">Notifications</h3>

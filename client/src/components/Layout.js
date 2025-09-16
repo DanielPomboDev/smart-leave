@@ -182,93 +182,62 @@ const Layout = ({ children, title = "Dashboard" }) => {
 
       {/* Main content */}
       <div className="flex-grow overflow-y-auto">
-        {/* Mobile top bar */}
-        <div className="lg:hidden bg-white shadow-sm p-4">
+        {/* Top bar */}
+        <div className="bg-white shadow-sm p-4">
           <div className="flex items-center justify-between">
+            {/* Mobile hamburger */}
             <button 
-              className="text-gray-500 hover:text-gray-700"
+              className="text-gray-500 hover:text-gray-700 lg:hidden"
               onClick={() => setSidebarOpen(true)}
             >
               <i className="fas fa-bars text-xl"></i>
             </button>
-            <h1 className="text-lg font-semibold text-gray-800 truncate max-w-[40%]">{title}</h1>
+
+            {/* Title */}
+            <h1 className="text-lg font-semibold text-gray-800 truncate max-w-[40%] lg:max-w-full">{title}</h1>
+
+            {/* Right side content */}
             <div className="flex items-center space-x-3">
               <div className="relative">
                 <NotificationDropdown userId={user._id} userType={user.user_type} />
               </div>
-              <div className="flex flex-col items-end min-w-[60px]">
-                <span className="text-xs font-bold text-gray-600 truncate max-w-[80px]">
-                  {user.first_name} {user.last_name}
-                </span>
-                <span className="text-[0.6rem] font-medium text-gray-500 truncate max-w-[80px]">
-                  {user.user_type === 'department_admin' ? 'Dept Admin' : 
-                   user.user_type === 'hr' ? 'HR Officer' : 
-                   user.user_type === 'mayor' ? 'Mayor' : 
-                   'Employee'}
-                </span>
-              </div>
-              <div className="avatar placeholder">
-                {user?.profile_image ? (
-                  <div className="w-8 rounded-full">
-                    <img 
-                      src={user.profile_image} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="bg-neutral text-neutral-content w-8 rounded-full flex items-center justify-center">
-                    <span className="text-sm">
-                      {user.first_name.charAt(0)}{user.last_name.charAt(0)}
-                    </span>
-                  </div>
-                )}
+
+              {/* User info and avatar */}
+              <div className="flex items-center space-x-2">
+                <div className="hidden sm:flex flex-col items-start">
+                  <span className="text-sm font-bold text-gray-600">
+                    {user.first_name} {user.last_name}
+                  </span>
+                  <span className="text-xs font-medium text-gray-500">
+                    {user.user_type === 'department_admin' ? 'Department Admin' : 
+                     user.user_type === 'hr' ? 'HR Officer' : 
+                     user.user_type === 'mayor' ? 'Mayor' : 
+                     'Employee'}
+                  </span>
+                </div>
+                <div className="avatar placeholder">
+                  {user?.profile_image ? (
+                    <div className="w-8 lg:w-10 rounded-full">
+                      <img 
+                        src={user.profile_image} 
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-neutral text-neutral-content w-8 lg:w-10 rounded-full flex items-center justify-center">
+                      <span className="text-sm lg:text-base">
+                        {user.first_name.charAt(0)}{user.last_name.charAt(0)}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <div className="p-4 md:p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-xl md:text-2xl font-semibold text-gray-800 hidden lg:block">{title}</h1>
-
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <NotificationDropdown userId={user._id} userType={user.user_type} />
-              </div>
-
-              <div className="flex flex-col items-end">
-                <span className="text-sm font-bold text-gray-600">
-                  {user.first_name} {user.last_name}
-                </span>
-                <span className="text-xs font-medium text-gray-500">
-                  {user.user_type === 'department_admin' ? 'Department Admin' : 
-                   user.user_type === 'hr' ? 'HR Officer' : 
-                   user.user_type === 'mayor' ? 'Mayor' : 
-                   'Employee'}
-                </span>
-              </div>
-
-              <div className="avatar placeholder">
-                {user?.profile_image ? (
-                  <div className="w-10 md:w-12 rounded-full">
-                    <img 
-                      src={user.profile_image} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="bg-neutral text-neutral-content w-10 md:w-12 rounded-full flex items-center justify-center">
-                    <span className="text-lg md:text-xl">
-                      {user.first_name.charAt(0)}{user.last_name.charAt(0)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Main content */}
           {children}
         </div>
