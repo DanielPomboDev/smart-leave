@@ -306,9 +306,10 @@ const HREmployees = () => {
             </h2>
             
             <button 
-              className="btn btn-primary"
+              className="btn btn-primary btn-sm md:btn-md"
               onClick={() => setShowAddModal(true)}
             >
+              <i className="fas fa-plus mr-1"></i>
               Add Employee
             </button>
           </div>

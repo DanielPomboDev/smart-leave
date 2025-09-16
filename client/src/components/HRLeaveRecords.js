@@ -176,7 +176,10 @@ const HRLeaveRecords = () => {
               <i className="fi fi-rr-time-past text-blue-500 mr-2"></i>
               Leave Records
             </h2>
-            <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>Calculate Credits</button>
+            <button className="btn btn-primary btn-sm md:btn-md" onClick={() => setIsModalOpen(true)}>
+              <i className="fas fa-calculator mr-1"></i>
+              Calculate Credits
+            </button>
           </div>
 
             {success && (
