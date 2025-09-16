@@ -148,8 +148,8 @@ const MayorLeaveRequestDetails = () => {
             {/* Leave Request Details */}
             <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 shadow-sm mb-6">
               {/* Employee Info */}
-              <div className="flex items-center mb-6 pb-4 border-b border-gray-200">
-                <div className="avatar placeholder mr-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 pb-4 border-b border-gray-200">
+                <div className="avatar placeholder">
                   {leaveRequest.user_id?.profile_image ? (
                     <div className="bg-neutral text-neutral-content rounded-full w-16">
                       <img 
@@ -166,9 +166,9 @@ const MayorLeaveRequestDetails = () => {
                     </div>
                   )}
                 </div>
-                <div>
+                <div className="text-center sm:text-left">
                   <h4 className="text-xl font-bold text-gray-800">
-                                      {leaveRequest.user_id?.first_name} {leaveRequest.user_id?.last_name}
+                    {leaveRequest.user_id?.first_name} {leaveRequest.user_id?.last_name}
                   </h4>
                   <p className="text-gray-600">
                     {leaveRequest.user_id?.department_id?.name} • {leaveRequest.user_id?.position}
