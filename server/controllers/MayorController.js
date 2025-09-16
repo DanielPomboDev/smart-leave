@@ -91,12 +91,13 @@ class MayorController {
         if (isLeaveWithPay && isCurrentOrPastMonth) {
           leaveRecord.vacation_used += leaveRequest.number_of_days;
           leaveRecord.vacation_balance -= leaveRequest.number_of_days;
-          
-          // Track LWOP days if this was originally without pay but we're recording it anyway
-          if (leaveRequest.without_pay) {
-            leaveRecord.lwop_days = (leaveRecord.lwop_days || 0) + leaveRequest.number_of_days;
-          }
         }
+        
+        // Track LWOP days for leave without pay
+        if (leaveRequest.without_pay) {
+          leaveRecord.lwop_days = (leaveRecord.lwop_days || 0) + leaveRequest.number_of_days;
+        }
+        
         vacationEntries.push(leaveEntry);
       } else if (leaveRequest.leave_type === 'sick') {
         // For future months, just record the entry without deducting leave
@@ -104,12 +105,13 @@ class MayorController {
         if (isLeaveWithPay && isCurrentOrPastMonth) {
           leaveRecord.sick_used += leaveRequest.number_of_days;
           leaveRecord.sick_balance -= leaveRequest.number_of_days;
-          
-          // Track LWOP days if this was originally without pay but we're recording it anyway
-          if (leaveRequest.without_pay) {
-            leaveRecord.lwop_days = (leaveRecord.lwop_days || 0) + leaveRequest.number_of_days;
-          }
         }
+        
+        // Track LWOP days for leave without pay
+        if (leaveRequest.without_pay) {
+          leaveRecord.lwop_days = (leaveRecord.lwop_days || 0) + leaveRequest.number_of_days;
+        }
+        
         sickEntries.push(leaveEntry);
       }
 
