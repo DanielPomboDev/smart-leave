@@ -27,6 +27,8 @@ const HRLeaveRecord = () => {
   const [calculatedDays, setCalculatedDays] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isFutureDate, setIsFutureDate] = useState(false);
+  const [showUndertimeWarning, setShowUndertimeWarning] = useState(false);
 
   // Conversion tables for hours and minutes to days
   const hoursToDays = {
@@ -120,6 +122,26 @@ const HRLeaveRecord = () => {
     setCalculatedDays(days);
   }, [undertimeForm.hours, undertimeForm.minutes]);
 
+  // Check if the selected date is in the future
+  useEffect(() => {
+    const { month, year } = undertimeForm;
+    if (month && year) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      const selectedYear = parseInt(year);
+      const selectedMonth = parseInt(month);
+
+      if (selectedYear > currentYear || (selectedYear === currentYear && selectedMonth > currentMonth)) {
+        setIsFutureDate(true);
+        setShowUndertimeWarning(true);
+      } else {
+        setIsFutureDate(false);
+        setShowUndertimeWarning(false);
+      }
+    }
+  }, [undertimeForm.month, undertimeForm.year]);
+
   const handleUndertimeInputChange = (e) => {
     const { name, value } = e.target;
     setUndertimeForm({
@@ -141,6 +163,8 @@ const HRLeaveRecord = () => {
       minutes: ''
     });
     setCalculatedDays(0);
+    setShowUndertimeWarning(false);
+    setIsFutureDate(false);
   };
 
   const handleAddUndertimeSubmit = async (e) => {
@@ -519,6 +543,14 @@ const HRLeaveRecord = () => {
                   <option value="2025">2025</option>
                 </select>
               </div>
+              {showUndertimeWarning && (
+                <div className="alert alert-warning">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>Cannot add undertime for a future month.</span>
+                </div>
+              )}
               <div className="form-control">
                 <label className="label">
                   <span className="label-text font-medium">Undertime Duration</span>
@@ -561,7 +593,7 @@ const HRLeaveRecord = () => {
               </div>
               <div className="modal-action">
                 <button type="button" className="btn btn-ghost" onClick={closeAddUndertimeModal}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Add Undertime</button>
+                <button type="submit" className="btn btn-primary" disabled={isFutureDate}>Add Undertime</button>
               </div>
             </form>
           </div>

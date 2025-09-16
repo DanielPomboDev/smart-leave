@@ -382,35 +382,47 @@ exports.update = async (req, res) => {
 exports.addUndertime = async (req, res) => {
   try {
     const { user_id, month, year, undertime_hours } = req.body;
-    
+
     // Validate required fields
     if (!user_id || !month || !year || undertime_hours === undefined) {
       return res.status(400).json({ message: 'User ID, month, year, and undertime hours are required' });
     }
-    
+
+    // Validation: Prevent adding undertime for future months
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
+
+    if (year > currentYear || (year == currentYear && month > currentMonth)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot add undertime for a future month.'
+      });
+    }
+
     // Round the undertime to 3 decimal places
     const undertimeToAdd = Math.round(undertime_hours * 1000) / 1000;
-    
+
     // Check if a leave record already exists for this user/month/year
     let leaveRecord = await LeaveRecord.findOne({ user_id, month, year });
-    
+
     if (leaveRecord) {
       // Update existing record by ADDING to the current undertime
       const newUndertime = Math.round((leaveRecord.undertime_hours + undertimeToAdd) * 1000) / 1000;
       leaveRecord.undertime_hours = newUndertime;
-      
+
       // Deduct undertime from vacation leave balance
       const newVacationUsed = Math.round((leaveRecord.vacation_used + undertimeToAdd) * 1000) / 1000;
       leaveRecord.vacation_used = newVacationUsed;
       leaveRecord.vacation_balance = Math.round((leaveRecord.vacation_earned - leaveRecord.vacation_used) * 1000) / 1000;
-      
+
       await leaveRecord.save();
     } else {
       // Create new record with default values
       // Deduct undertime from vacation leave balance
       const vacationUsed = Math.round(undertimeToAdd * 1000) / 1000;
       const vacationBalance = Math.round((1.25 - vacationUsed) * 1000) / 1000;
-      
+
       leaveRecord = new LeaveRecord({
         user_id,
         month,
@@ -423,10 +435,10 @@ exports.addUndertime = async (req, res) => {
         sick_balance: 1.25,
         undertime_hours: undertimeToAdd
       });
-      
+
       await leaveRecord.save();
     }
-    
+
     res.json({
       success: true,
       message: 'Undertime added successfully',
