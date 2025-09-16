@@ -49,15 +49,6 @@ Thank you for participating in the alpha testing of the Smart Leave Management S
 | The system can adapt to various leave types and request scenarios. |   |   |   |   |   |
 | The system can be updated or improved to add new features if needed. |   |   |   |   |   |
 
-## Push Notifications
-
-| Feature | 1 | 2 | 3 | 4 | 5 |
-|---------|---|---|---|---|---|
-| The system sends timely notifications for leave request status updates. |   |   |   |   |   |
-| The system allows users to manage notification preferences. |   |   |   |   |   |
-| Notification messages are clear and informative. |   |   |   |   |   |
-| Users can opt-in/opt-out of push notifications effectively. |   |   |   |   |   |
-
 ## Overall Experience
 
 | Aspect | Rating |

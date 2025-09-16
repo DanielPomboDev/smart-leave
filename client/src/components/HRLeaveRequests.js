@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -22,51 +22,64 @@ const HRLeaveRequests = () => {
   });
   
   const navigate = useNavigate();
+  const pollingInterval = useRef(null);
 
   // Fetch leave requests and departments
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        
-        // Fetch departments
-        const deptResponse = await axios.get('/api/hr/departments', {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (deptResponse.data.success) {
-          setDepartments(deptResponse.data.departments);
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      // Fetch departments
+      const deptResponse = await axios.get('/api/hr/departments', {
+        headers: {
+          'Content-Type': 'application/json'
         }
-        
-        // Fetch leave requests
-        const params = new URLSearchParams(filters).toString();
-        const response = await axios.get(`/api/hr/leave-requests?${params}`, {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
+      });
+      
+      if (deptResponse.data.success) {
+        setDepartments(deptResponse.data.departments);
+      }
+      
+      // Fetch leave requests
+      const params = new URLSearchParams(filters).toString();
+      const response = await axios.get(`/api/hr/leave-requests?${params}`, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
-        if (response.data.success) {
-          setLeaveRequests(response.data.leaveRequests);
-          setPagination({
-            currentPage: response.data.currentPage || 1,
-            totalPages: response.data.totalPages || 1,
-            hasNext: response.data.hasNext || false,
-            hasPrev: response.data.hasPrev || false
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError('Failed to load data');
-      } finally {
-        setLoading(false);
+      if (response.data.success) {
+        setLeaveRequests(response.data.leaveRequests);
+        setPagination({
+          currentPage: response.data.currentPage || 1,
+          totalPages: response.data.totalPages || 1,
+          hasNext: response.data.hasNext || false,
+          hasPrev: response.data.hasPrev || false
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  // Fetch data on component mount and set up polling
+  useEffect(() => {
+    fetchData();
+    
+    // Set up polling to refresh every 30 seconds
+    pollingInterval.current = setInterval(fetchData, 30000);
+    
+    // Clean up interval on component unmount
+    return () => {
+      if (pollingInterval.current) {
+        clearInterval(pollingInterval.current);
       }
     };
-
-    fetchData();
-  }, [filters]);
+  }, [fetchData]);
 
   const handleFilterChange = (name, value) => {
     setFilters(prev => ({
@@ -140,10 +153,20 @@ const HRLeaveRequests = () => {
     <Layout title="Leave Requests">
       <div className="card bg-white shadow-md mb-6">
         <div className="card-body">
-          <h2 className="card-title text-xl font-bold text-gray-800 mb-4">
-            <i className="fas fa-list-check text-blue-500 mr-2"></i>
-            Manage Leave Requests
-          </h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="card-title text-xl font-bold text-gray-800">
+              <i className="fas fa-list-check text-blue-500 mr-2"></i>
+              Manage Leave Requests
+            </h2>
+            <button 
+              className="btn btn-sm btn-primary"
+              onClick={fetchData}
+              disabled={loading}
+            >
+              <i className="fas fa-sync-alt mr-2"></i>
+              Refresh
+            </button>
+          </div>
           
           {/* Filter Controls */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -15,32 +15,45 @@ const DepartmentLeaveRequests = () => {
     search: ''
   });
   const navigate = useNavigate();
+  const pollingInterval = useRef(null);
 
   // Fetch department leave requests
-  useEffect(() => {
-    const fetchLeaveRequests = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await axios.get('/api/department/leave-requests', {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.data.success) {
-          console.log('Leave requests data structure:', response.data.data);
-          setLeaveRequests(response.data.data || []);
-          setFilteredRequests(response.data.data || []);
+  const fetchLeaveRequests = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/department/leave-requests', {
+        headers: {
+          'Content-Type': 'application/json'
         }
-      } catch (error) {
-        console.error('Error fetching leave requests:', error);
-        setError('Failed to load leave requests');
-      } finally {
-        setLoading(false);
+      });
+
+      if (response.data.success) {
+        console.log('Leave requests data structure:', response.data.data);
+        setLeaveRequests(response.data.data || []);
+        setFilteredRequests(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching leave requests:', error);
+      setError('Failed to load leave requests');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch department leave requests on component mount
+  useEffect(() => {
+    fetchLeaveRequests();
+    
+    // Set up polling to refresh every 30 seconds
+    pollingInterval.current = setInterval(fetchLeaveRequests, 30000);
+    
+    // Clean up interval on component unmount
+    return () => {
+      if (pollingInterval.current) {
+        clearInterval(pollingInterval.current);
       }
     };
-
-    fetchLeaveRequests();
   }, []);
 
   // Apply filters when they change or when leaveRequests change
@@ -194,6 +207,14 @@ const DepartmentLeaveRequests = () => {
               <i className="fas fa-history text-blue-500 mr-2"></i>
               Department Leave Requests
             </h2>
+            <button 
+              className="btn btn-sm btn-primary"
+              onClick={fetchLeaveRequests}
+              disabled={loading}
+            >
+              <i className="fas fa-sync-alt mr-2"></i>
+              Refresh
+            </button>
           </div>
         </div>
 

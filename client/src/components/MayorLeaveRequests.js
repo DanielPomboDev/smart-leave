@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from './Layout';
 import { getLeaveRequests } from '../services/mayorService';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,7 @@ const MayorLeaveRequests = () => {
     search: ''
   });
   const navigate = useNavigate();
+  const pollingInterval = useRef(null);
 
   const fetchLeaveRequests = useCallback(async () => {
     setLoading(true);
@@ -32,6 +33,16 @@ const MayorLeaveRequests = () => {
 
   useEffect(() => {
     fetchLeaveRequests();
+    
+    // Set up polling to refresh every 30 seconds
+    pollingInterval.current = setInterval(fetchLeaveRequests, 30000);
+    
+    // Clean up interval on component unmount
+    return () => {
+      if (pollingInterval.current) {
+        clearInterval(pollingInterval.current);
+      }
+    };
   }, [fetchLeaveRequests]);
 
   // Apply filters when they change or when leaveRequests change
@@ -181,6 +192,14 @@ const MayorLeaveRequests = () => {
               <i className="fas fa-history text-blue-500 mr-2"></i>
               Mayor Leave Requests
             </h2>
+            <button 
+              className="btn btn-sm btn-primary"
+              onClick={fetchLeaveRequests}
+              disabled={loading}
+            >
+              <i className="fas fa-sync-alt mr-2"></i>
+              Refresh
+            </button>
           </div>
         </div>
 
