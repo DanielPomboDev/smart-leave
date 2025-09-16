@@ -246,7 +246,7 @@ const HRLeaveRecord = () => {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 shadow-sm">
               <h3 className="font-semibold text-blue-800 text-lg mb-4">Vacation Leave Summary</h3>
               <div className="space-y-3">
@@ -420,7 +420,7 @@ const HRLeaveRecord = () => {
                     )}
 
                     {/* Monthly Balance */}
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <h5 className="font-medium text-gray-800 mb-2">Vacation Leave</h5>
                         <div className="space-y-1 text-sm">
