@@ -1,0 +1,34 @@
+Functionality	1	2	3	4	5
+The system detects tomato  crops in real time.					
+The system distinguishes ripe from unripe tomatoes accurately.					
+The system performs accurately when proper lighting conditions are met.					
+The system consistently identifies tomato readiness when used in actual field conditions.					
+
+Reliability	1	2	3	4	5
+The system provides consistent detection results under stable conditions.					
+The system maintains accuracy across different tomato varieties.					
+The system recovers from temporary errors or detection failure.					
+The system can still function after being used for extended periods in the field.					
+
+
+
+
+
+Performance Efficiency	1	2	3	4	5
+The system processes images and provides results in real time without delay.					
+The system operates efficiently without consuming excessive device resources.					
+The system remains responsive even with multiple detection attempts.					
+The system can continuously process the live camera feed without significant slowdown.					
+
+Interaction Capability	1	2	3	4	5
+The system provides a user-friendly interface for scanning and detecting tomatoes.					
+The system displays detection results in a clear and understandable manner.					
+The system allows users to navigate between functions (e.g., scan and exit).					
+The system shows the detection results immediately after scanning.					
+
+Flexibility	1	2	3	4	5
+The system works properly under different lighting conditions.					
+The system can be used on different Android devices.					
+The system can adapt to various tomato sizes and positions during scanning.					
+The system can be updated or improved to add new features if needed.					
+

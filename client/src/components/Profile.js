@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
-import { requestForToken } from '../firebase';
+// import { requestForToken } from '../firebase'; // Commented out for alpha testing
 
 const Profile = () => {
   const [user, setUser] = useState(null);
@@ -11,9 +11,9 @@ const Profile = () => {
   const [uploadError, setUploadError] = useState('');
   const [previewImage, setPreviewImage] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
-  const [savingToken, setSavingToken] = useState(false);
-  const [tokenSaveError, setTokenSaveError] = useState('');
+  // const [notificationPermission, setNotificationPermission] = useState(Notification.permission); // Commented out for alpha testing
+  // const [savingToken, setSavingToken] = useState(false); // Commented out for alpha testing
+  // const [tokenSaveError, setTokenSaveError] = useState(''); // Commented out for alpha testing
   const fileInputRef = useRef(null);
 
   // Fetch user profile data
@@ -130,7 +130,7 @@ const Profile = () => {
   };
 
   // Request notification permission and get FCM token
-  const requestNotificationPermission = async () => {
+  /* const requestNotificationPermission = async () => { // Commented out for alpha testing
     if (Notification.permission === 'granted') {
       setNotificationPermission('granted');
       await getAndSaveToken();
@@ -147,10 +147,10 @@ const Profile = () => {
     } catch (error) {
       console.error('Error requesting notification permission:', error);
     }
-  };
+  }; */
 
   // Get FCM token and save it to the server
-  const getAndSaveToken = async () => {
+  /* const getAndSaveToken = async () => { // Commented out for alpha testing
     try {
       setSavingToken(true);
       setTokenSaveError('');
@@ -179,7 +179,7 @@ const Profile = () => {
     } finally {
       setSavingToken(false);
     }
-  };
+  }; */
 
   // Handle image change
   const handleImageChange = (e) => {
@@ -419,7 +419,7 @@ const Profile = () => {
               </div>
             </div>
             
-            {/* Notification Settings Card */}
+            {/* Notification Settings Card - Commented out for alpha testing
             <div className="card bg-white shadow-md">
               <div className="card-body">
                 <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
@@ -484,7 +484,7 @@ const Profile = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       {/* Success Modal */}
