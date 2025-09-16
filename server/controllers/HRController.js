@@ -273,17 +273,23 @@ const getHRLeaveRequest = async (req, res) => {
     const numberOfDays = parseFloat(leaveRequest.number_of_days);
     const hasSufficientCredits = await hasSufficientLeaveCredits(leaveRequest.user_id.user_id, leaveRequest.leave_type, numberOfDays);
     
-    // Get the employee's current leave balance
-    const LeaveRecord = require('../models/LeaveRecord');
-    const latestLeaveRecord = await LeaveRecord
-      .findOne({ user_id: leaveRequest.user_id.user_id })
+    // Get all leave records for this user to calculate cumulative balance
+    const allLeaveRecords = await LeaveRecord
+      .find({ user_id: leaveRequestWithRecommendations.user_id.user_id })
       .sort({ year: -1, month: -1 })
       .exec();
     
     // Add leave balance information to the user object
-    if (latestLeaveRecord) {
-      leaveRequestWithRecommendations.user_id.vacation_balance = latestLeaveRecord.vacation_balance;
-      leaveRequestWithRecommendations.user_id.sick_balance = latestLeaveRecord.sick_balance;
+    if (allLeaveRecords.length > 0) {
+      // Calculate cumulative balance
+      const vacationBalance = allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0) - 
+                            allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0);
+      
+      const sickBalance = allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0) - 
+                         allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0);
+      
+      leaveRequestWithRecommendations.user_id.vacation_balance = vacationBalance;
+      leaveRequestWithRecommendations.user_id.sick_balance = sickBalance;
     } else {
       // Default balances if no record exists
       leaveRequestWithRecommendations.user_id.vacation_balance = 0;

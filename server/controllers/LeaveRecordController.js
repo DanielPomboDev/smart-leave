@@ -77,14 +77,14 @@ function getProratedCredits(daysPresent, lwopDays) {
 // Check if user has sufficient leave credits
 exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
   try {
-    // Get the latest leave record for this user to determine their current balance
-    const latestLeaveRecord = await LeaveRecord
-      .findOne({ user_id: userId })
+    // Get all leave records for this user to calculate cumulative balance
+    const allLeaveRecords = await LeaveRecord
+      .find({ user_id: userId })
       .sort({ year: -1, month: -1 })
       .exec();
     
     // If no record exists, use 0 as default values (consistent with UI display)
-    if (!latestLeaveRecord) {
+    if (allLeaveRecords.length === 0) {
       const vacationBalance = 0; // Default vacation balance
       const sickBalance = 0;     // Default sick balance
       
@@ -97,11 +97,18 @@ exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
       return false;
     }
     
+    // Calculate cumulative balance
+    const vacationBalance = allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0) - 
+                          allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0);
+    
+    const sickBalance = allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0) - 
+                       allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0);
+    
     // Check if the user has sufficient credits
     if (leaveType === 'vacation') {
-      return latestLeaveRecord.vacation_balance >= numberOfDays;
+      return vacationBalance >= numberOfDays;
     } else if (leaveType === 'sick') {
-      return latestLeaveRecord.sick_balance >= numberOfDays;
+      return sickBalance >= numberOfDays;
     }
     
     return false;
@@ -165,13 +172,13 @@ exports.getCurrentLeaveCredits = async (req, res) => {
   try {
     const userId = req.user.user_id; // Get user ID from authenticated user
     
-    // Get the most recent leave record for this user
-    const latestRecord = await LeaveRecord
-      .findOne({ user_id: userId })
+    // Get all leave records for this user
+    const allLeaveRecords = await LeaveRecord
+      .find({ user_id: userId })
       .sort({ year: -1, month: -1 })
       .exec();
     
-    if (!latestRecord) {
+    if (allLeaveRecords.length === 0) {
       // If no record exists, return default values
       return res.json({
         vacationBalance: 0,
@@ -179,9 +186,16 @@ exports.getCurrentLeaveCredits = async (req, res) => {
       });
     }
     
+    // Calculate cumulative balances
+    const vacationBalance = allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0) - 
+                          allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0);
+    
+    const sickBalance = allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0) - 
+                       allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0);
+    
     res.json({
-      vacationBalance: latestRecord.vacation_balance,
-      sickBalance: latestRecord.sick_balance
+      vacationBalance: vacationBalance,
+      sickBalance: sickBalance
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching leave credits', error: error.message });

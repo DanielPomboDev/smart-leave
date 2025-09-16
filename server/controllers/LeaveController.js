@@ -45,7 +45,20 @@ const createLeaveRequest = async (req, res) => {
       if (!latestLeaveRecord) {
         availableCredits = leave_type === 'vacation' ? 15 : 12; // Default balances
       } else {
-        availableCredits = leave_type === 'vacation' ? latestLeaveRecord.vacation_balance : latestLeaveRecord.sick_balance;
+        // Get all leave records for this user to calculate cumulative balance
+        const allLeaveRecords = await LeaveRecord
+          .find({ user_id: req.user.user_id })
+          .sort({ year: -1, month: -1 })
+          .exec();
+        
+        if (allLeaveRecords.length === 0) {
+          availableCredits = leave_type === 'vacation' ? 15 : 12; // Default balances
+        } else {
+          // Calculate cumulative balance
+          const cumulativeBalance = allLeaveRecords.reduce((sum, record) => sum + record[leave_type === 'vacation' ? 'vacation_earned' : 'sick_earned'], 0) - 
+                                   allLeaveRecords.reduce((sum, record) => sum + record[leave_type === 'vacation' ? 'vacation_used' : 'sick_used'], 0);
+          availableCredits = cumulativeBalance;
+        }
       }
       
       // Set the without_pay flag to true
