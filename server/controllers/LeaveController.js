@@ -1,7 +1,36 @@
 const LeaveRequest = require('../models/LeaveRequest');
 const { sendNewLeaveRequestNotification } = require('../utils/notificationUtils');
 const User = require('../models/User');
-const { hasSufficientLeaveCredits } = require('./LeaveRecordController');
+const { getLeaveCreditsInfo } = require('./LeaveRecordController');
+
+// Check if the new leave request dates overlap with existing leave requests
+const hasOverlappingLeave = async (userId, startDate, endDate, excludeId = null) => {
+  try {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Query for overlapping leave requests
+    let query = {
+      user_id: userId,
+      $or: [
+        // Case 1: New leave starts before existing leave ends and new leave ends after existing leave starts
+        { start_date: { $lte: end }, end_date: { $gte: start } }
+      ],
+      status: { $ne: 'cancelled' } // Don't consider cancelled requests
+    };
+    
+    // If we're updating an existing request, exclude it from the check
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+    
+    const overlappingRequests = await LeaveRequest.find(query);
+    return overlappingRequests.length > 0;
+  } catch (error) {
+    console.error('Error checking for overlapping leave:', error);
+    return false; // In case of error, we don't block the request
+  }
+};
 
 // @desc    Create a new leave request
 // @route   POST /api/leave-requests
@@ -27,42 +56,29 @@ const createLeaveRequest = async (req, res) => {
       });
     }
 
-    // Check if employee has sufficient leave credits
+    // Check for overlapping leave dates
+    const hasOverlap = await hasOverlappingLeave(req.user.user_id, start_date, end_date);
+    if (hasOverlap) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have a leave request for the selected dates. Please choose different dates.'
+      });
+    }
+
+    // Check employee's leave credits
     const numberOfDaysFloat = parseFloat(number_of_days);
-    const hasSufficientCredits = await hasSufficientLeaveCredits(req.user.user_id, leave_type, numberOfDaysFloat);
+    const leaveCreditsInfo = await getLeaveCreditsInfo(req.user.user_id, leave_type);
     
     let isWithoutPay = false;
-    let availableCredits = 0; // Declare availableCredits outside the if block
-    if (!hasSufficientCredits) {
-      // Get the latest leave record for this user to determine their current balance
-      const LeaveRecord = require('../models/LeaveRecord');
-      const latestLeaveRecord = await LeaveRecord
-        .findOne({ user_id: req.user.user_id })
-        .sort({ year: -1, month: -1 })
-        .exec();
-      
-      // If no record exists, use default values
-      if (!latestLeaveRecord) {
-        availableCredits = leave_type === 'vacation' ? 15 : 12; // Default balances
-      } else {
-        // Get all leave records for this user to calculate cumulative balance
-        const allLeaveRecords = await LeaveRecord
-          .find({ user_id: req.user.user_id })
-          .sort({ year: -1, month: -1 })
-          .exec();
-        
-        if (allLeaveRecords.length === 0) {
-          availableCredits = leave_type === 'vacation' ? 15 : 12; // Default balances
-        } else {
-          // Calculate cumulative balance
-          const cumulativeBalance = allLeaveRecords.reduce((sum, record) => sum + record[leave_type === 'vacation' ? 'vacation_earned' : 'sick_earned'], 0) - 
-                                   allLeaveRecords.reduce((sum, record) => sum + record[leave_type === 'vacation' ? 'vacation_used' : 'sick_used'], 0);
-          availableCredits = cumulativeBalance;
-        }
+    
+    // If employee doesn't have sufficient credits
+    if (numberOfDaysFloat > leaveCreditsInfo.maxAllowedDays) {
+      // If employee has less than 1 credit, consider as no credits
+      if (leaveCreditsInfo.maxAllowedDays < 1) {
+        isWithoutPay = true;
       }
-      
-      // Set the without_pay flag to true
-      isWithoutPay = true;
+      // For partial credits, we'll let the client handle the adjustment
+      // The server will just validate and store what the client sends
     }
 
     // Format where_spent based on location type
@@ -131,11 +147,6 @@ const createLeaveRequest = async (req, res) => {
       message: 'Leave request submitted successfully',
       data: savedLeaveRequest
     };
-    
-    // Add warning message if applicable
-    if (isWithoutPay) {
-      response.warning = `Insufficient ${leave_type} leave credits. You have ${availableCredits.toFixed(3)} days available but are requesting ${numberOfDaysFloat} days. This leave will be considered without pay.`;
-    }
 
     res.status(201).json(response);
   } catch (error) {

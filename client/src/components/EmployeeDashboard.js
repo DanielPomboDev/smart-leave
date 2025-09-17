@@ -148,6 +148,14 @@ const EmployeeDashboard = () => {
     }));
   }, []);
 
+  // Calculate adjusted end date based on start date and number of days
+  const calculateAdjustedEndDate = (startDate, numberOfDays) => {
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(startDateObj);
+    endDateObj.setDate(startDateObj.getDate() + numberOfDays - 1);
+    return endDateObj.toISOString().split('T')[0];
+  };
+
   // Handle input changes
   const handleQuickLeaveChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -458,79 +466,8 @@ const EmployeeDashboard = () => {
   const submitLeaveRequestWithoutCreditCheck = () => {
     // Close the warning modal
     setShowWarningModal(false);
-    // Proceed with submission
-    submitActualLeaveRequest();
-  };
-
-  // Actual leave request submission logic
-  const submitActualLeaveRequest = async () => {
-    setLoading(true);
-    setErrorMessage('');
-
-    try {
-      // Prepare data for submission
-      const requestData = {
-        leave_type: quickLeaveData.leaveType,
-        subtype: quickLeaveData.leaveType === 'vacation' 
-          ? quickLeaveData.vacationSubtype === 'other' 
-            ? quickLeaveData.vacationOtherSpecify 
-            : quickLeaveData.vacationSubtype
-          : quickLeaveData.sickSubtype === 'other' 
-            ? quickLeaveData.sickOtherSpecify 
-            : quickLeaveData.sickSubtype,
-        start_date: quickLeaveData.startDate,
-        end_date: quickLeaveData.endDate,
-        number_of_days: quickLeaveData.numberOfDays,
-        where_spent: quickLeaveData.locationType,
-        commutation: quickLeaveData.commutation,
-        location_specify: quickLeaveData.locationSpecify
-      };
-
-      // Get token from localStorage
-      const token = localStorage.getItem('token');
-      
-      // Make API call
-      const response = await axios.post('/api/leave-requests', requestData, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.data.success) {
-        // Show success modal
-        setShowSuccessModal(true);
-        
-        // Refresh recent leave requests to include the new one
-        await fetchRecentLeaveRequests();
-        
-        // Reset form after a delay
-        setTimeout(() => {
-          const today = new Date().toISOString().split('T')[0];
-          setQuickLeaveData({
-            step: 1,
-            leaveType: '',
-            vacationSubtype: '',
-            vacationOtherSpecify: '',
-            sickSubtype: '',
-            sickOtherSpecify: '',
-            startDate: today,
-            endDate: today,
-            numberOfDays: 1,
-            locationType: '',
-            locationSpecify: '',
-            commutation: false
-          });
-          setShowSuccessModal(false);
-        }, 3000); // Auto-close after 3 seconds
-      } else {
-        setErrorMessage(response.data.message || 'Failed to submit leave request');
-      }
-    } catch (error) {
-      console.error('Error submitting leave request:', error);
-      setErrorMessage(error.response?.data?.message || 'Failed to submit leave request. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    // Proceed with submission by calling the main submit function
+    submitLeaveRequest();
   };
 
   // Handle leave request submission
@@ -540,41 +477,69 @@ const EmployeeDashboard = () => {
     setLoading(true);
     setErrorMessage('');
 
-    try {
-      // Prepare data for submission
-      const requestData = {
-        leave_type: quickLeaveData.leaveType,
-        subtype: quickLeaveData.leaveType === 'vacation' 
-          ? quickLeaveData.vacationSubtype === 'other' 
-            ? quickLeaveData.vacationOtherSpecify 
-            : quickLeaveData.vacationSubtype
-          : quickLeaveData.sickSubtype === 'other' 
-            ? quickLeaveData.sickOtherSpecify 
-            : quickLeaveData.sickSubtype,
-        start_date: quickLeaveData.startDate,
-        end_date: quickLeaveData.endDate,
-        number_of_days: quickLeaveData.numberOfDays,
-        where_spent: quickLeaveData.locationType,
-        commutation: quickLeaveData.commutation,
-        location_specify: quickLeaveData.locationSpecify
-      };
-
-      // Check if user has sufficient leave credits before submitting
-      const hasSufficientCredits = quickLeaveData.leaveType === 'vacation' 
-        ? quickLeaveData.numberOfDays <= vacationBalance
-        : quickLeaveData.numberOfDays <= sickBalance;
-
-      // If insufficient credits, show warning modal
-      if (!hasSufficientCredits) {
+    // Client-side validation for insufficient credits BEFORE submitting
+    const numberOfDaysFloat = parseFloat(quickLeaveData.numberOfDays);
+    const availableCredits = quickLeaveData.leaveType === 'vacation' ? vacationBalance : sickBalance;
+    
+    // Check if user has insufficient credits
+    if (numberOfDaysFloat > availableCredits) {
+      // If employee has less than 1 credit, show without pay warning
+      if (availableCredits < 1) {
         const leaveType = quickLeaveData.leaveType === 'vacation' ? 'Vacation' : 'Sick';
-        const availableCredits = quickLeaveData.leaveType === 'vacation' ? vacationBalance : sickBalance;
-        const warningMsg = `Insufficient ${leaveType.toLowerCase()} leave credits. You have ${availableCredits.toFixed(3)} days available but are requesting ${quickLeaveData.numberOfDays} days. This leave will be considered without pay if approved by HR. Do you want to proceed?`;
-        
+        const warningMsg = `You have no ${leaveType.toLowerCase()} leave credits available. This leave will be considered without pay. Do you want to proceed?`;
         setWarningMessage(warningMsg);
         setShowWarningModal(true);
         setLoading(false);
         return;
+      } else {
+        // Partial credits - show adjustment warning and calculate adjusted values
+        const wholeDays = Math.floor(availableCredits);
+        const adjustedEndDate = calculateAdjustedEndDate(quickLeaveData.startDate, wholeDays);
+        const warningMsg = `You only have ${availableCredits.toFixed(3)} ${quickLeaveData.leaveType} leave credits available. Your leave request will be adjusted to ${wholeDays} day${wholeDays === 1 ? '' : 's'} ending on ${adjustedEndDate}. Do you want to proceed?`;
+        setWarningMessage(warningMsg);
+        
+        // Store the adjusted values for use when user confirms
+        const adjustedData = {
+          ...quickLeaveData,
+          numberOfDays: wholeDays,
+          endDate: adjustedEndDate,
+          _isAdjusted: true
+        };
+        
+        // Store adjusted data in state so we can use it in the warning modal
+        setQuickLeaveData(prev => ({
+          ...prev,
+          _adjustedData: adjustedData
+        }));
+        
+        setShowWarningModal(true);
+        setLoading(false);
+        return;
       }
+    }
+
+    try {
+      // Use adjusted data if available, otherwise use original data
+      const isAdjusted = quickLeaveData._adjustedData !== undefined;
+      const submitData = isAdjusted ? quickLeaveData._adjustedData : quickLeaveData;
+      
+      // Prepare data for submission
+      const requestData = {
+        leave_type: submitData.leaveType,
+        subtype: submitData.leaveType === 'vacation' 
+          ? submitData.vacationSubtype === 'other' 
+            ? submitData.vacationOtherSpecify 
+            : submitData.vacationSubtype
+          : submitData.sickSubtype === 'other' 
+            ? submitData.sickOtherSpecify 
+            : submitData.sickSubtype,
+        start_date: submitData.startDate,
+        end_date: submitData.endDate,
+        number_of_days: submitData.numberOfDays,
+        where_spent: submitData.locationType,
+        commutation: submitData.commutation,
+        location_specify: submitData.locationSpecify
+      };
 
       // Get token from localStorage
       const token = localStorage.getItem('token');
@@ -587,16 +552,17 @@ const EmployeeDashboard = () => {
       });
 
       if (response.data.success) {
-        // Show warning message if applicable
-        if (response.data.warning) {
-          // Display the warning in a modal
-          setWarningMessage(response.data.warning);
-          setShowWarningModal(true);
-          return; // Don't close the form yet
-        }
-        
         // Show success modal
         setShowSuccessModal(true);
+        
+        // Clean up adjusted data if it was used
+        if (isAdjusted) {
+          setQuickLeaveData(prev => {
+            const newData = { ...prev._adjustedData };
+            delete newData._adjustedData;
+            return newData;
+          });
+        }
         
         // Refresh recent leave requests to include the new one
         await fetchRecentLeaveRequests();
@@ -625,7 +591,11 @@ const EmployeeDashboard = () => {
       }
     } catch (error) {
       console.error('Error submitting leave request:', error);
-      setErrorMessage(error.response?.data?.message || 'Failed to submit leave request. Please try again.');
+      if (error.response?.data?.message) {
+        setErrorMessage(error.response.data.message);
+      } else {
+        setErrorMessage('Failed to submit leave request. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -1076,10 +1046,97 @@ const EmployeeDashboard = () => {
       <ConfirmationModal
         isOpen={showWarningModal}
         onClose={() => setShowWarningModal(false)}
-        onConfirm={submitLeaveRequestWithoutCreditCheck}
-        title="Insufficient Leave Credits"
+        onConfirm={async () => {
+          // Close the warning modal and submit the request
+          setShowWarningModal(false);
+          setLoading(true);
+          setErrorMessage('');
+          
+          // Use adjusted data if available, otherwise use original data
+          const isAdjusted = quickLeaveData._adjustedData !== undefined;
+          const submitData = isAdjusted ? quickLeaveData._adjustedData : quickLeaveData;
+          
+          try {
+            // Prepare data for submission
+            const requestData = {
+              leave_type: submitData.leaveType,
+              subtype: submitData.leaveType === 'vacation' 
+                ? submitData.vacationSubtype === 'other' 
+                  ? submitData.vacationOtherSpecify 
+                  : submitData.vacationSubtype
+                : submitData.sickSubtype === 'other' 
+                  ? submitData.sickOtherSpecify 
+                  : submitData.sickSubtype,
+              start_date: submitData.startDate,
+              end_date: submitData.endDate,
+              number_of_days: submitData.numberOfDays,
+              where_spent: submitData.locationType,
+              commutation: submitData.commutation,
+              location_specify: submitData.locationSpecify
+            };
+
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            
+            // Make API call
+            const response = await axios.post('/api/leave-requests', requestData, {
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (response.data.success) {
+              // Show success modal
+              setShowSuccessModal(true);
+              
+              // Clean up adjusted data if it was used
+              if (isAdjusted) {
+                setQuickLeaveData(prev => {
+                  const newData = { ...prev._adjustedData };
+                  delete newData._adjustedData;
+                  return newData;
+                });
+              }
+              
+              // Refresh recent leave requests to include the new one
+              await fetchRecentLeaveRequests();
+              
+              // Reset form after a delay
+              setTimeout(() => {
+                const today = new Date().toISOString().split('T')[0];
+                setQuickLeaveData({
+                  step: 1,
+                  leaveType: '',
+                  vacationSubtype: '',
+                  vacationOtherSpecify: '',
+                  sickSubtype: '',
+                  sickOtherSpecify: '',
+                  startDate: today,
+                  endDate: today,
+                  numberOfDays: 1,
+                  locationType: '',
+                  locationSpecify: '',
+                  commutation: false
+                });
+                setShowSuccessModal(false);
+              }, 3000); // Auto-close after 3 seconds
+            } else {
+              setErrorMessage(response.data.message || 'Failed to submit leave request');
+            }
+          } catch (error) {
+            console.error('Error submitting leave request:', error);
+            if (error.response?.data?.message) {
+              setErrorMessage(error.response.data.message);
+            } else {
+              setErrorMessage('Failed to submit leave request. Please try again.');
+            }
+          } finally {
+            setLoading(false);
+          }
+        }}
+        title="Leave Request Warning"
         message={warningMessage}
-        confirmText="Submit Anyway"
+        confirmText="Continue"
         cancelText="Cancel"
       />
 

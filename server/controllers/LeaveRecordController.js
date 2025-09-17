@@ -74,8 +74,8 @@ function getProratedCredits(daysPresent, lwopDays) {
     return row ? row.credits : 1.250; // Default to full credits
 }
 
-// Check if user has sufficient leave credits
-exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
+// Check if user has sufficient leave credits and calculate maximum allowed days
+exports.getLeaveCreditsInfo = async (userId, leaveType) => {
   try {
     // Get all leave records for this user to calculate cumulative balance
     const allLeaveRecords = await LeaveRecord
@@ -85,16 +85,11 @@ exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
     
     // If no record exists, use 0 as default values (consistent with UI display)
     if (allLeaveRecords.length === 0) {
-      const vacationBalance = 0; // Default vacation balance
-      const sickBalance = 0;     // Default sick balance
-      
-      if (leaveType === 'vacation') {
-        return vacationBalance >= numberOfDays;
-      } else if (leaveType === 'sick') {
-        return sickBalance >= numberOfDays;
-      }
-      
-      return false;
+      return {
+        hasSufficientCredits: false,
+        availableCredits: 0,
+        maxAllowedDays: 0
+      };
     }
     
     // Calculate cumulative balance
@@ -104,18 +99,22 @@ exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
     const sickBalance = allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0) - 
                        allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0);
     
-    // Check if the user has sufficient credits
-    if (leaveType === 'vacation') {
-      return vacationBalance >= numberOfDays;
-    } else if (leaveType === 'sick') {
-      return sickBalance >= numberOfDays;
-    }
+    // Determine available credits based on leave type
+    const availableCredits = leaveType === 'vacation' ? vacationBalance : sickBalance;
     
-    return false;
+    return {
+      hasSufficientCredits: availableCredits >= 1, // Consider less than 1 as no credits
+      availableCredits: availableCredits,
+      maxAllowedDays: Math.floor(availableCredits * 1000) / 1000 // Round to 3 decimal places
+    };
   } catch (error) {
     console.error('Error checking leave credits:', error);
     // If there's an error, we'll allow the request to proceed to avoid blocking users
-    return true;
+    return {
+      hasSufficientCredits: true,
+      availableCredits: 0,
+      maxAllowedDays: 0
+    };
   }
 };
 

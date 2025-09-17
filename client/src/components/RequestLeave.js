@@ -82,7 +82,7 @@ const RequestLeave = () => {
     fetchLeaveCredits();
   }, []);
 
-  // Update end date min when start date changes
+  // Handle start date changes
   const handleStartDateChange = (e) => {
     const newStartDate = e.target.value;
     setFormData(prev => ({
@@ -113,6 +113,14 @@ const RequestLeave = () => {
       }
     }
     return 1;
+  };
+
+  // Calculate adjusted end date based on start date and number of days
+  const calculateAdjustedEndDate = (startDate, numberOfDays) => {
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(startDateObj);
+    endDateObj.setDate(startDateObj.getDate() + numberOfDays - 1);
+    return endDateObj.toISOString().split('T')[0];
   };
 
   // Handle input changes
@@ -304,40 +312,66 @@ const RequestLeave = () => {
     setError('');
     
     try {
-      // Prepare data for submission
-      const requestData = {
-        leave_type: formData.leaveType,
-        subtype: formData.leaveType === 'vacation' 
-          ? formData.vacationSubtype === 'other' 
-            ? formData.vacationOtherSpecify 
-            : formData.vacationSubtype
-          : formData.sickSubtype === 'other' 
-            ? formData.sickOtherSpecify 
-            : formData.sickSubtype,
-        start_date: formData.startDate,
-        end_date: formData.endDate,
-        number_of_days: formData.numberOfDays,
-        where_spent: formData.locationType,
-        commutation: formData.commutation,
-        location_specify: formData.locationSpecify
-      };
-
-      // Check if user has sufficient leave credits before submitting
-      const hasSufficientCredits = formData.leaveType === 'vacation' 
-        ? formData.numberOfDays <= vacationBalance
-        : formData.numberOfDays <= sickBalance;
-
-      // If insufficient credits, show warning modal
-      if (!hasSufficientCredits) {
-        const leaveType = formData.leaveType === 'vacation' ? 'Vacation' : 'Sick';
-        const availableCredits = formData.leaveType === 'vacation' ? vacationBalance : sickBalance;
-        const warningMsg = `Insufficient ${leaveType.toLowerCase()} leave credits. You have ${availableCredits.toFixed(3)} days available but are requesting ${formData.numberOfDays} days. This leave will be considered without pay if approved by HR. Do you want to proceed?`;
-        
-        setWarningMessage(warningMsg);
-        setShowWarningModal(true);
-        setLoading(false);
-        return;
+      // Client-side validation for insufficient credits BEFORE submitting
+      const numberOfDaysFloat = parseFloat(formData.numberOfDays);
+      const availableCredits = formData.leaveType === 'vacation' ? vacationBalance : sickBalance;
+      
+      // Check if user has insufficient credits
+      if (numberOfDaysFloat > availableCredits) {
+        // If employee has less than 1 credit, show without pay warning
+        if (availableCredits < 1) {
+          const leaveType = formData.leaveType === 'vacation' ? 'Vacation' : 'Sick';
+          const warningMsg = `You have no ${leaveType.toLowerCase()} leave credits available. This leave will be considered without pay. Do you want to proceed?`;
+          setWarningMessage(warningMsg);
+          setShowWarningModal(true);
+          setLoading(false);
+          return;
+        } else {
+          // Partial credits - show adjustment warning and calculate adjusted values
+          const wholeDays = Math.floor(availableCredits);
+          const adjustedEndDate = calculateAdjustedEndDate(formData.startDate, wholeDays);
+          const warningMsg = `You only have ${availableCredits.toFixed(3)} ${formData.leaveType} leave credits available. Your leave request will be adjusted to ${wholeDays} day${wholeDays === 1 ? '' : 's'} ending on ${adjustedEndDate}. Do you want to proceed?`;
+          setWarningMessage(warningMsg);
+          
+          // Store the adjusted values for use when user confirms
+          const adjustedData = {
+            ...formData,
+            numberOfDays: wholeDays,
+            endDate: adjustedEndDate
+          };
+          
+          // Store adjusted data in state so we can use it in the warning modal
+          setFormData(prev => ({
+            ...prev,
+            _adjustedData: adjustedData
+          }));
+          
+          setShowWarningModal(true);
+          setLoading(false);
+          return;
+        }
       }
+      
+      // Prepare data for submission (use adjusted data if available)
+      const isAdjusted = formData._adjustedData !== undefined;
+      const submitData = isAdjusted ? formData._adjustedData : formData;
+      
+      const requestData = {
+        leave_type: submitData.leaveType,
+        subtype: submitData.leaveType === 'vacation' 
+          ? submitData.vacationSubtype === 'other' 
+            ? submitData.vacationOtherSpecify 
+            : submitData.vacationSubtype
+          : submitData.sickSubtype === 'other' 
+            ? submitData.sickOtherSpecify 
+            : submitData.sickSubtype,
+        start_date: submitData.startDate,
+        end_date: submitData.endDate,
+        number_of_days: submitData.numberOfDays,
+        where_spent: submitData.locationType,
+        commutation: submitData.commutation,
+        location_specify: submitData.locationSpecify
+      };
 
       // Get token from localStorage
       const token = localStorage.getItem('token');
@@ -353,6 +387,15 @@ const RequestLeave = () => {
         // Show success modal
         setShowSuccessModal(true);
         
+        // Clean up adjusted data if it was used
+        if (isAdjusted) {
+          setFormData(prev => {
+            const newData = { ...prev._adjustedData };
+            delete newData._adjustedData;
+            return newData;
+          });
+        }
+        
         // Reset form after a delay
         setTimeout(() => {
           setShowSuccessModal(false);
@@ -363,7 +406,11 @@ const RequestLeave = () => {
       }
     } catch (error) {
       console.error('Error submitting leave request:', error);
-      setError(error.response?.data?.message || 'Failed to submit leave request. Please try again.');
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Failed to submit leave request. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -902,24 +949,30 @@ const RequestLeave = () => {
         onConfirm={async () => {
           // Close the warning modal and submit the request
           setShowWarningModal(false);
-          // Proceed with submission
+          setLoading(true);
+          setError('');
+          
+          // Use adjusted data if available, otherwise use original data
+          const isAdjusted = formData._adjustedData !== undefined;
+          const submitData = isAdjusted ? formData._adjustedData : formData;
+          
           try {
             // Prepare data for submission
             const requestData = {
-              leave_type: formData.leaveType,
-              subtype: formData.leaveType === 'vacation' 
-                ? formData.vacationSubtype === 'other' 
-                  ? formData.vacationOtherSpecify 
-                  : formData.vacationSubtype
-                : formData.sickSubtype === 'other' 
-                  ? formData.sickOtherSpecify 
-                  : formData.sickSubtype,
-              start_date: formData.startDate,
-              end_date: formData.endDate,
-              number_of_days: formData.numberOfDays,
-              where_spent: formData.locationType,
-              commutation: formData.commutation,
-              location_specify: formData.locationSpecify
+              leave_type: submitData.leaveType,
+              subtype: submitData.leaveType === 'vacation' 
+                ? submitData.vacationSubtype === 'other' 
+                  ? submitData.vacationOtherSpecify 
+                  : submitData.vacationSubtype
+                : submitData.sickSubtype === 'other' 
+                  ? submitData.sickOtherSpecify 
+                  : submitData.sickSubtype,
+              start_date: submitData.startDate,
+              end_date: submitData.endDate,
+              number_of_days: submitData.numberOfDays,
+              where_spent: submitData.locationType,
+              commutation: submitData.commutation,
+              location_specify: submitData.locationSpecify
             };
 
             // Get token from localStorage
@@ -928,7 +981,6 @@ const RequestLeave = () => {
             // Make API call
             const response = await axios.post('/api/leave-requests', requestData, {
               headers: {
-                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
               }
             });
@@ -936,17 +988,29 @@ const RequestLeave = () => {
             if (response.data.success) {
               // Show success modal
               setShowSuccessModal(true);
+              
+              // Reset form after a delay
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                navigate('/employee/leave-history');
+              }, 3000);
             } else {
               setError(response.data.message || 'Failed to submit leave request');
             }
           } catch (error) {
             console.error('Error submitting leave request:', error);
-            setError(error.response?.data?.message || 'Failed to submit leave request. Please try again.');
+            if (error.response?.data?.message) {
+              setError(error.response.data.message);
+            } else {
+              setError('Failed to submit leave request. Please try again.');
+            }
+          } finally {
+            setLoading(false);
           }
         }}
-        title="Insufficient Leave Credits"
+        title="Leave Request Warning"
         message={warningMessage}
-        confirmText="Submit Anyway"
+        confirmText="Continue"
         cancelText="Cancel"
       />
 
