@@ -268,9 +268,10 @@ const getHRLeaveRequest = async (req, res) => {
     leaveRequestWithRecommendations.recommendations = recommendations;
 
     // Check if employee had sufficient leave credits when submitting the request
-    const { hasSufficientLeaveCredits } = require('./LeaveRecordController');
+    const { getLeaveCreditsInfo } = require('./LeaveRecordController');
     const numberOfDays = parseFloat(leaveRequest.number_of_days);
-    const hasSufficientCredits = await hasSufficientLeaveCredits(leaveRequest.user_id.user_id, leaveRequest.leave_type, numberOfDays);
+    const leaveCreditsInfo = await getLeaveCreditsInfo(leaveRequest.user_id.user_id, leaveRequest.leave_type);
+    const hasSufficientCredits = leaveCreditsInfo.hasSufficientCredits;
     
     // Get all leave records for this user to calculate cumulative balance
     const allLeaveRecords = await LeaveRecord
@@ -381,9 +382,10 @@ const processHRLeaveApproval = async (req, res) => {
       
       // Additional validation for insufficient credits
       if (approved_for === 'with_pay' || approved_for === 'others') {
-        const { hasSufficientLeaveCredits } = require('./LeaveRecordController');
+        const { getLeaveCreditsInfo } = require('./LeaveRecordController');
         const numberOfDays = parseFloat(leaveRequest.number_of_days);
-        const hasSufficientCredits = await hasSufficientLeaveCredits(leaveRequest.user_id.user_id, leaveRequest.leave_type, numberOfDays);
+        const leaveCreditsInfo = await getLeaveCreditsInfo(leaveRequest.user_id.user_id, leaveRequest.leave_type);
+        const hasSufficientCredits = leaveCreditsInfo.hasSufficientCredits;
         
         if (!hasSufficientCredits) {
           return res.status(400).json({
