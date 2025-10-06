@@ -342,11 +342,21 @@ const HRLeaveRequestDetails = () => {
                       <p className="font-medium text-gray-800 text-lg">
                         {leaveRequest.leave_type === 'vacation' ? 'Vacation Leave' : 
                          leaveRequest.leave_type === 'sick' ? 'Sick Leave' : 
+                         leaveRequest.leave_type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
+                         leaveRequest.leave_type === 'maternity_leave' ? 'Maternity Leave' :
+                         leaveRequest.leave_type === 'paternity_leave' ? 'Paternity Leave' :
+                         leaveRequest.leave_type === 'special_privilege_leave' ? 'Special Privilege Leave' :
+                         leaveRequest.leave_type === 'solo_parent_leave' ? 'Solo Parent Leave' :
+                         leaveRequest.leave_type === 'study_leave' ? 'Study Leave' :
+                         leaveRequest.leave_type === 'vawc_leave' ? 'VAWC Leave' :
+                         leaveRequest.leave_type === 'rehabilitation_privilege' ? 'Rehabilitation Privilege' :
+                         leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
+                         leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency Leave' :
+                         leaveRequest.leave_type === 'adoption_leave' ? 'Adoption Leave' :
+                         leaveRequest.leave_type === 'others_specify' ? 'Others (Specify)' :
                          leaveRequest.leave_type}
                       </p>
-                      {leaveRequest.subtype && (
-                        <p className="text-gray-600 mt-1">{leaveRequest.subtype}</p>
-                      )}
+
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                       <h5 className="font-semibold text-blue-600 mb-3">Applied On</h5>
@@ -639,6 +649,18 @@ const HRLeaveRequestDetails = () => {
                           <p className="font-medium text-gray-800 text-lg">
                             {leaveRequest.leave_type === 'vacation' ? 'Vacation Leave' : 
                              leaveRequest.leave_type === 'sick' ? 'Sick Leave' : 
+                             leaveRequest.leave_type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
+                             leaveRequest.leave_type === 'maternity_leave' ? 'Maternity Leave' :
+                             leaveRequest.leave_type === 'paternity_leave' ? 'Paternity Leave' :
+                             leaveRequest.leave_type === 'special_privilege_leave' ? 'Special Privilege Leave' :
+                             leaveRequest.leave_type === 'solo_parent_leave' ? 'Solo Parent Leave' :
+                             leaveRequest.leave_type === 'study_leave' ? 'Study Leave' :
+                             leaveRequest.leave_type === 'vawc_leave' ? 'VAWC Leave' :
+                             leaveRequest.leave_type === 'rehabilitation_privilege' ? 'Rehabilitation Privilege' :
+                             leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
+                             leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency Leave' :
+                             leaveRequest.leave_type === 'adoption_leave' ? 'Adoption Leave' :
+                             leaveRequest.leave_type === 'others_specify' ? 'Others (Specify)' :
                              leaveRequest.leave_type}
                           </p>
                         </div>

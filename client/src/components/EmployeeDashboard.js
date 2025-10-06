@@ -53,10 +53,8 @@ const EmployeeDashboard = () => {
   const [quickLeaveData, setQuickLeaveData] = useState({
     step: 1,
     leaveType: '',
-    vacationSubtype: '',
-    vacationOtherSpecify: '',
-    sickSubtype: '',
-    sickOtherSpecify: '',
+    otherLeaveType: '', // For storing the specific leave type when 'others' is selected
+    otherSpecify: '',
     startDate: '',
     endDate: '',
     numberOfDays: 1,
@@ -163,24 +161,81 @@ const EmployeeDashboard = () => {
     
     // Special handling for certain fields
     if (name === 'leaveType') {
-      // Reset subtype fields when leave type changes
-      if (value === 'vacation') {
-        setQuickLeaveData(prev => ({
-          ...prev,
-          leaveType: value,
-          vacationSubtype: '',
-          sickSubtype: '',
-          locationType: 'philippines'
-        }));
+      // Set default location based on leave type
+      let defaultLocation = null; // Default to null for leave types that don't require location
+      
+      // Only set location default if the leave type requires location info
+      if (value === 'vacation' || 
+          value === 'special_privilege_leave' || 
+          value === 'others_specify' || 
+          value === 'study_leave' || 
+          value === 'special_leave_benefits_women') {
+        defaultLocation = 'philippines';
       } else if (value === 'sick') {
-        setQuickLeaveData(prev => ({
-          ...prev,
-          leaveType: value,
-          vacationSubtype: '',
-          sickSubtype: '',
-          locationType: 'hospital'
-        }));
+        defaultLocation = 'hospital';
+      } else if (value === 'study_leave') {
+        defaultLocation = 'masteral'; // Default to Master's for study leave
+      } else if (value === 'mandatory_forced_leave' || 
+                 value === 'maternity_leave' || 
+                 value === 'paternity_leave' || 
+                 value === 'solo_parent_leave' || 
+                 value === 'vawc_leave' || 
+                 value === 'rehabilitation_privilege' || 
+                 value === 'special_emergency' || 
+                 value === 'adoption_leave') {
+        // For other specific leave types, set appropriate defaults
+        defaultLocation = 'philippines';
+      } else {
+        // For other leave types that don't require location options, don't set a default
+        defaultLocation = null;
       }
+      
+      setQuickLeaveData(prev => ({
+        ...prev,
+        leaveType: value,
+        otherLeaveType: '', // Reset otherLeaveType when changing leaveType
+        otherSpecify: '',
+        locationType: defaultLocation // May be null for leave types that don't require location
+      }));
+      return;
+    }
+    
+    // Handle selection of specific leave type when 'others' is selected
+    if (name === 'otherLeaveType') {
+      // Set default location based on the selected leave type
+      let defaultLocation = null;
+      
+      if (value === 'vacation' || 
+          value === 'special_privilege_leave' || 
+          value === 'others_specify' || 
+          value === 'study_leave' || 
+          value === 'special_leave_benefits_women') {
+        defaultLocation = 'philippines';
+      } else if (value === 'sick') {
+        defaultLocation = 'hospital';
+      } else if (value === 'study_leave') {
+        defaultLocation = 'masteral';
+      } else if (value === 'mandatory_forced_leave' || 
+                 value === 'maternity_leave' || 
+                 value === 'paternity_leave' || 
+                 value === 'solo_parent_leave' || 
+                 value === 'vawc_leave' || 
+                 value === 'rehabilitation_privilege' || 
+                 value === 'special_emergency' || 
+                 value === 'adoption_leave') {
+        defaultLocation = 'philippines';
+      } else {
+        defaultLocation = null;
+      }
+      
+      setQuickLeaveData(prev => ({
+        ...prev,
+        otherLeaveType: value,
+        // Keep leaveType as 'others' so the options stay visible
+        // We'll use otherLeaveType for the actual submission
+        otherSpecify: '',
+        locationType: defaultLocation
+      }));
       return;
     }
 
@@ -252,18 +307,12 @@ const EmployeeDashboard = () => {
     if (step === 1) {
       if (!quickLeaveData.leaveType) {
         errors.leaveType = 'Please select a leave type';
-      } else if (quickLeaveData.leaveType === 'vacation') {
-        if (!quickLeaveData.vacationSubtype) {
-          errors.vacationSubtype = 'Please select a vacation leave subtype';
-        } else if (quickLeaveData.vacationSubtype === 'other' && !quickLeaveData.vacationOtherSpecify.trim()) {
-          errors.vacationOtherSpecify = 'Please specify the other purpose';
-        }
-      } else if (quickLeaveData.leaveType === 'sick') {
-        if (!quickLeaveData.sickSubtype) {
-          errors.sickSubtype = 'Please select a sick leave subtype';
-        } else if (quickLeaveData.sickSubtype === 'other' && !quickLeaveData.sickOtherSpecify.trim()) {
-          errors.sickOtherSpecify = 'Please specify the other details';
-        }
+      } else if (quickLeaveData.leaveType === 'others' && !quickLeaveData.otherLeaveType) {
+        errors.otherLeaveType = 'Please select a specific leave type';
+      } else if (quickLeaveData.leaveType === 'others' && quickLeaveData.otherLeaveType === 'others_specify' && !quickLeaveData.otherSpecify.trim()) {
+        errors.otherSpecify = 'Please specify the purpose of your leave';
+      } else if (quickLeaveData.leaveType === 'others_specify' && !quickLeaveData.otherSpecify.trim()) {
+        errors.otherSpecify = 'Please specify the purpose of your leave';
       }
     } else if (step === 2) {
       if (!quickLeaveData.startDate) {
@@ -283,29 +332,50 @@ const EmployeeDashboard = () => {
           errors.endDate = 'End date cannot be earlier than start date';
         }
         
-        // Vacation leave specific validation
-        if (quickLeaveData.leaveType === 'vacation') {
+        // Vacation leave and similar types specific validation - requires 5 days advance notice
+        if (quickLeaveData.leaveType === 'vacation' || 
+            (quickLeaveData.leaveType === 'others' && 
+             quickLeaveData.otherLeaveType === 'vacation')) {
           const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
           if (daysDifference < 5) {
-            errors.startDate = 'Vacation leave must be applied at least 5 days before the start date';
+            errors.startDate = 'This type of leave must be applied at least 5 days before the start date';
             setDateWarning(`(${daysDifference} days notice - requires 5 days minimum)`);
           } else {
             setDateWarning(`(${daysDifference} days notice - OK)`);
           }
+        } else {
+          // For other leave types (like sick, maternity, paternity, etc.), no advance notice is required
+          const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
+          setDateWarning(`(${daysDifference} days notice - OK)`);
         }
       }
     } else if (step === 3) {
-      if (!quickLeaveData.locationType) {
-        errors.locationType = 'Please select where the leave will be spent';
-      } else {
-        // Validate locationSpecify based on locationType
-        if (quickLeaveData.locationType === 'abroad') {
-          if (!quickLeaveData.locationSpecify || !quickLeaveData.locationSpecify.trim()) {
-            errors.locationSpecify = 'Please specify the country';
-          }
-        } else if (quickLeaveData.locationType === 'outpatient') {
-          if (!quickLeaveData.locationSpecify || !quickLeaveData.locationSpecify.trim()) {
-            errors.locationSpecify = 'Please specify the location';
+      // Only require location information for specific leave types
+      const requiresLocationInfo = 
+        quickLeaveData.leaveType === 'vacation' || 
+        quickLeaveData.leaveType === 'special_privilege_leave' || 
+        quickLeaveData.leaveType === 'others_specify' || 
+        quickLeaveData.leaveType === 'study_leave' || 
+        quickLeaveData.leaveType === 'special_leave_benefits_women' ||
+        quickLeaveData.leaveType === 'sick' ||
+        quickLeaveData.leaveType === 'mandatory_forced_leave' || 
+        quickLeaveData.leaveType === 'maternity_leave' || 
+        quickLeaveData.leaveType === 'paternity_leave' || 
+        quickLeaveData.leaveType === 'solo_parent_leave' || 
+        quickLeaveData.leaveType === 'vawc_leave' || 
+        quickLeaveData.leaveType === 'rehabilitation_privilege' || 
+        quickLeaveData.leaveType === 'special_emergency' || 
+        quickLeaveData.leaveType === 'adoption_leave';
+
+      if (requiresLocationInfo) {
+        if (!quickLeaveData.locationType) {
+          errors.locationType = 'Please select where the leave will be spent';
+        } else {
+          // Validate locationSpecify based on locationType
+          if (quickLeaveData.locationType === 'abroad' || quickLeaveData.locationType === 'outpatient' || quickLeaveData.locationType === 'hospital') {
+            if (!quickLeaveData.locationSpecify || !quickLeaveData.locationSpecify.trim()) {
+              errors.locationSpecify = 'Please specify the location';
+            }
           }
         }
       }
@@ -339,7 +409,13 @@ const EmployeeDashboard = () => {
 
   // Show location options based on leave type
   const showLocationOptions = () => {
-    if (quickLeaveData.leaveType === 'vacation') {
+    // Vacation Leave options
+    if (quickLeaveData.leaveType === 'vacation' || 
+        quickLeaveData.leaveType === 'special_privilege_leave' || 
+        quickLeaveData.leaveType === 'others_specify' ||
+        (quickLeaveData.leaveType === 'others' && 
+         (quickLeaveData.otherLeaveType === 'special_privilege_leave' || 
+          quickLeaveData.otherLeaveType === 'others_specify'))) {
       return (
         <div className="space-y-2">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -381,7 +457,9 @@ const EmployeeDashboard = () => {
           )}
         </div>
       );
-    } else if (quickLeaveData.leaveType === 'sick') {
+    }
+    // Sick Leave only (excluding maternity, paternity, etc.)
+    else if (quickLeaveData.leaveType === 'sick') {
       return (
         <div className="space-y-2">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -393,8 +471,23 @@ const EmployeeDashboard = () => {
               checked={quickLeaveData.locationType === 'hospital'}
               onChange={handleQuickLeaveChange}
             />
-            <span>In Hospital</span>
+            <span>In Hospital (specify illness)</span>
           </label>
+          {quickLeaveData.locationType === 'hospital' && (
+            <div className="pl-6">
+              <input 
+                type="text" 
+                name="locationSpecify" 
+                className="input input-bordered input-sm w-full" 
+                placeholder="Please specify illness"
+                value={quickLeaveData.locationSpecify}
+                onChange={handleQuickLeaveChange}
+              />
+              {quickLeaveErrors.locationSpecify && (
+                <div className="text-red-500 text-sm mt-1">{quickLeaveErrors.locationSpecify}</div>
+              )}
+            </div>
+          )}
           <label className="flex items-center gap-2 cursor-pointer">
             <input 
               type="radio" 
@@ -404,7 +497,7 @@ const EmployeeDashboard = () => {
               checked={quickLeaveData.locationType === 'outpatient'}
               onChange={handleQuickLeaveChange}
             />
-            <span>Outpatient (specify)</span>
+            <span>Out Patient (specify illness)</span>
           </label>
           {quickLeaveData.locationType === 'outpatient' && (
             <div className="pl-6">
@@ -412,7 +505,7 @@ const EmployeeDashboard = () => {
                 type="text" 
                 name="locationSpecify" 
                 className="input input-bordered input-sm w-full" 
-                placeholder="Location"
+                placeholder="Please specify illness"
                 value={quickLeaveData.locationSpecify}
                 onChange={handleQuickLeaveChange}
               />
@@ -421,6 +514,56 @@ const EmployeeDashboard = () => {
               )}
             </div>
           )}
+        </div>
+      );
+    }
+    // Special Leave Benefits for Women
+    else if (quickLeaveData.leaveType === 'others' && quickLeaveData.otherLeaveType === 'special_leave_benefits_women') {
+      return (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <span>Specify illness:</span>
+          </label>
+          <input 
+            type="text" 
+            name="locationSpecify" 
+            className="input input-bordered w-full" 
+            placeholder="Please specify illness"
+            value={quickLeaveData.locationSpecify}
+            onChange={handleQuickLeaveChange}
+          />
+          {quickLeaveErrors.locationSpecify && (
+            <div className="text-red-500 text-sm">{quickLeaveErrors.locationSpecify}</div>
+          )}
+        </div>
+      );
+    }
+    // Study Leave
+    else if (quickLeaveData.leaveType === 'others' && quickLeaveData.otherLeaveType === 'study_leave') {
+      return (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="radio" 
+              name="locationType" 
+              value="masteral" 
+              className="radio radio-sm radio-primary"
+              checked={quickLeaveData.locationType === 'masteral'}
+              onChange={handleQuickLeaveChange}
+            />
+            <span>Completion of Master's Degree</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="radio" 
+              name="locationType" 
+              value="board_review" 
+              className="radio radio-sm radio-primary"
+              checked={quickLeaveData.locationType === 'board_review'}
+              onChange={handleQuickLeaveChange}
+            />
+            <span>BAR/Board Examination Review</span>
+          </label>
         </div>
       );
     }
@@ -452,13 +595,14 @@ const EmployeeDashboard = () => {
     }
   };
 
-  // Set vacation leave date restrictions
+  // Set leave type date restrictions
   const getMinStartDateForVacation = () => {
     if (quickLeaveData.leaveType === 'vacation') {
       const minDate = new Date();
       minDate.setDate(minDate.getDate() + 5);
       return minDate.toISOString().split('T')[0];
     }
+    // For sick leave and other leave types, allow immediate selection
     return minStartDate;
   };
 
@@ -523,20 +667,33 @@ const EmployeeDashboard = () => {
       const isAdjusted = quickLeaveData._adjustedData !== undefined;
       const submitData = isAdjusted ? quickLeaveData._adjustedData : quickLeaveData;
       
-      // Prepare data for submission
+      // Determine where_spent based on leave type requirements
+      let whereSpentValue = submitData.locationType;
+      const requiresLocationInfo = 
+        submitData.leaveType === 'vacation' || 
+        submitData.leaveType === 'special_privilege_leave' || 
+        submitData.leaveType === 'others_specify' || 
+        submitData.leaveType === 'study_leave' || 
+        submitData.leaveType === 'special_leave_benefits_women' ||
+        submitData.leaveType === 'sick';
+
+      if (!requiresLocationInfo) {
+        whereSpentValue = 'not_applicable'; // Use a default value for leave types that don't require location
+      }
+
+      // For the new structure, we will use leave_type directly with the correct value
+      // When 'others' is selected, we use the specific leave type from otherLeaveType
+      // When 'others_specify' is selected, we use the user's specification
+      const actualLeaveType = submitData.leaveType === 'others' 
+        ? submitData.otherLeaveType 
+        : submitData.leaveType;
+        
       const requestData = {
-        leave_type: submitData.leaveType,
-        subtype: submitData.leaveType === 'vacation' 
-          ? submitData.vacationSubtype === 'other' 
-            ? submitData.vacationOtherSpecify 
-            : submitData.vacationSubtype
-          : submitData.sickSubtype === 'other' 
-            ? submitData.sickOtherSpecify 
-            : submitData.sickSubtype,
+        leave_type: actualLeaveType,
         start_date: submitData.startDate,
         end_date: submitData.endDate,
         number_of_days: submitData.numberOfDays,
-        where_spent: submitData.locationType,
+        where_spent: whereSpentValue,
         commutation: submitData.commutation,
         location_specify: submitData.locationSpecify
       };
@@ -573,10 +730,8 @@ const EmployeeDashboard = () => {
           setQuickLeaveData({
             step: 1,
             leaveType: '',
-            vacationSubtype: '',
-            vacationOtherSpecify: '',
-            sickSubtype: '',
-            sickOtherSpecify: '',
+            otherLeaveType: '',
+            otherSpecify: '',
             startDate: today,
             endDate: today,
             numberOfDays: 1,
@@ -688,7 +843,8 @@ const EmployeeDashboard = () => {
                 </div>
               )}
               
-              <div className="flex flex-col space-y-2">
+              <div className="space-y-2">
+                {/* Vacation Leave */}
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input 
                     type="radio" 
@@ -696,58 +852,19 @@ const EmployeeDashboard = () => {
                     value="vacation" 
                     className="radio radio-sm radio-primary"
                     checked={quickLeaveData.leaveType === 'vacation'}
-                    onChange={handleQuickLeaveChange}
+                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
                   />
                   <span>Vacation Leave</span>
                 </label>
                 
-                {/* Vacation Subtypes */}
                 {quickLeaveData.leaveType === 'vacation' && (
-                  <div className="pl-6 space-y-2">
-                    <div className="alert bg-blue-100 border border-blue-300 text-blue-700 px-4 py-2 rounded mb-2">
-                      <i className="fas fa-info-circle mr-2"></i>
-                      <span className="text-xs">Vacation leave must be applied at least 5 days before the start date</span>
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="vacationSubtype" 
-                        value="employment" 
-                        className="radio radio-xs radio-primary"
-                        checked={quickLeaveData.vacationSubtype === 'employment'}
-                        onChange={handleQuickLeaveChange}
-                      />
-                      <span className="text-sm">To seek employment</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="vacationSubtype" 
-                        value="other" 
-                        className="radio radio-xs radio-primary"
-                        checked={quickLeaveData.vacationSubtype === 'other'}
-                        onChange={handleQuickLeaveChange}
-                      />
-                      <span className="text-sm">Other purpose (specify)</span>
-                    </label>
-                    {quickLeaveData.vacationSubtype === 'other' && (
-                      <div className="pl-6">
-                        <input 
-                          type="text" 
-                          name="vacationOtherSpecify" 
-                          className="input input-bordered input-sm w-full" 
-                          placeholder="Please specify"
-                          value={quickLeaveData.vacationOtherSpecify}
-                          onChange={handleQuickLeaveChange}
-                        />
-                        {quickLeaveErrors.vacationOtherSpecify && (
-                          <div className="text-red-500 text-sm mt-1">{quickLeaveErrors.vacationOtherSpecify}</div>
-                        )}
-                      </div>
-                    )}
+                  <div className="alert bg-blue-100 border border-blue-300 text-blue-700 px-4 py-2 rounded ml-6">
+                    <i className="fas fa-info-circle mr-2"></i>
+                    <span className="text-xs">Vacation leave must be applied at least 5 days before the start date</span>
                   </div>
                 )}
                 
+                {/* Sick Leave */}
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input 
                     type="radio" 
@@ -755,55 +872,217 @@ const EmployeeDashboard = () => {
                     value="sick" 
                     className="radio radio-sm radio-primary"
                     checked={quickLeaveData.leaveType === 'sick'}
-                    onChange={handleQuickLeaveChange}
+                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
                   />
                   <span>Sick Leave</span>
                 </label>
                 
-                {/* Sick Leave Subtypes */}
                 {quickLeaveData.leaveType === 'sick' && (
-                  <div className="pl-6 space-y-2">
-                    <div className="alert bg-green-100 border border-green-300 text-green-700 px-4 py-2 rounded mb-2">
-                      <i className="fas fa-check-circle mr-2"></i>
-                      <span className="text-xs">Sick leave can be applied after the leave period</span>
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="sickSubtype" 
-                        value="maternity" 
-                        className="radio radio-xs radio-primary"
-                        checked={quickLeaveData.sickSubtype === 'maternity'}
-                        onChange={handleQuickLeaveChange}
-                      />
-                      <span className="text-sm">Maternity</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="sickSubtype" 
-                        value="other" 
-                        className="radio radio-xs radio-primary"
-                        checked={quickLeaveData.sickSubtype === 'other'}
-                        onChange={handleQuickLeaveChange}
-                      />
-                      <span className="text-sm">Other (specify)</span>
-                    </label>
-                    {quickLeaveData.sickSubtype === 'other' && (
-                      <div className="pl-6">
+                  <div className="alert bg-green-100 border border-green-300 text-green-700 px-4 py-2 rounded ml-6">
+                    <i className="fas fa-check-circle mr-2"></i>
+                    <span className="text-xs">Sick leave can be applied after the leave period</span>
+                  </div>
+                )}
+                
+                {/* Others - Generic option to hide specific leave types */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="leaveType" 
+                    value="others" 
+                    className="radio radio-sm radio-primary"
+                    checked={quickLeaveData.leaveType === 'others'}
+                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                  />
+                  <span>Others</span>
+                </label>
+                
+                {/* Show specific leave types when user selects "Others" */}
+                {quickLeaveData.leaveType === 'others' && (
+                  <div className="pl-6 mt-3 space-y-2">
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
                         <input 
-                          type="text" 
-                          name="sickOtherSpecify" 
-                          className="input input-bordered input-sm w-full" 
-                          placeholder="Please specify"
-                          value={quickLeaveData.sickOtherSpecify}
-                          onChange={handleQuickLeaveChange}
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="mandatory_forced_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'mandatory_forced_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
                         />
-                        {quickLeaveErrors.sickOtherSpecify && (
-                          <div className="text-red-500 text-sm mt-1">{quickLeaveErrors.sickOtherSpecify}</div>
-                        )}
-                      </div>
-                    )}
+                        <span className="label-text text-gray-700">Mandatory/Forced Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="maternity_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'maternity_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Maternity Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="paternity_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'paternity_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Paternity Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="special_privilege_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'special_privilege_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Special Privilege Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="solo_parent_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'solo_parent_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Solo Parent Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="study_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'study_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Study Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="vawc_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'vawc_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">10-Day VAWC Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="rehabilitation_privilege" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'rehabilitation_privilege'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Rehabilitation Privilege</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="special_leave_benefits_women" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'special_leave_benefits_women'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Special Leave Benefits for Women</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="special_emergency" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'special_emergency'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Special Emergency (Calamity)</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="adoption_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'adoption_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Adoption Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
+                          value="others_specify" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'others_specify'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Others (specify)</span>
+                      </label>
+                      
+                      {quickLeaveData.otherLeaveType === 'others_specify' && (
+                        <div className="pl-6">
+                          <input 
+                            type="text" 
+                            name="otherSpecify" 
+                            className="input input-bordered input-sm w-full" 
+                            placeholder="Please specify"
+                            value={quickLeaveData.otherSpecify}
+                            onChange={handleQuickLeaveChange}
+                          />
+                          {quickLeaveErrors.otherSpecify && (
+                            <div className="text-red-500 text-sm mt-1">{quickLeaveErrors.otherSpecify}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1010,7 +1289,21 @@ const EmployeeDashboard = () => {
                       onClick={() => navigate(`/employee/leave-request/${request._id}`)}
                     >
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {request.leave_type === 'vacation' ? 'Vacation' : 'Sick'}
+                        {request.leave_type === 'vacation' ? 'Vacation' : 
+                         request.leave_type === 'sick' ? 'Sick' : 
+                         request.leave_type === 'mandatory_forced_leave' ? 'Mandatory/Forced' :
+                         request.leave_type === 'maternity_leave' ? 'Maternity' :
+                         request.leave_type === 'paternity_leave' ? 'Paternity' :
+                         request.leave_type === 'special_privilege_leave' ? 'Special Privilege' :
+                         request.leave_type === 'solo_parent_leave' ? 'Solo Parent' :
+                         request.leave_type === 'study_leave' ? 'Study' :
+                         request.leave_type === 'vawc_leave' ? 'VAWC' :
+                         request.leave_type === 'rehabilitation_privilege' ? 'Rehabilitation' :
+                         request.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
+                         request.leave_type === 'special_emergency' ? 'Special Emergency' :
+                         request.leave_type === 'adoption_leave' ? 'Adoption' :
+                         request.leave_type === 'others_specify' ? 'Others' :
+                         request.leave_type}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         <div className="text-xs md:text-sm">
@@ -1057,20 +1350,34 @@ const EmployeeDashboard = () => {
           const submitData = isAdjusted ? quickLeaveData._adjustedData : quickLeaveData;
           
           try {
-            // Prepare data for submission
+            // Determine where_spent based on leave type requirements
+            let whereSpentValue = submitData.locationType;
+            const requiresLocationInfo = 
+              submitData.leaveType === 'vacation' || 
+              submitData.leaveType === 'special_privilege_leave' || 
+              submitData.leaveType === 'others_specify' || 
+              submitData.leaveType === 'study_leave' || 
+              submitData.leaveType === 'special_leave_benefits_women' ||
+              submitData.leaveType === 'sick';
+
+            if (!requiresLocationInfo) {
+              whereSpentValue = 'not_applicable'; // Use a default value for leave types that don't require location
+            }
+
+            // For the new structure, we will use leave_type as the main field and subtype as the same
+            // This maintains compatibility with the server which expects both fields
+            // When 'others' is selected, we use the specific leave type from otherLeaveType
+            // When 'others_specify' is selected, we use the user's specification
+            const actualLeaveType = submitData.leaveType === 'others' 
+              ? submitData.otherLeaveType 
+              : submitData.leaveType;
+              
             const requestData = {
-              leave_type: submitData.leaveType,
-              subtype: submitData.leaveType === 'vacation' 
-                ? submitData.vacationSubtype === 'other' 
-                  ? submitData.vacationOtherSpecify 
-                  : submitData.vacationSubtype
-                : submitData.sickSubtype === 'other' 
-                  ? submitData.sickOtherSpecify 
-                  : submitData.sickSubtype,
+              leave_type: actualLeaveType,
               start_date: submitData.startDate,
               end_date: submitData.endDate,
               number_of_days: submitData.numberOfDays,
-              where_spent: submitData.locationType,
+              where_spent: whereSpentValue,
               commutation: submitData.commutation,
               location_specify: submitData.locationSpecify
             };
@@ -1107,10 +1414,8 @@ const EmployeeDashboard = () => {
                 setQuickLeaveData({
                   step: 1,
                   leaveType: '',
-                  vacationSubtype: '',
-                  vacationOtherSpecify: '',
-                  sickSubtype: '',
-                  sickOtherSpecify: '',
+                  otherLeaveType: '',
+                  otherSpecify: '',
                   startDate: today,
                   endDate: today,
                   numberOfDays: 1,

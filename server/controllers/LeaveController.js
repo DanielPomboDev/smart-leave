@@ -39,7 +39,6 @@ const createLeaveRequest = async (req, res) => {
   try {
     const {
       leave_type,
-      subtype,
       start_date,
       end_date,
       number_of_days,
@@ -49,10 +48,33 @@ const createLeaveRequest = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!leave_type || !subtype || !start_date || !end_date || !number_of_days || !where_spent) {
+    if (!leave_type || !start_date || !end_date || !number_of_days) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
+      });
+    }
+
+    // For leave types that require location information, validate where_spent
+    const needsLocation = 
+      leave_type === 'vacation' || 
+      leave_type === 'special_privilege_leave' || 
+      leave_type === 'others_specify' || 
+      leave_type === 'study_leave' || 
+      leave_type === 'special_leave_benefits_women';
+
+    if (needsLocation && !where_spent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide where the leave will be spent'
+      });
+    }
+
+    // Additional validation for 'others_specify' leave type
+    if (leave_type === 'others_specify' && (!location_specify || !location_specify.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please specify the leave purpose for "Others" leave type'
       });
     }
 
@@ -93,7 +115,6 @@ const createLeaveRequest = async (req, res) => {
     const leaveRequest = new LeaveRequest({
       user_id: req.user.user_id, // Use user_id from authenticated user
       leave_type,
-      subtype,
       start_date,
       end_date,
       number_of_days: parseInt(number_of_days),

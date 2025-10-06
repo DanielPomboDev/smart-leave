@@ -8,11 +8,13 @@ const leaveRequestSchema = new mongoose.Schema({
   },
   leave_type: {
     type: String,
-    enum: ['vacation', 'sick'],
-    required: true
-  },
-  subtype: {
-    type: String,
+    enum: [
+      'vacation', 'sick',
+      'mandatory_forced_leave', 'maternity_leave', 'paternity_leave', 
+      'special_privilege_leave', 'solo_parent_leave', 'study_leave', 
+      'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 
+      'special_emergency', 'adoption_leave', 'others_specify'
+    ],
     required: true
   },
   start_date: {
@@ -29,7 +31,7 @@ const leaveRequestSchema = new mongoose.Schema({
   },
   where_spent: {
     type: String,
-    required: true
+    required: false  // Made optional since not all leave types require location info
   },
   commutation: {
     type: Boolean,

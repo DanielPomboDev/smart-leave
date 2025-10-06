@@ -69,7 +69,6 @@ class MayorController {
         end_date: new Date(leaveRequest.end_date).toISOString().split('T')[0],
         days: leaveRequest.number_of_days,
         type: leaveRequest.leave_type,
-        subtype: leaveRequest.subtype,
         paid: !leaveRequest.without_pay // Add information about whether it was paid or not (opposite of without_pay)
       };
 
@@ -362,7 +361,6 @@ class MayorController {
       const withoutPay = leaveRequest.without_pay;
       const startDate = leaveRequest.start_date;
       const endDate = leaveRequest.end_date;
-      const subtype = leaveRequest.subtype;
 
       // Update status based on mayor's decision
       leaveRequest.status = decision === 'approve' ? 'approved' : 'disapproved';
@@ -387,8 +385,7 @@ class MayorController {
           number_of_days: numberOfDays,
           without_pay: withoutPay,
           start_date: startDate,
-          end_date: endDate,
-          subtype: subtype
+          end_date: endDate
         };
         
         // Record the leave (always do this for approved leaves)

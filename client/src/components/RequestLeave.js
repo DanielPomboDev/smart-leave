@@ -17,10 +17,7 @@ const RequestLeave = () => {
   
   const [formData, setFormData] = useState({
     leaveType: '',
-    vacationSubtype: '',
-    vacationOtherSpecify: '',
-    sickSubtype: '',
-    sickOtherSpecify: '',
+    otherSpecify: '',
     startDate: '',
     endDate: '',
     numberOfDays: 1,
@@ -31,7 +28,6 @@ const RequestLeave = () => {
 
   const [reviewData, setReviewData] = useState({
     leaveType: '',
-    subtype: '',
     dateRange: '',
     numberOfDays: 1,
     location: '',
@@ -141,13 +137,9 @@ const RequestLeave = () => {
         updatedData.numberOfDays = calculateDays(startDate, endDate);
       }
       
-      // Clear other specify fields when changing subtypes
-      if (name === 'vacationSubtype' && newValue !== 'other') {
-        updatedData.vacationOtherSpecify = '';
-      }
-      
-      if (name === 'sickSubtype' && newValue !== 'other') {
-        updatedData.sickOtherSpecify = '';
+      // Clear other specify field when changing leave type
+      if (name === 'leaveType' && newValue !== 'others') {
+        updatedData.otherSpecify = '';
       }
       
       // Clear location specify field when changing location type
@@ -169,17 +161,8 @@ const RequestLeave = () => {
       if (!formData.leaveType) {
         setError('Please select a leave type');
         isValid = false;
-      } else if (formData.leaveType === 'vacation' && !formData.vacationSubtype) {
-        setError('Please select a vacation leave subtype');
-        isValid = false;
-      } else if (formData.leaveType === 'sick' && !formData.sickSubtype) {
-        setError('Please select a sick leave subtype');
-        isValid = false;
-      } else if (formData.leaveType === 'vacation' && formData.vacationSubtype === 'other' && !formData.vacationOtherSpecify.trim()) {
-        setError('Please specify the other purpose');
-        isValid = false;
-      } else if (formData.leaveType === 'sick' && formData.sickSubtype === 'other' && !formData.sickOtherSpecify.trim()) {
-        setError('Please specify the other details');
+      } else if (formData.leaveType === 'others_specify' && !formData.otherSpecify.trim()) {
+        setError('Please specify the leave purpose');
         isValid = false;
       }
     }
@@ -206,11 +189,11 @@ const RequestLeave = () => {
           isValid = false;
         }
         
-        // Vacation leave specific validation
+        // Vacation leave specific validation - requires 5 days advance notice
         if (formData.leaveType === 'vacation') {
           const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
           if (daysDifference < 5) {
-            setError('Vacation leave must be applied at least 5 days before the start date');
+            setError('This type of leave must be applied at least 5 days before the start date');
             isValid = false;
           }
         }
@@ -219,14 +202,26 @@ const RequestLeave = () => {
     
     // Step 3: Details validation
     else if (step === 3) {
-      if (!formData.locationType) {
-        setError('Please select where the leave will be spent');
-        isValid = false;
-      }
-      
-      if ((formData.locationType === 'abroad' || formData.locationType === 'outpatient') && !formData.locationSpecify.trim()) {
-        setError('Please specify the location');
-        isValid = false;
+      // Only require location information for specific leave types
+      const requiresLocationInfo = 
+        formData.leaveType === 'vacation' || 
+        formData.leaveType === 'special_privilege_leave' || 
+        formData.leaveType === 'others_specify' || 
+        formData.leaveType === 'study_leave' || 
+        formData.leaveType === 'special_leave_benefits_women' ||
+        formData.leaveType === 'sick';
+
+      if (requiresLocationInfo) {
+        if (!formData.locationType) {
+          setError('Please select where the leave will be spent');
+          isValid = false;
+        }
+        
+        if ((formData.locationType === 'abroad' || formData.locationType === 'outpatient' || 
+             formData.locationType === 'hospital') && !formData.locationSpecify.trim()) {
+          setError('Please specify the location');
+          isValid = false;
+        }
       }
       
       if (!formData.commutation) {
@@ -258,22 +253,30 @@ const RequestLeave = () => {
   // Update review section
   const updateReviewSection = () => {
     let leaveTypeText = '';
-    let subtypeText = '';
     
-    if (formData.leaveType === 'vacation') {
-      leaveTypeText = 'Vacation Leave';
-      if (formData.vacationSubtype === 'other') {
-        subtypeText = `(${formData.vacationOtherSpecify})`;
-      } else {
-        subtypeText = formData.vacationSubtype === 'to_seek_employment' ? '(To seek employment)' : '';
-      }
-    } else if (formData.leaveType === 'sick') {
-      leaveTypeText = 'Sick Leave';
-      if (formData.sickSubtype === 'other') {
-        subtypeText = `(${formData.sickOtherSpecify})`;
-      } else {
-        subtypeText = `(${formData.sickSubtype})`;
-      }
+    // Map the leave type to its proper display name
+    const leaveTypeMap = {
+      'vacation': 'Vacation Leave',
+      'sick': 'Sick Leave',
+      'mandatory_forced_leave': 'Mandatory/Forced Leave',
+      'maternity_leave': 'Maternity Leave',
+      'paternity_leave': 'Paternity Leave',
+      'special_privilege_leave': 'Special Privilege Leave',
+      'solo_parent_leave': 'Solo Parent Leave',
+      'study_leave': 'Study Leave',
+      'vawc_leave': '10-Day VAWC Leave',
+      'rehabilitation_privilege': 'Rehabilitation Privilege',
+      'special_leave_benefits_women': 'Special Leave Benefits for Women',
+      'special_emergency': 'Special Emergency (Calamity)',
+      'adoption_leave': 'Adoption Leave',
+      'others_specify': 'Others (Specify)'
+    };
+    
+    if (formData.leaveType === 'others_specify') {
+      leaveTypeText = 'Others (Specify)';
+      // We'll show the specific text in the subtype field below
+    } else {
+      leaveTypeText = leaveTypeMap[formData.leaveType] || formData.leaveType;
     }
     
     const formatDate = (dateString) => {
@@ -281,14 +284,23 @@ const RequestLeave = () => {
       return new Date(dateString).toLocaleDateString('en-US', options);
     };
     
+    let subtypeText = '';
+    if (formData.leaveType === 'others_specify') {
+      subtypeText = `(${formData.otherSpecify})`;
+    }
+    
     let locationText = '';
     if (formData.locationType === 'abroad' && formData.locationSpecify) {
       locationText = `Abroad: ${formData.locationSpecify}`;
     } else if (formData.locationType === 'outpatient' && formData.locationSpecify) {
       locationText = `Outpatient: ${formData.locationSpecify}`;
+    } else if (formData.locationType === 'hospital' && formData.locationSpecify) {
+      locationText = `In Hospital: ${formData.locationSpecify}`;
     } else {
       locationText = formData.locationType === 'philippines' ? 'Within the Philippines' : 
                     formData.locationType === 'hospital' ? 'In Hospital' : 
+                    formData.locationType === 'masteral' ? 'Completion of Master\'s Degree' :
+                    formData.locationType === 'board_review' ? 'BAR/Board Examination Review' :
                     formData.locationType;
     }
     
@@ -296,7 +308,6 @@ const RequestLeave = () => {
     
     setReviewData({
       leaveType: leaveTypeText,
-      subtype: subtypeText,
       dateRange: `${formatDate(formData.startDate)} to ${formatDate(formData.endDate)}`,
       numberOfDays: `${formData.numberOfDays} day${formData.numberOfDays === 1 ? '' : 's'}`,
       location: locationText,
@@ -356,19 +367,35 @@ const RequestLeave = () => {
       const isAdjusted = formData._adjustedData !== undefined;
       const submitData = isAdjusted ? formData._adjustedData : formData;
       
+      // Determine where_spent based on leave type requirements
+      let whereSpentValue = submitData.locationType;
+      const requiresLocationInfo = 
+        submitData.leaveType === 'vacation' || 
+        (submitData.leaveType === 'others' && 
+         formData.otherLeaveType === 'special_privilege_leave' || 
+         formData.otherLeaveType === 'study_leave' || 
+         formData.otherLeaveType === 'others_specify') ||
+        submitData.leaveType === 'sick' ||
+        submitData.leaveType === 'special_privilege_leave' ||
+        submitData.leaveType === 'study_leave' ||
+        submitData.leaveType === 'special_leave_benefits_women';
+
+      if (!requiresLocationInfo) {
+        whereSpentValue = 'not_applicable'; // Use a default value for leave types that don't require location
+      }
+
+      // For the new structure, we will use leave_type directly with the correct value
+      // If leaveType is 'others_specify', we use the otherSpecify value
+      const actualLeaveType = submitData.leaveType === 'others_specify' 
+        ? submitData.otherSpecify 
+        : submitData.leaveType;
+
       const requestData = {
-        leave_type: submitData.leaveType,
-        subtype: submitData.leaveType === 'vacation' 
-          ? submitData.vacationSubtype === 'other' 
-            ? submitData.vacationOtherSpecify 
-            : submitData.vacationSubtype
-          : submitData.sickSubtype === 'other' 
-            ? submitData.sickOtherSpecify 
-            : submitData.sickSubtype,
+        leave_type: actualLeaveType,
         start_date: submitData.startDate,
         end_date: submitData.endDate,
         number_of_days: submitData.numberOfDays,
-        where_spent: submitData.locationType,
+        where_spent: whereSpentValue,
         commutation: submitData.commutation,
         location_specify: submitData.locationSpecify
       };
@@ -416,15 +443,12 @@ const RequestLeave = () => {
     }
   };
 
-  // Show leave subtype options
+  // Show leave type options
   const showSubtype = (leaveType) => {
     setFormData(prev => ({
       ...prev,
       leaveType: leaveType,
-      vacationSubtype: '',
-      sickSubtype: '',
-      vacationOtherSpecify: '',
-      sickOtherSpecify: ''
+      otherSpecify: ''
     }));
   };
 
@@ -435,6 +459,7 @@ const RequestLeave = () => {
       minDate.setDate(minDate.getDate() + 5);
       return minDate.toISOString().split('T')[0];
     }
+    // For sick leave and other leave types, allow immediate selection
     return new Date().toISOString().split('T')[0];
   };
 
@@ -484,7 +509,7 @@ const RequestLeave = () => {
                   <div className="space-y-4">
                     {/* Vacation Leave */}
                     <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => showSubtype('vacation')}>
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'vacation', otherSpecify: ''}))}>
                         <input 
                           type="radio" 
                           name="leaveType" 
@@ -492,59 +517,21 @@ const RequestLeave = () => {
                           value="vacation" 
                           className="radio radio-primary" 
                           checked={formData.leaveType === 'vacation'}
-                          onChange={() => showSubtype('vacation')}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
                         />
                         <label htmlFor="vacationLeave" className="ml-2 font-medium text-gray-800">Vacation Leave</label>
                       </div>
-                      
                       {formData.leaveType === 'vacation' && (
-                        <div id="vacationSubtypes" className="pl-6 mt-3 space-y-3">
-                          <div className="form-control">
-                            <label className="label cursor-pointer justify-start gap-2">
-                              <input 
-                                type="radio" 
-                                name="vacationSubtype" 
-                                value="to_seek_employment" 
-                                className="radio radio-sm radio-primary" 
-                                checked={formData.vacationSubtype === 'to_seek_employment'}
-                                onChange={handleInputChange}
-                              />
-                              <span className="label-text text-gray-700">To seek employment</span>
-                            </label>
-                          </div>
-                          
-                          <div className="form-control">
-                            <label className="label cursor-pointer justify-start gap-2">
-                              <input 
-                                type="radio" 
-                                name="vacationSubtype" 
-                                value="other" 
-                                className="radio radio-sm radio-primary" 
-                                checked={formData.vacationSubtype === 'other'}
-                                onChange={handleInputChange}
-                              />
-                              <span className="label-text text-gray-700">Other (please specify)</span>
-                            </label>
-                            
-                            {formData.vacationSubtype === 'other' && (
-                              <input 
-                                type="text" 
-                                id="vacationOtherSpecify" 
-                                name="vacationOtherSpecify" 
-                                value={formData.vacationOtherSpecify}
-                                onChange={handleInputChange}
-                                placeholder="Please specify" 
-                                className="input input-bordered input-sm mt-1 ml-6 w-3/4 border-gray-300 focus:border-blue-500"
-                              />
-                            )}
-                          </div>
+                        <div className="alert bg-blue-100 border border-blue-300 text-blue-700 px-4 py-2 rounded mt-2">
+                          <i className="fas fa-info-circle mr-2"></i>
+                          <span className="text-xs">Vacation leave must be applied at least 5 days before the start date</span>
                         </div>
                       )}
                     </div>
                     
                     {/* Sick Leave */}
                     <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => showSubtype('sick')}>
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'sick', otherSpecify: ''}))}>
                         <input 
                           type="radio" 
                           name="leaveType" 
@@ -552,51 +539,224 @@ const RequestLeave = () => {
                           value="sick" 
                           className="radio radio-primary" 
                           checked={formData.leaveType === 'sick'}
-                          onChange={() => showSubtype('sick')}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
                         />
                         <label htmlFor="sickLeave" className="ml-2 font-medium text-gray-800">Sick Leave</label>
                       </div>
-                      
                       {formData.leaveType === 'sick' && (
-                        <div id="sickSubtypes" className="pl-6 mt-3 space-y-3">
+                        <div className="alert bg-green-100 border border-green-300 text-green-700 px-4 py-2 rounded mt-2">
+                          <i className="fas fa-check-circle mr-2"></i>
+                          <span className="text-xs">Sick leave can be applied after the leave period</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Mandatory/Forced Leave */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'mandatory_forced_leave', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="mandatoryForcedLeave" 
+                          value="mandatory_forced_leave" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'mandatory_forced_leave'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="mandatoryForcedLeave" className="ml-2 font-medium text-gray-800">Mandatory/Forced Leave</label>
+                      </div>
+                    </div>
+                    
+                    {/* Maternity Leave */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'maternity_leave', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="maternityLeave" 
+                          value="maternity_leave" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'maternity_leave'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="maternityLeave" className="ml-2 font-medium text-gray-800">Maternity Leave</label>
+                      </div>
+                    </div>
+                    
+                    {/* Paternity Leave */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'paternity_leave', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="paternityLeave" 
+                          value="paternity_leave" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'paternity_leave'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="paternityLeave" className="ml-2 font-medium text-gray-800">Paternity Leave</label>
+                      </div>
+                    </div>
+                    
+                    {/* Special Privilege Leave */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'special_privilege_leave', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="specialPrivilegeLeave" 
+                          value="special_privilege_leave" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'special_privilege_leave'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="specialPrivilegeLeave" className="ml-2 font-medium text-gray-800">Special Privilege Leave</label>
+                      </div>
+                    </div>
+                    
+                    {/* Solo Parent Leave */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'solo_parent_leave', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="soloParentLeave" 
+                          value="solo_parent_leave" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'solo_parent_leave'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="soloParentLeave" className="ml-2 font-medium text-gray-800">Solo Parent Leave</label>
+                      </div>
+                    </div>
+                    
+                    {/* Study Leave */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'study_leave', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="studyLeave" 
+                          value="study_leave" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'study_leave'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="studyLeave" className="ml-2 font-medium text-gray-800">Study Leave</label>
+                      </div>
+                    </div>
+                    
+                    {/* 10-Day VAWC Leave */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'vawc_leave', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="vawcLeave" 
+                          value="vawc_leave" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'vawc_leave'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="vawcLeave" className="ml-2 font-medium text-gray-800">10-Day VAWC Leave</label>
+                      </div>
+                    </div>
+                    
+                    {/* Rehabilitation Privilege */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'rehabilitation_privilege', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="rehabilitationPrivilege" 
+                          value="rehabilitation_privilege" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'rehabilitation_privilege'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="rehabilitationPrivilege" className="ml-2 font-medium text-gray-800">Rehabilitation Privilege</label>
+                      </div>
+                    </div>
+                    
+                    {/* Special Leave Benefits for Women */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'special_leave_benefits_women', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="specialLeaveBenefitsWomen" 
+                          value="special_leave_benefits_women" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'special_leave_benefits_women'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="specialLeaveBenefitsWomen" className="ml-2 font-medium text-gray-800">Special Leave Benefits for Women</label>
+                      </div>
+                    </div>
+                    
+                    {/* Special Emergency (Calamity) */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'special_emergency', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="specialEmergency" 
+                          value="special_emergency" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'special_emergency'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="specialEmergency" className="ml-2 font-medium text-gray-800">Special Emergency (Calamity)</label>
+                      </div>
+                    </div>
+                    
+                    {/* Adoption Leave */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'adoption_leave', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="adoptionLeave" 
+                          value="adoption_leave" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'adoption_leave'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="adoptionLeave" className="ml-2 font-medium text-gray-800">Adoption Leave</label>
+                      </div>
+                    </div>
+                    
+                    {/* Others (Specify) */}
+                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
+                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'others_specify', otherSpecify: ''}))}>
+                        <input 
+                          type="radio" 
+                          name="leaveType" 
+                          id="othersSpecify" 
+                          value="others_specify" 
+                          className="radio radio-primary" 
+                          checked={formData.leaveType === 'others_specify'}
+                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                        />
+                        <label htmlFor="othersSpecify" className="ml-2 font-medium text-gray-800">Others (specify)</label>
+                      </div>
+                      
+                      {formData.leaveType === 'others_specify' && (
+                        <div className="pl-6 mt-3">
                           <div className="form-control">
-                            <label className="label cursor-pointer justify-start gap-2">
-                              <input 
-                                type="radio" 
-                                name="sickSubtype" 
-                                value="maternity" 
-                                className="radio radio-sm radio-primary" 
-                                checked={formData.sickSubtype === 'maternity'}
-                                onChange={handleInputChange}
-                              />
-                              <span className="label-text text-gray-700">Maternity</span>
+                            <label className="label">
+                              <span className="label-text text-gray-700">Please specify the purpose of your leave</span>
                             </label>
-                          </div>
-                          
-                          <div className="form-control">
-                            <label className="label cursor-pointer justify-start gap-2">
-                              <input 
-                                type="radio" 
-                                name="sickSubtype" 
-                                value="other" 
-                                className="radio radio-sm radio-primary" 
-                                checked={formData.sickSubtype === 'other'}
-                                onChange={handleInputChange}
-                              />
-                              <span className="label-text text-gray-700">Others (please specify)</span>
-                            </label>
-                            
-                            {formData.sickSubtype === 'other' && (
-                              <input 
-                                type="text" 
-                                id="sickOtherSpecify" 
-                                name="sickOtherSpecify" 
-                                value={formData.sickOtherSpecify}
-                                onChange={handleInputChange}
-                                placeholder="Please specify" 
-                                className="input input-bordered input-sm mt-1 ml-6 w-3/4 border-gray-300 focus:border-blue-500"
-                              />
-                            )}
+                            <input 
+                              type="text" 
+                              id="otherSpecify" 
+                              name="otherSpecify" 
+                              value={formData.otherSpecify}
+                              onChange={handleInputChange}
+                              placeholder="Please specify" 
+                              className="input input-bordered border-gray-300 focus:border-blue-500 w-full"
+                            />
                           </div>
                         </div>
                       )}
@@ -701,7 +861,10 @@ const RequestLeave = () => {
                     <h4 className="font-medium text-gray-800">Where Leave Will Be Spent</h4>
                     
                     {/* For Vacation Leave */}
-                    {formData.leaveType === 'vacation' && (
+                    {(formData.leaveType === 'vacation' || 
+                      formData.leaveType === 'special_privilege_leave' || 
+                      formData.leaveType === 'study_leave' || 
+                      formData.leaveType === 'others_specify') && (
                       <div id="vacationLocation" className="space-y-3">
                         <div className="form-control">
                           <label className="label cursor-pointer justify-start gap-2">
@@ -745,7 +908,7 @@ const RequestLeave = () => {
                       </div>
                     )}
                     
-                    {/* For Sick Leave */}
+                    {/* For Sick Leave only (excluding maternity, paternity, solo parent, etc.) */}
                     {formData.leaveType === 'sick' && (
                       <div id="sickLocation" className="space-y-3">
                         <div className="form-control">
@@ -758,8 +921,20 @@ const RequestLeave = () => {
                               checked={formData.locationType === 'hospital'}
                               onChange={handleInputChange}
                             />
-                            <span className="label-text text-gray-700">In Hospital</span>
+                            <span className="label-text text-gray-700">In Hospital (specify illness)</span>
                           </label>
+                          
+                          {formData.locationType === 'hospital' && (
+                            <input 
+                              type="text" 
+                              id="locationSpecify" 
+                              name="locationSpecify" 
+                              value={formData.locationSpecify}
+                              onChange={handleInputChange}
+                              placeholder="Please specify illness" 
+                              className="input input-bordered input-sm mt-1 ml-6 w-3/4 border-gray-300 focus:border-blue-500"
+                            />
+                          )}
                         </div>
                         
                         <div className="form-control">
@@ -772,7 +947,7 @@ const RequestLeave = () => {
                               checked={formData.locationType === 'outpatient'}
                               onChange={handleInputChange}
                             />
-                            <span className="label-text text-gray-700">Outpatient (please specify)</span>
+                            <span className="label-text text-gray-700">Out Patient (specify illness)</span>
                           </label>
                           
                           {formData.locationType === 'outpatient' && (
@@ -782,10 +957,63 @@ const RequestLeave = () => {
                               name="locationSpecify" 
                               value={formData.locationSpecify}
                               onChange={handleInputChange}
-                              placeholder="Please specify location" 
+                              placeholder="Please specify illness" 
                               className="input input-bordered input-sm mt-1 ml-6 w-3/4 border-gray-300 focus:border-blue-500"
                             />
                           )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* For Special Leave Benefits for Women */}
+                    {formData.leaveType === 'special_leave_benefits_women' && (
+                      <div id="specialWomenLocation" className="space-y-3">
+                        <div className="form-control">
+                          <label className="label">
+                            <span className="label-text text-gray-700">Specify Illness</span>
+                          </label>
+                          <input 
+                            type="text" 
+                            id="locationSpecify" 
+                            name="locationSpecify" 
+                            value={formData.locationSpecify}
+                            onChange={handleInputChange}
+                            placeholder="Please specify illness" 
+                            className="input input-bordered w-full border-gray-300 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* For Study Leave */}
+                    {formData.leaveType === 'study_leave' && (
+                      <div id="studyLocation" className="space-y-3">
+                        <div className="form-control">
+                          <label className="label cursor-pointer justify-start gap-2">
+                            <input 
+                              type="radio" 
+                              name="locationType" 
+                              value="masteral" 
+                              className="radio radio-sm radio-primary" 
+                              checked={formData.locationType === 'masteral'}
+                              onChange={handleInputChange}
+                            />
+                            <span className="label-text text-gray-700">Completion of Master's Degree</span>
+                          </label>
+                        </div>
+                        
+                        <div className="form-control">
+                          <label className="label cursor-pointer justify-start gap-2">
+                            <input 
+                              type="radio" 
+                              name="locationType" 
+                              value="board_review" 
+                              className="radio radio-sm radio-primary" 
+                              checked={formData.locationType === 'board_review'}
+                              onChange={handleInputChange}
+                            />
+                            <span className="label-text text-gray-700">BAR/Board Examination Review</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -864,7 +1092,6 @@ const RequestLeave = () => {
                           <div className="pl-4">
                             <p className="text-gray-700">
                               <span>{reviewData.leaveType}</span>
-                              <span className="text-sm text-gray-600 ml-2">{reviewData.subtype}</span>
                             </p>
                           </div>
                         </div>
@@ -958,19 +1185,32 @@ const RequestLeave = () => {
           
           try {
             // Prepare data for submission
+            // Determine where_spent based on leave type requirements
+            let whereSpentValue = submitData.locationType;
+            const requiresLocationInfo = 
+              submitData.leaveType === 'vacation' || 
+              submitData.leaveType === 'special_privilege_leave' || 
+              submitData.leaveType === 'others_specify' || 
+              submitData.leaveType === 'study_leave' || 
+              submitData.leaveType === 'special_leave_benefits_women' ||
+              submitData.leaveType === 'sick';
+
+            if (!requiresLocationInfo) {
+              whereSpentValue = 'not_applicable'; // Use a default value for leave types that don't require location
+            }
+
+            // For the new structure, we will use leave_type directly with the correct value
+            // If leaveType is 'others_specify', we use the otherSpecify value
+            const actualLeaveType = submitData.leaveType === 'others_specify' 
+              ? submitData.otherSpecify 
+              : submitData.leaveType;
+
             const requestData = {
-              leave_type: submitData.leaveType,
-              subtype: submitData.leaveType === 'vacation' 
-                ? submitData.vacationSubtype === 'other' 
-                  ? submitData.vacationOtherSpecify 
-                  : submitData.vacationSubtype
-                : submitData.sickSubtype === 'other' 
-                  ? submitData.sickOtherSpecify 
-                  : submitData.sickSubtype,
+              leave_type: actualLeaveType,
               start_date: submitData.startDate,
               end_date: submitData.endDate,
               number_of_days: submitData.numberOfDays,
-              where_spent: submitData.locationType,
+              where_spent: whereSpentValue,
               commutation: submitData.commutation,
               location_specify: submitData.locationSpecify
             };

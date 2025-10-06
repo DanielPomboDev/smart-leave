@@ -85,6 +85,10 @@ exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
     
     // If no record exists, then there are no credits available
     if (allLeaveRecords.length === 0) {
+      // For special leave types (maternity, paternity), return true since they don't use regular credits
+      if (leaveType === 'maternity' || leaveType === 'paternity') {
+        return true;
+      }
       return false;
     }
     
@@ -96,7 +100,33 @@ exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
                        allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0);
     
     // Determine available credits based on leave type
-    const availableCredits = leaveType === 'vacation' ? vacationBalance : sickBalance;
+    let availableCredits = 0;
+    
+    // Vacation-type leaves use vacation credits
+    if (leaveType === 'vacation' || 
+        (leaveType === 'others' && 
+         (leaveType === 'special_privilege_leave' || 
+          leaveType === 'study_leave' || 
+          leaveType === 'others_specify'))) {
+      availableCredits = vacationBalance;
+    }
+    // Sick-type leaves use sick credits
+    else if (leaveType === 'sick' || 
+             (leaveType === 'others' && 
+              (leaveType === 'maternity_leave' || 
+               leaveType === 'paternity_leave' || 
+               leaveType === 'solo_parent_leave' || 
+               leaveType === 'vawc_leave' || 
+               leaveType === 'rehabilitation_privilege' || 
+               leaveType === 'special_leave_benefits_women' || 
+               leaveType === 'special_emergency' || 
+               leaveType === 'adoption_leave'))) {
+      availableCredits = sickBalance;
+    }
+    // Other leave types don't affect vacation and sick credits, return true to allow the request
+    else {
+      return true;
+    }
     
     // Check if there are enough credits for the requested days
     return availableCredits >= numberOfDays;
@@ -133,7 +163,33 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
                        allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0);
     
     // Determine available credits based on leave type
-    const availableCredits = leaveType === 'vacation' ? vacationBalance : sickBalance;
+    let availableCredits = 0;
+    
+    // Vacation-type leaves use vacation credits
+    if (leaveType === 'vacation' || 
+        (leaveType === 'others' && 
+         (leaveType === 'special_privilege_leave' || 
+          leaveType === 'study_leave' || 
+          leaveType === 'others_specify'))) {
+      availableCredits = vacationBalance;
+    }
+    // Sick-type leaves use sick credits
+    else if (leaveType === 'sick' || 
+             (leaveType === 'others' && 
+              (leaveType === 'maternity_leave' || 
+               leaveType === 'paternity_leave' || 
+               leaveType === 'solo_parent_leave' || 
+               leaveType === 'vawc_leave' || 
+               leaveType === 'rehabilitation_privilege' || 
+               leaveType === 'special_leave_benefits_women' || 
+               leaveType === 'special_emergency' || 
+               leaveType === 'adoption_leave'))) {
+      availableCredits = sickBalance;
+    }
+    // Other leave types don't affect vacation and sick credits, return 0 to prevent deduction
+    else {
+      availableCredits = 0;
+    }
     
     return {
       hasSufficientCredits: availableCredits >= 1, // Consider less than 1 as no credits
