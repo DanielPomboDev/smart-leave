@@ -60,17 +60,45 @@ const MayorLeaveRequestDetails = () => {
     }
     
     try {
-      await processLeaveRequest(id, decision);
+      const response = await processLeaveRequest(id, decision);
       
       // Refresh the leave request data to show updated status
       const updatedData = await getLeaveRequestDetails(id);
       setLeaveRequest(updatedData);
       
+      // Check the response to see if there might be a partial success
+      if (response && response.message) {
+        console.log('Server response message:', response.message);
+      }
+      
       // Show success modal
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Error processing decision:', error);
-      setError('Failed to process decision. Please try again.');
+      // Extract error message from response if available
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to process decision. Please try again.';
+      setError(errorMessage);
+      
+      // Check if the error might be non-critical by refreshing data and showing a warning
+      try {
+        // Even if the API call failed, refresh data to see if the status was still updated
+        const updatedData = await getLeaveRequestDetails(id);
+        setLeaveRequest(updatedData);
+        
+        // If the status is approved despite the error, inform the user accordingly
+        if (updatedData.status === 'approved') {
+          alert(`Decision was recorded successfully, but there was a notification issue. Status is now approved.`);
+          setShowSuccessModal(true);
+        } else if (updatedData.status === 'disapproved') {
+          alert(`Decision was recorded successfully, but there was a notification issue. Status is now rejected.`);
+          setShowSuccessModal(true);
+        } else {
+          alert(`Error processing decision: ${errorMessage}`);
+        }
+      } catch (refreshError) {
+        console.error('Error refreshing data after failed decision processing:', refreshError);
+        alert(`Error processing decision: ${errorMessage}`);
+      }
     } finally {
       setProcessing(false);
     }

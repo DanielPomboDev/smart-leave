@@ -74,6 +74,39 @@ function getProratedCredits(daysPresent, lwopDays) {
     return row ? row.credits : 1.250; // Default to full credits
 }
 
+// Check if user has sufficient leave credits for a specific leave request
+exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
+  try {
+    // Get all leave records for this user to calculate cumulative balance
+    const allLeaveRecords = await LeaveRecord
+      .find({ user_id: userId })
+      .sort({ year: -1, month: -1 })
+      .exec();
+    
+    // If no record exists, then there are no credits available
+    if (allLeaveRecords.length === 0) {
+      return false;
+    }
+    
+    // Calculate cumulative balance
+    const vacationBalance = allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0) - 
+                          allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0);
+    
+    const sickBalance = allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0) - 
+                       allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0);
+    
+    // Determine available credits based on leave type
+    const availableCredits = leaveType === 'vacation' ? vacationBalance : sickBalance;
+    
+    // Check if there are enough credits for the requested days
+    return availableCredits >= numberOfDays;
+  } catch (error) {
+    console.error('Error checking leave credits:', error);
+    // If there's an error, return true to avoid blocking users
+    return true;
+  }
+};
+
 // Check if user has sufficient leave credits and calculate maximum allowed days
 exports.getLeaveCreditsInfo = async (userId, leaveType) => {
   try {
