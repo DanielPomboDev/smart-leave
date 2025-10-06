@@ -84,6 +84,7 @@ class MayorController {
       // Only deduct leave credits if this is a leave with pay (not without_pay)
       const isLeaveWithPay = !leaveRequest.without_pay;
       
+      // For vacation leave - record and deduct from vacation credits
       if (leaveRequest.leave_type === 'vacation') {
         // For future months, just record the entry without deducting leave
         // For current/past months, deduct only for leave with pay
@@ -98,7 +99,9 @@ class MayorController {
         }
         
         vacationEntries.push(leaveEntry);
-      } else if (leaveRequest.leave_type === 'sick') {
+      }
+      // For sick leave - record and deduct from sick credits
+      else if (leaveRequest.leave_type === 'sick') {
         // For future months, just record the entry without deducting leave
         // For current/past months, deduct only for leave with pay
         if (isLeaveWithPay && isCurrentOrPastMonth) {
@@ -112,6 +115,30 @@ class MayorController {
         }
         
         sickEntries.push(leaveEntry);
+      }
+      // For other special leaves that would normally use vacation credits - just record without deduction
+      else if (leaveRequest.leave_type === 'special_privilege_leave' || 
+               leaveRequest.leave_type === 'study_leave') {
+        // Don't affect vacation balances for these leave types
+        // Still record the entry with the correct type for tracking purposes
+        vacationEntries.push(leaveEntry); // Add to vacation entries for organizational purposes
+      }
+      // For other special leaves that would normally use sick credits - just record without deduction
+      else if (leaveRequest.leave_type === 'maternity_leave' || 
+               leaveRequest.leave_type === 'paternity_leave' || 
+               leaveRequest.leave_type === 'solo_parent_leave' || 
+               leaveRequest.leave_type === 'vawc_leave' || 
+               leaveRequest.leave_type === 'rehabilitation_privilege' || 
+               leaveRequest.leave_type === 'special_leave_benefits_women' || 
+               leaveRequest.leave_type === 'special_emergency' || 
+               leaveRequest.leave_type === 'adoption_leave') {
+        // Don't affect sick balances for these leave types
+        // Still record the entry with the correct type for tracking purposes
+        sickEntries.push(leaveEntry); // Add to sick entries for organizational purposes
+      }
+      // For any other leave types - just record without affecting balances
+      else {
+        vacationEntries.push(leaveEntry); // Add to vacation entries for record keeping
       }
 
       // Update the entries arrays

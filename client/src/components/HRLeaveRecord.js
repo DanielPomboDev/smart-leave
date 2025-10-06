@@ -382,10 +382,53 @@ const HRLeaveRecord = () => {
                       <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                            <i className="fas fa-umbrella-beach text-gray-600"></i>
+                            {vacation.type === 'vacation' ? (
+                              <i className="fas fa-umbrella-beach text-gray-600"></i>
+                            ) : vacation.type === 'study_leave' ? (
+                              <i className="fas fa-graduation-cap text-gray-600"></i>
+                            ) : vacation.type === 'special_privilege_leave' ? (
+                              <i className="fas fa-star text-gray-600"></i>
+                            ) : vacation.type === 'mandatory_forced_leave' ? (
+                              <i className="fas fa-exclamation-circle text-gray-600"></i>
+                            ) : vacation.type === 'maternity_leave' ? (
+                              <i className="fas fa-baby text-gray-600"></i>
+                            ) : vacation.type === 'paternity_leave' ? (
+                              <i className="fas fa-child text-gray-600"></i>
+                            ) : vacation.type === 'solo_parent_leave' ? (
+                              <i className="fas fa-user-friends text-gray-600"></i>
+                            ) : vacation.type === 'vawc_leave' ? (
+                              <i className="fas fa-heart text-gray-600"></i>
+                            ) : vacation.type === 'rehabilitation_privilege' ? (
+                              <i className="fas fa-heartbeat text-gray-600"></i>
+                            ) : vacation.type === 'special_leave_benefits_women' ? (
+                              <i className="fas fa-female text-gray-600"></i>
+                            ) : vacation.type === 'special_emergency' ? (
+                              <i className="fas fa-bolt text-gray-600"></i>
+                            ) : vacation.type === 'adoption_leave' ? (
+                              <i className="fas fa-home text-gray-600"></i>
+                            ) : vacation.type === 'others_specify' ? (
+                              <i className="fas fa-question-circle text-gray-600"></i>
+                            ) : (
+                              <i className="fas fa-calendar text-gray-600"></i>
+                            )}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-800">Vacation Leave</p>
+                            <p className="font-medium text-gray-800">
+                              {vacation.type === 'vacation' ? 'Vacation Leave' : 
+                               vacation.type === 'special_privilege_leave' ? 'Special Privilege Leave' :
+                               vacation.type === 'study_leave' ? 'Study Leave' :
+                               vacation.type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
+                               vacation.type === 'maternity_leave' ? 'Maternity Leave' :
+                               vacation.type === 'paternity_leave' ? 'Paternity Leave' :
+                               vacation.type === 'solo_parent_leave' ? 'Solo Parent Leave' :
+                               vacation.type === 'vawc_leave' ? 'VAWC Leave' :
+                               vacation.type === 'rehabilitation_privilege' ? 'Rehabilitation Privilege' :
+                               vacation.type === 'special_leave_benefits_women' ? 'Special Leave Benefits for Women' :
+                               vacation.type === 'special_emergency' ? 'Special Emergency Leave' :
+                               vacation.type === 'adoption_leave' ? 'Adoption Leave' :
+                               vacation.type === 'others_specify' ? 'Others (Specify)' :
+                               vacation.type}
+                            </p>
                             <p className="text-sm text-gray-600">
                               {vacation.days} days
                               {vacation.paid === false && (
@@ -406,10 +449,53 @@ const HRLeaveRecord = () => {
                       <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                            <i className="fas fa-thermometer-half text-gray-600"></i>
+                            {sick.type === 'sick' ? (
+                              <i className="fas fa-thermometer-half text-gray-600"></i>
+                            ) : sick.type === 'study_leave' ? (
+                              <i className="fas fa-graduation-cap text-gray-600"></i>
+                            ) : sick.type === 'special_privilege_leave' ? (
+                              <i className="fas fa-star text-gray-600"></i>
+                            ) : sick.type === 'mandatory_forced_leave' ? (
+                              <i className="fas fa-exclamation-circle text-gray-600"></i>
+                            ) : sick.type === 'maternity_leave' ? (
+                              <i className="fas fa-baby text-gray-600"></i>
+                            ) : sick.type === 'paternity_leave' ? (
+                              <i className="fas fa-child text-gray-600"></i>
+                            ) : sick.type === 'solo_parent_leave' ? (
+                              <i className="fas fa-user-friends text-gray-600"></i>
+                            ) : sick.type === 'vawc_leave' ? (
+                              <i className="fas fa-heart text-gray-600"></i>
+                            ) : sick.type === 'rehabilitation_privilege' ? (
+                              <i className="fas fa-heartbeat text-gray-600"></i>
+                            ) : sick.type === 'special_leave_benefits_women' ? (
+                              <i className="fas fa-female text-gray-600"></i>
+                            ) : sick.type === 'special_emergency' ? (
+                              <i className="fas fa-bolt text-gray-600"></i>
+                            ) : sick.type === 'adoption_leave' ? (
+                              <i className="fas fa-home text-gray-600"></i>
+                            ) : sick.type === 'others_specify' ? (
+                              <i className="fas fa-question-circle text-gray-600"></i>
+                            ) : (
+                              <i className="fas fa-calendar text-gray-600"></i>
+                            )}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-800">Sick Leave</p>
+                            <p className="font-medium text-gray-800">
+                              {sick.type === 'sick' ? 'Sick Leave' : 
+                               sick.type === 'maternity_leave' ? 'Maternity Leave' :
+                               sick.type === 'paternity_leave' ? 'Paternity Leave' :
+                               sick.type === 'solo_parent_leave' ? 'Solo Parent Leave' :
+                               sick.type === 'vawc_leave' ? 'VAWC Leave' :
+                               sick.type === 'rehabilitation_privilege' ? 'Rehabilitation Privilege' :
+                               sick.type === 'special_leave_benefits_women' ? 'Special Leave Benefits for Women' :
+                               sick.type === 'special_emergency' ? 'Special Emergency Leave' :
+                               sick.type === 'adoption_leave' ? 'Adoption Leave' :
+                               sick.type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
+                               sick.type === 'special_privilege_leave' ? 'Special Privilege Leave' :
+                               sick.type === 'study_leave' ? 'Study Leave' :
+                               sick.type === 'others_specify' ? 'Others (Specify)' :
+                               sick.type}
+                            </p>
                             <p className="text-sm text-gray-600">
                               {sick.days} days
                               {sick.paid === false && (

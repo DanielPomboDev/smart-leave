@@ -300,7 +300,7 @@ const LeaveHistory = () => {
                               <div className="text-sm">
                                 {getLeaveTypeText(request.leave_type)}
                               </div>
-                              {request.without_pay && (
+                              {request.without_pay && (request.leave_type === 'vacation' || request.leave_type === 'sick') && (
                                 <span className="mt-1 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
                                   Without Pay
                                 </span>

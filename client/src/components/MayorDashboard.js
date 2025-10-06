@@ -215,7 +215,21 @@ const MayorDashboard = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {leaveRequest.leaveType === 'vacation' ? 'Vacation' : 'Sick'}
+                        {leaveRequest.leaveType === 'vacation' ? 'Vacation' : 
+                         leaveRequest.leaveType === 'sick' ? 'Sick' : 
+                         leaveRequest.leaveType === 'mandatory_forced_leave' ? 'Mandatory/Forced' :
+                         leaveRequest.leaveType === 'maternity_leave' ? 'Maternity' :
+                         leaveRequest.leaveType === 'paternity_leave' ? 'Paternity' :
+                         leaveRequest.leaveType === 'special_privilege_leave' ? 'Special Privilege' :
+                         leaveRequest.leaveType === 'solo_parent_leave' ? 'Solo Parent' :
+                         leaveRequest.leaveType === 'study_leave' ? 'Study' :
+                         leaveRequest.leaveType === 'vawc_leave' ? 'VAWC' :
+                         leaveRequest.leaveType === 'rehabilitation_privilege' ? 'Rehabilitation' :
+                         leaveRequest.leaveType === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
+                         leaveRequest.leaveType === 'special_emergency' ? 'Special Emergency' :
+                         leaveRequest.leaveType === 'adoption_leave' ? 'Adoption' :
+                         leaveRequest.leaveType === 'others_specify' ? 'Others' :
+                         leaveRequest.leaveType}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 md:text-sm">
                         {new Date(leaveRequest.startDate).toLocaleDateString()} - {new Date(leaveRequest.endDate).toLocaleDateString()}

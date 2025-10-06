@@ -146,6 +146,30 @@ const MayorLeaveRequests = () => {
         return 'Vacation Leave';
       case 'sick':
         return 'Sick Leave';
+      case 'mandatory_forced_leave':
+        return 'Mandatory/Forced Leave';
+      case 'maternity_leave':
+        return 'Maternity Leave';
+      case 'paternity_leave':
+        return 'Paternity Leave';
+      case 'special_privilege_leave':
+        return 'Special Privilege Leave';
+      case 'solo_parent_leave':
+        return 'Solo Parent Leave';
+      case 'study_leave':
+        return 'Study Leave';
+      case 'vawc_leave':
+        return 'VAWC Leave';
+      case 'rehabilitation_privilege':
+        return 'Rehabilitation Privilege';
+      case 'special_leave_benefits_women':
+        return 'Special Leave Benefits for Women';
+      case 'special_emergency':
+        return 'Special Emergency Leave';
+      case 'adoption_leave':
+        return 'Adoption Leave';
+      case 'others_specify':
+        return 'Others (Specify)';
       default:
         return type;
     }
@@ -336,7 +360,7 @@ const MayorLeaveRequests = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {request.leave_type === 'vacation' ? 'Vacation' : 'Sick'}
+                        {getLeaveTypeText(request.leave_type)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
                         <div>

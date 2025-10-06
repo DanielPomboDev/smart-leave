@@ -250,7 +250,7 @@ const LeaveRequestDetails = () => {
                   {leaveRequest.commutation ? 'Requested' : 'Not Requested'}
                 </p>
               </div>
-              {leaveRequest.without_pay && (
+              {leaveRequest.without_pay && (leaveRequest.leave_type === 'vacation' || leaveRequest.leave_type === 'sick') && (
                 <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm md:col-span-2">
                   <h5 className="font-semibold text-red-600 mb-3">Leave Without Pay</h5>
                   <p className="font-medium text-gray-800">

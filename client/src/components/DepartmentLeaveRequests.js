@@ -161,6 +161,30 @@ const DepartmentLeaveRequests = () => {
         return 'Vacation Leave';
       case 'sick':
         return 'Sick Leave';
+      case 'mandatory_forced_leave':
+        return 'Mandatory/Forced Leave';
+      case 'maternity_leave':
+        return 'Maternity Leave';
+      case 'paternity_leave':
+        return 'Paternity Leave';
+      case 'special_privilege_leave':
+        return 'Special Privilege Leave';
+      case 'solo_parent_leave':
+        return 'Solo Parent Leave';
+      case 'study_leave':
+        return 'Study Leave';
+      case 'vawc_leave':
+        return 'VAWC Leave';
+      case 'rehabilitation_privilege':
+        return 'Rehabilitation Privilege';
+      case 'special_leave_benefits_women':
+        return 'Special Leave Benefits for Women';
+      case 'special_emergency':
+        return 'Special Emergency Leave';
+      case 'adoption_leave':
+        return 'Adoption Leave';
+      case 'others_specify':
+        return 'Others (Specify)';
       default:
         return type;
     }
@@ -359,7 +383,7 @@ const DepartmentLeaveRequests = () => {
                         <div className="text-sm">
                           {getLeaveTypeText(request.leave_type)}
                         </div>
-                        {request.without_pay && (
+                        {request.without_pay && (request.leave_type === 'vacation' || request.leave_type === 'sick') && (
                           <span className="mt-1 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
                             Without Pay
                           </span>

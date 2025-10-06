@@ -324,11 +324,13 @@ const HRLeaveRequestDetails = () => {
                         {leaveRequest.user_id?.department_id?.name || 'Department not specified'} • 
                         {leaveRequest.user_id?.position || 'Position not specified'}
                       </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {leaveRequest.leave_type === 'vacation' 
-                          ? `Vacation Balance: ${leaveRequest.user_id?.vacation_balance?.toFixed(3) || 0} days` 
-                          : `Sick Balance: ${leaveRequest.user_id?.sick_balance?.toFixed(3) || 0} days`}
-                      </p>
+                      {(leaveRequest.leave_type === 'vacation' || leaveRequest.leave_type === 'sick') && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          {leaveRequest.leave_type === 'vacation' 
+                            ? `Vacation Balance: ${leaveRequest.user_id?.vacation_balance?.toFixed(3) || 0} days` 
+                            : `Sick Balance: ${leaveRequest.user_id?.sick_balance?.toFixed(3) || 0} days`}
+                        </p>
+                      )}
                       {!hasSufficientCredits && (
                         <div className="badge badge-warning mt-2">Submitted with insufficient credits</div>
                       )}

@@ -243,7 +243,21 @@ const HRDashboard = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {leaveRequest.leave_type === 'vacation' ? 'Vacation' : 'Sick'}
+                        {leaveRequest.leave_type === 'vacation' ? 'Vacation' : 
+                         leaveRequest.leave_type === 'sick' ? 'Sick' : 
+                         leaveRequest.leave_type === 'mandatory_forced_leave' ? 'Mandatory/Forced' :
+                         leaveRequest.leave_type === 'maternity_leave' ? 'Maternity' :
+                         leaveRequest.leave_type === 'paternity_leave' ? 'Paternity' :
+                         leaveRequest.leave_type === 'special_privilege_leave' ? 'Special Privilege' :
+                         leaveRequest.leave_type === 'solo_parent_leave' ? 'Solo Parent' :
+                         leaveRequest.leave_type === 'study_leave' ? 'Study' :
+                         leaveRequest.leave_type === 'vawc_leave' ? 'VAWC' :
+                         leaveRequest.leave_type === 'rehabilitation_privilege' ? 'Rehabilitation' :
+                         leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
+                         leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency' :
+                         leaveRequest.leave_type === 'adoption_leave' ? 'Adoption' :
+                         leaveRequest.leave_type === 'others_specify' ? 'Others' :
+                         leaveRequest.leave_type}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 md:text-sm">
                         {new Date(leaveRequest.start_date).toLocaleDateString()} - {new Date(leaveRequest.end_date).toLocaleDateString()}

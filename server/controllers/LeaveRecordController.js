@@ -167,28 +167,31 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
     
     // Vacation-type leaves use vacation credits
     if (leaveType === 'vacation' || 
-        (leaveType === 'others' && 
-         (leaveType === 'special_privilege_leave' || 
-          leaveType === 'study_leave' || 
-          leaveType === 'others_specify'))) {
+        leaveType === 'special_privilege_leave' || 
+        leaveType === 'study_leave') {
       availableCredits = vacationBalance;
     }
     // Sick-type leaves use sick credits
     else if (leaveType === 'sick' || 
-             (leaveType === 'others' && 
-              (leaveType === 'maternity_leave' || 
-               leaveType === 'paternity_leave' || 
-               leaveType === 'solo_parent_leave' || 
-               leaveType === 'vawc_leave' || 
-               leaveType === 'rehabilitation_privilege' || 
-               leaveType === 'special_leave_benefits_women' || 
-               leaveType === 'special_emergency' || 
-               leaveType === 'adoption_leave'))) {
+             leaveType === 'maternity_leave' || 
+             leaveType === 'paternity_leave' || 
+             leaveType === 'solo_parent_leave' || 
+             leaveType === 'vawc_leave' || 
+             leaveType === 'rehabilitation_privilege' || 
+             leaveType === 'special_leave_benefits_women' || 
+             leaveType === 'special_emergency' || 
+             leaveType === 'adoption_leave') {
       availableCredits = sickBalance;
     }
-    // Other leave types don't affect vacation and sick credits, return 0 to prevent deduction
+    // For other leave types that don't affect vacation and sick credits,
+    // they don't need to be evaluated for credit sufficiency in the same way
     else {
-      availableCredits = 0;
+      // These types don't draw from vacation/sick credits, so they're always considered sufficient
+      return {
+        hasSufficientCredits: true,
+        availableCredits: 0, // These types don't use vacation/sick credits
+        maxAllowedDays: 0 // These types don't use vacation/sick credits
+      };
     }
     
     return {
