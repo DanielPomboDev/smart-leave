@@ -5,7 +5,7 @@ import axios from '../services/api';
 import SuccessModal from './SuccessModal';
 import ConfirmationModal from './ConfirmationModal';
 
-const RequestLeave = () => {
+const RequestLeaveAdvanced = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,7 @@ const RequestLeave = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
-  
+
   const [formData, setFormData] = useState({
     leaveType: '',
     otherSpecify: '',
@@ -38,6 +38,7 @@ const RequestLeave = () => {
   const [vacationBalance, setVacationBalance] = useState(0);
   const [sickBalance, setSickBalance] = useState(0);
   const [loadingCredits, setLoadingCredits] = useState(true);
+  const [userRole, setUserRole] = useState('');
 
   // Set minimum start date based on today
   useEffect(() => {
@@ -50,22 +51,37 @@ const RequestLeave = () => {
     }));
   }, []);
 
-  // Fetch current leave credits
-  const fetchLeaveCredits = async () => {
+  // Fetch current user role and leave credits
+  const fetchUserData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/leave-records/current', {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
 
-      if (response.data) {
-        setVacationBalance(response.data.vacationBalance || 0);
-        setSickBalance(response.data.sickBalance || 0);
+      // Get user info from the profile endpoint
+      const response = await axios.get('/api/auth/profile');
+      
+      console.log('Profile response:', response.data); // Debug log
+      
+      if (response.data && response.data.success && response.data.user) {
+        setUserRole(response.data.user.user_type || 'employee');
+      } else {
+        // Fallback to 'employee' if no user data is available
+        setUserRole('employee');
+      }
+
+      // Fetch leave credits
+      const creditsResponse = await axios.get('/api/leave-records/current');
+      
+      if (creditsResponse.data) {
+        setVacationBalance(creditsResponse.data.vacationBalance || 0);
+        setSickBalance(creditsResponse.data.sickBalance || 0);
       }
     } catch (error) {
-      console.error('Error fetching leave credits:', error);
+      console.error('Error fetching user data:', error);
+      // Default to employee if we cannot determine role
+      setUserRole('employee');
       // Set default values in case of error
       setVacationBalance(0);
       setSickBalance(0);
@@ -75,7 +91,7 @@ const RequestLeave = () => {
   };
 
   useEffect(() => {
-    fetchLeaveCredits();
+    fetchUserData();
   }, []);
 
   // Handle start date changes
@@ -315,7 +331,7 @@ const RequestLeave = () => {
     });
   };
 
-  // Submit leave request
+  // Submit leave request with role-based approval logic
   const submitLeaveRequest = async () => {
     // Close confirmation modal
     setShowConfirmModal(false);
@@ -390,6 +406,7 @@ const RequestLeave = () => {
         ? submitData.otherSpecify 
         : submitData.leaveType;
 
+      // Prepare the request data based on role
       const requestData = {
         leave_type: actualLeaveType,
         start_date: submitData.startDate,
@@ -399,6 +416,12 @@ const RequestLeave = () => {
         commutation: submitData.commutation,
         location_specify: submitData.locationSpecify
       };
+
+      // Add a special field to indicate role-based handling
+      if (userRole === 'department_admin' || userRole === 'hr' || userRole === 'mayor') {
+        requestData.role_based_approval = true;
+        requestData.requester_role = userRole;
+      }
 
       // Get token from localStorage
       const token = localStorage.getItem('token');
@@ -423,10 +446,13 @@ const RequestLeave = () => {
           });
         }
         
-        // Reset form after a delay
+        // Determine where to navigate based on role
         setTimeout(() => {
           setShowSuccessModal(false);
-          navigate('/employee/leave-history');
+          // All roles will go to their own leave history
+          // Handle special case for department_admin
+          const basePath = userRole === 'department_admin' ? '/department_admin' : `/${userRole}`;
+          navigate(`${basePath}/leave-history`);
         }, 3000);
       } else {
         setError(response.data.message || 'Failed to submit leave request');
@@ -463,6 +489,53 @@ const RequestLeave = () => {
     return new Date().toISOString().split('T')[0];
   };
 
+  // Show different message based on role
+  const getRoleMessage = () => {
+    if (userRole === 'department_admin') {
+      return "As a Department Admin, your leave request will be sent directly to HR for approval.";
+    } else if (userRole === 'hr') {
+      return "As an HR Manager, your leave request will be sent directly to the Mayor for approval.";
+    } else if (userRole === 'mayor') {
+      return "As the Mayor, your leave request will be automatically approved and recorded.";
+    } else {
+      return "New Leave Request";
+    }
+  };
+
+  // Show different message based on role
+  const getRoleBasedMessage = (role) => {
+    switch (role) {
+      case 'department_admin':
+        return "It will be forwarded directly to HR for approval.";
+      case 'hr':
+        return "It will be forwarded directly to the Mayor for approval.";
+      case 'mayor':
+        return "It has been automatically approved and recorded.";
+      default:
+        return "It is pending approval.";
+    }
+  };
+
+  // Show loading state while fetching user data
+  if (loadingCredits) {
+    return (
+      <Layout>
+        <header className="bg-white shadow">
+          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <h1 className="text-3xl font-bold text-gray-900">Request Leave</h1>
+          </div>
+        </header>
+        <main>
+          <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            <div className="flex justify-center items-center h-64">
+              <span className="loading loading-spinner loading-lg"></span>
+            </div>
+          </div>
+        </main>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <header className="bg-white shadow">
@@ -478,8 +551,18 @@ const RequestLeave = () => {
             <div className="card-body">
               <h2 className="card-title text-xl font-bold text-gray-800 mb-4">
                 <i className="fas fa-calendar-plus text-blue-500 mr-2"></i>
-                New Leave Request
+                {getRoleMessage()}
               </h2>
+              
+              {/* User Role specific information */}
+              {userRole && (
+                <div className="alert bg-info text-info-content mb-4">
+                  <div>
+                    <i className="fas fa-info-circle mr-2"></i>
+                    <span>Role: {userRole.toLowerCase().replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                  </div>
+                </div>
+              )}
               
               {/* Leave Credits Display */}
               {!loadingCredits && (vacationBalance !== 0 || sickBalance !== 0) && (
@@ -487,7 +570,7 @@ const RequestLeave = () => {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-center">
                       <div className="mr-3 flex-shrink-0">
-                        <i className="fas fa-suitcase-rolling text-blue-500 text-xl"></i>
+                        <i className="fas fa-sun text-blue-500 text-xl"></i>
                       </div>
                       <div>
                         <p className="text-sm text-blue-600 font-medium">Vacation Leave</p>
@@ -1184,6 +1267,22 @@ const RequestLeave = () => {
                     </div>
                   </div>
                   
+                  {/* Role-specific message */}
+                  <div className="mt-4 p-4 bg-info text-info-content rounded-lg">
+                    <div className="flex">
+                      <i className="fas fa-info-circle mt-1 mr-2"></i>
+                      <div>
+                        <p className="font-medium">Approval Process:</p>
+                        <p>
+                          {userRole === 'department_admin' ? "Your request will be sent directly to HR for approval." :
+                           userRole === 'hr' ? "Your request will be sent directly to the Mayor for approval." :
+                           userRole === 'mayor' ? "Your request will be automatically approved and recorded." :
+                           "Your request will follow the standard approval process."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div className="flex justify-between mt-6">
                     <button 
                       type="button" 
@@ -1220,10 +1319,14 @@ const RequestLeave = () => {
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
         title="Leave Request Submitted"
-        message="Your leave request has been submitted successfully and is pending approval."
+        message={`Your leave request has been submitted successfully. ${
+          getRoleBasedMessage(userRole)
+        }`}
         onConfirm={() => {
           setShowSuccessModal(false);
-          navigate('/employee/leave-history');
+          // Handle special case for department_admin
+          const basePath = userRole === 'department_admin' ? '/department_admin' : `/${userRole}`;
+          navigate(`${basePath}/leave-history`);
         }}
       />
 
@@ -1263,6 +1366,7 @@ const RequestLeave = () => {
               ? submitData.otherSpecify 
               : submitData.leaveType;
 
+            // Prepare the request data based on role
             const requestData = {
               leave_type: actualLeaveType,
               start_date: submitData.startDate,
@@ -1272,6 +1376,12 @@ const RequestLeave = () => {
               commutation: submitData.commutation,
               location_specify: submitData.locationSpecify
             };
+
+            // Add a special field to indicate role-based handling
+            if (userRole === 'department_admin' || userRole === 'hr' || userRole === 'mayor') {
+              requestData.role_based_approval = true;
+              requestData.requester_role = userRole;
+            }
 
             // Get token from localStorage
             const token = localStorage.getItem('token');
@@ -1290,7 +1400,9 @@ const RequestLeave = () => {
               // Reset form after a delay
               setTimeout(() => {
                 setShowSuccessModal(false);
-                navigate('/employee/leave-history');
+                // Handle special case for department_admin
+                const basePath = userRole === 'department_admin' ? '/department_admin' : `/${userRole}`;
+                navigate(`${basePath}/leave-history`);
               }, 3000);
             } else {
               setError(response.data.message || 'Failed to submit leave request');
@@ -1325,4 +1437,4 @@ const RequestLeave = () => {
   );
 };
 
-export default RequestLeave;
+export default RequestLeaveAdvanced;

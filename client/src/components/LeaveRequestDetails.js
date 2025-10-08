@@ -1,15 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Layout from './Layout';
 import axios from '../services/api';
 
 const LeaveRequestDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [leaveRequest, setLeaveRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [userRole, setUserRole] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Determine user role from the current route
+  useEffect(() => {
+    const determineUserRole = () => {
+      if (location.pathname.startsWith('/department_admin')) {
+        setUserRole('department_admin');
+      } else if (location.pathname.startsWith('/hr')) {
+        setUserRole('hr');
+      } else if (location.pathname.startsWith('/mayor')) {
+        setUserRole('mayor');
+      } else {
+        setUserRole('employee'); // default
+      }
+    };
+
+    determineUserRole();
+  }, [location.pathname]);
 
   // Fetch leave request details
   useEffect(() => {
@@ -149,7 +168,10 @@ const LeaveRequestDetails = () => {
           <h2 className="text-xl font-bold text-gray-800 mb-2">Leave Request Not Found</h2>
           <p className="text-gray-600 mb-4">The requested leave request could not be found.</p>
           <button 
-            onClick={() => navigate('/employee/dashboard')}
+            onClick={() => {
+              const basePath = `/${userRole}/dashboard`;
+              navigate(basePath);
+            }}
             className="btn btn-primary"
           >
             Back to Dashboard

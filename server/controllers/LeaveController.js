@@ -44,7 +44,9 @@ const createLeaveRequest = async (req, res) => {
       number_of_days,
       where_spent,
       commutation,
-      location_specify
+      location_specify,
+      role_based_approval,
+      requester_role
     } = req.body;
 
     // Validate required fields
@@ -111,6 +113,28 @@ const createLeaveRequest = async (req, res) => {
       formattedWhereSpent = `Outpatient: ${location_specify}`;
     }
 
+    // Determine the initial status based on role-based approval logic
+    let initialStatus = 'pending'; // default for regular employees
+    let targetApprover = null;
+    let targetApproverType = null;
+
+    // Check if this is a role-based approval request
+    if (role_based_approval && requester_role) {
+      if (req.user.user_type === 'department_admin' || requester_role === 'department_admin') {
+        // Department admin: go directly to HR
+        initialStatus = 'recommended'; // Skip department approval, go to HR
+        targetApproverType = 'hr';
+      } else if (req.user.user_type === 'hr' || requester_role === 'hr') {
+        // HR manager: go directly to mayor
+        initialStatus = 'hr_approved'; // Skip HR approval, go to mayor
+        targetApproverType = 'mayor';
+      } else if (req.user.user_type === 'mayor' || requester_role === 'mayor') {
+        // Mayor: auto-approved
+        initialStatus = 'approved';
+        targetApproverType = null; // No further approval needed
+      }
+    }
+
     // Create leave request
     const leaveRequest = new LeaveRequest({
       user_id: req.user.user_id, // Use user_id from authenticated user
@@ -121,39 +145,75 @@ const createLeaveRequest = async (req, res) => {
       where_spent: formattedWhereSpent,
       commutation: commutation === '1' || commutation === true,
       without_pay: isWithoutPay,
-      status: 'pending'
+      status: initialStatus
     });
 
     const savedLeaveRequest = await leaveRequest.save();
 
-    // Send notification to department admin
+    // Handle notifications based on role-based approval
     try {
-      // Get the user's department
+      // Get the user object for the notification
       const user = await User.findOne({ user_id: req.user.user_id });
-      if (user && user.department_id) {
-        // Find department admin for this department
-        const departmentAdmin = await User.findOne({ 
-          user_type: 'department_admin', 
-          department_id: user.department_id 
-        });
-        
-        if (departmentAdmin) {
-          // Populate user data for the notification
-          const populatedLeaveRequest = await LeaveRequest.findById(savedLeaveRequest._id)
-            .populate({
-              path: 'user_id',
-              select: 'first_name last_name middle_initial department_id position user_id',
-              foreignField: 'user_id',
-              localField: 'user_id',
-              populate: {
-                path: 'department_id',
-                select: 'name'
-              }
-            });
-            
-          // Make sure user data is available before sending notification
-          if (populatedLeaveRequest && populatedLeaveRequest.user_id) {
-            await sendNewLeaveRequestNotification(populatedLeaveRequest, departmentAdmin._id);
+      
+      // If this is a role-based approval request, send notifications accordingly
+      if (role_based_approval && requester_role) {
+        // Populate user data for the notification
+        const populatedLeaveRequest = await LeaveRequest.findById(savedLeaveRequest._id)
+          .populate({
+            path: 'user_id',
+            select: 'first_name last_name middle_initial department_id position user_id',
+            foreignField: 'user_id',
+            localField: 'user_id',
+            populate: {
+              path: 'department_id',
+              select: 'name'
+            }
+          });
+
+        // Send notifications based on the requester's role
+        if (requester_role === 'department_admin' || req.user.user_type === 'department_admin') {
+          // Find HR user to notify
+          const hrUsers = await User.find({ user_type: 'hr' });
+          for (const hrUser of hrUsers) {
+            await sendRecommendedLeaveRequestNotification(populatedLeaveRequest, hrUser._id);
+          }
+        } else if (requester_role === 'hr' || req.user.user_type === 'hr') {
+          // Find mayor user to notify
+          const mayorUsers = await User.find({ user_type: 'mayor' });
+          for (const mayorUser of mayorUsers) {
+            await sendHrApprovedLeaveRequestNotification(populatedLeaveRequest, mayorUser._id);
+          }
+        } else if (requester_role === 'mayor' || req.user.user_type === 'mayor') {
+          // For mayor auto-approval, notify the mayor themselves and employees
+          await sendLeaveStatusUpdateToEmployee(populatedLeaveRequest, 'mayor_approved');
+        }
+      } else {
+        // For regular employees, send notification to department admin as before
+        if (user && user.department_id) {
+          // Find department admin for this department
+          const departmentAdmin = await User.findOne({ 
+            user_type: 'department_admin', 
+            department_id: user.department_id 
+          });
+          
+          if (departmentAdmin) {
+            // Populate user data for the notification
+            const populatedLeaveRequest = await LeaveRequest.findById(savedLeaveRequest._id)
+              .populate({
+                path: 'user_id',
+                select: 'first_name last_name middle_initial department_id position user_id',
+                foreignField: 'user_id',
+                localField: 'user_id',
+                populate: {
+                  path: 'department_id',
+                  select: 'name'
+                }
+              });
+              
+            // Make sure user data is available before sending notification
+            if (populatedLeaveRequest && populatedLeaveRequest.user_id) {
+              await sendNewLeaveRequestNotification(populatedLeaveRequest, departmentAdmin._id);
+            }
           }
         }
       }
@@ -165,7 +225,9 @@ const createLeaveRequest = async (req, res) => {
     // Prepare response with warning if applicable
     const response = {
       success: true,
-      message: 'Leave request submitted successfully',
+      message: initialStatus === 'approved' 
+        ? 'Leave request submitted and automatically approved' 
+        : 'Leave request submitted successfully',
       data: savedLeaveRequest
     };
 

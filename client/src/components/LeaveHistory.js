@@ -1,19 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const LeaveHistory = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [filteredRequests, setFilteredRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [userRole, setUserRole] = useState('');
   const [filters, setFilters] = useState({
     month: 'all',
     leaveType: 'all',
     status: 'all'
   });
+
+  // Determine user role from the current route
+  useEffect(() => {
+    const determineUserRole = () => {
+      if (location.pathname.startsWith('/department_admin')) {
+        setUserRole('department_admin');
+      } else if (location.pathname.startsWith('/hr')) {
+        setUserRole('hr');
+      } else if (location.pathname.startsWith('/mayor')) {
+        setUserRole('mayor');
+      } else {
+        setUserRole('employee'); // default
+      }
+    };
+
+    determineUserRole();
+  }, [location.pathname]);
 
   // Fetch leave requests from API
   useEffect(() => {
@@ -132,7 +151,8 @@ const LeaveHistory = () => {
   };
 
   const handleViewRequest = (id) => {
-    navigate(`/employee/leave-request/${id}`);
+    const basePath = `/${userRole}/leave-request`;
+    navigate(basePath + '/' + id);
   };
 
   const handleCancelRequest = async (id) => {
@@ -321,7 +341,7 @@ const LeaveHistory = () => {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                               <button
-                                onClick={() => navigate(`/employee/leave-request/${request._id}`)}
+                                onClick={() => handleViewRequest(request._id)}
                                 className="btn btn-xs btn-primary"
                               >
                                 View

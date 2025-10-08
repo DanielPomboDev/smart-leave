@@ -104,23 +104,29 @@ const Layout = ({ children, title = "Dashboard" }) => {
       case 'department_admin':
         return [
           { label: "Dashboard", icon: "fas fa-home", route: "/department/dashboard" },
-          { label: "Leave Requests", icon: "fas fa-history", route: "/department/leave-requests" },
+          { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/department_admin/request-leave" },
+          { label: "Leave History", icon: "fas fa-history", route: "/department_admin/leave-history" },
+          { label: "Leave Requests", icon: "fas fa-tasks", route: "/department/leave-requests" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }
         ];
       case 'hr':
         return [
           { label: "Dashboard", icon: "fas fa-home", route: "/hr/dashboard" },
+          { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/hr/request-leave" },
+          { label: "Leave History", icon: "fas fa-history", route: "/hr/leave-history" },
           { label: "Employees", icon: "fas fa-users", route: "/hr/employees" },
           { label: "Leave Records", icon: "fas fa-file-alt", route: "/hr/leave-records" },
-          { label: "Leave Requests", icon: "fas fa-history", route: "/hr/leave-requests" },
+          { label: "Leave Requests", icon: "fas fa-tasks", route: "/hr/leave-requests" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }
         ];
       case 'mayor':
         return [
           { label: "Dashboard", icon: "fas fa-home", route: "/mayor/dashboard" },
-          { label: "Leave Requests", icon: "fas fa-history", route: "/mayor/leave-requests" },
+          { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/mayor/request-leave" },
+          { label: "Leave History", icon: "fas fa-history", route: "/mayor/leave-history" },
+          { label: "Leave Requests", icon: "fas fa-tasks", route: "/mayor/leave-requests" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }
         ];
