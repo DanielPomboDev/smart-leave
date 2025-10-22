@@ -342,10 +342,18 @@ const LeaveHistory = () => {
                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                               <button
                                 onClick={() => handleViewRequest(request._id)}
-                                className="btn btn-xs btn-primary"
+                                className="btn btn-xs btn-primary mr-2"
                               >
                                 View
                               </button>
+                              {(['pending', 'recommended', 'hr_approved', 'approved'].includes(request.status)) && (
+                                <button
+                                  onClick={() => handleCancelRequest(request._id)}
+                                  className="btn btn-xs btn-error"
+                                >
+                                  Cancel
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}

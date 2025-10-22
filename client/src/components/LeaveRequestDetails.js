@@ -117,7 +117,7 @@ const LeaveRequestDetails = () => {
   };
 
   const isCancellable = (status) => {
-    return ['pending', 'recommended', 'hr_approved'].includes(status);
+    return ['pending', 'recommended', 'hr_approved', 'approved'].includes(status);
   };
 
   const handleCancelRequest = async () => {

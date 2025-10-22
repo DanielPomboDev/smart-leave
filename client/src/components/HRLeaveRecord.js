@@ -17,6 +17,7 @@ const HRLeaveRecord = () => {
     balance: 0
   });
   const [leaveRecords, setLeaveRecords] = useState([]);
+  const [filteredLeaveRecords, setFilteredLeaveRecords] = useState([]);
   const [showAddUndertimeModal, setShowAddUndertimeModal] = useState(false);
   const [undertimeForm, setUndertimeForm] = useState({
     month: '',
@@ -29,6 +30,10 @@ const HRLeaveRecord = () => {
   const [error, setError] = useState('');
   const [isFutureDate, setIsFutureDate] = useState(false);
   const [showUndertimeWarning, setShowUndertimeWarning] = useState(false);
+  const [filters, setFilters] = useState({
+    month: '',
+    year: ''
+  });
 
   // Conversion tables for hours and minutes to days
   const hoursToDays = {
@@ -87,6 +92,28 @@ const HRLeaveRecord = () => {
       fetchLeaveRecord();
     }
   }, [id]);
+
+  // Apply filters when filters change or when leaveRecords change
+  useEffect(() => {
+    if (!leaveRecords || leaveRecords.length === 0) {
+      setFilteredLeaveRecords([]);
+      return;
+    }
+    
+    let filtered = [...leaveRecords];
+    
+    // Apply month filter
+    if (filters.month) {
+      filtered = filtered.filter(record => record.month.toString() === filters.month);
+    }
+    
+    // Apply year filter
+    if (filters.year) {
+      filtered = filtered.filter(record => record.year.toString() === filters.year);
+    }
+    
+    setFilteredLeaveRecords(filtered);
+  }, [filters, leaveRecords]);
 
   // Helper function to get month name
   const getMonthName = (monthNumber) => {
@@ -325,7 +352,11 @@ const HRLeaveRecord = () => {
                     {/* Month Filter */}
                     <div className="mb-3">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
-                      <select className="select select-bordered w-full text-sm">
+                      <select 
+                        className="select select-bordered w-full text-sm"
+                        value={filters.month}
+                        onChange={(e) => setFilters(prev => ({...prev, month: e.target.value}))}
+                      >
                         <option value="">All Months</option>
                         <option value="1">January</option>
                         <option value="2">February</option>
@@ -345,7 +376,11 @@ const HRLeaveRecord = () => {
                     {/* Year Filter */}
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                      <select className="select select-bordered w-full text-sm">
+                      <select 
+                        className="select select-bordered w-full text-sm"
+                        value={filters.year}
+                        onChange={(e) => setFilters(prev => ({...prev, year: e.target.value}))}
+                      >
                         <option value="">All Years</option>
                         <option value="2025">2025</option>
                         <option value="2024">2024</option>
@@ -356,11 +391,17 @@ const HRLeaveRecord = () => {
                     
                     {/* Filter Actions */}
                     <div className="flex gap-2">
-                      <button className="btn btn-sm btn-primary flex-1">
+                      <button 
+                        className="btn btn-sm btn-primary flex-1"
+                        onClick={() => {}} // Filters are applied automatically due to useEffect
+                      >
                         <i className="fi fi-rr-check mr-1"></i>
                         Apply
                       </button>
-                      <button className="btn btn-sm btn-outline flex-1">
+                      <button 
+                        className="btn btn-sm btn-outline flex-1"
+                        onClick={() => setFilters({ month: '', year: '' })}
+                      >
                         <i className="fi fi-rr-cross mr-1"></i>
                         Clear
                       </button>
@@ -370,8 +411,8 @@ const HRLeaveRecord = () => {
               </div>
             </div>
 
-            {leaveRecords && leaveRecords.length > 0 ? (
-              leaveRecords.map((record, index) => (
+            {filteredLeaveRecords && filteredLeaveRecords.length > 0 ? (
+              filteredLeaveRecords.map((record, index) => (
                 <div key={index} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                     <h4 className="text-gray-800 font-semibold text-lg">{record.month_year}</h4>
@@ -428,6 +469,11 @@ const HRLeaveRecord = () => {
                                vacation.type === 'adoption_leave' ? 'Adoption Leave' :
                                vacation.type === 'others_specify' ? 'Others (Specify)' :
                                vacation.type}
+                              {vacation.cancelled && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  Cancelled
+                                </span>
+                              )}
                             </p>
                             <p className="text-sm text-gray-600">
                               {vacation.days} days
@@ -495,6 +541,11 @@ const HRLeaveRecord = () => {
                                sick.type === 'study_leave' ? 'Study Leave' :
                                sick.type === 'others_specify' ? 'Others (Specify)' :
                                sick.type}
+                              {sick.cancelled && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  Cancelled
+                                </span>
+                              )}
                             </p>
                             <p className="text-sm text-gray-600">
                               {sick.days} days

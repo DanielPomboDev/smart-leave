@@ -1,4 +1,5 @@
 const LeaveRequest = require('../models/LeaveRequest');
+const LeaveRecord = require('../models/LeaveRecord');
 const { sendNewLeaveRequestNotification } = require('../utils/notificationUtils');
 const User = require('../models/User');
 const { getLeaveCreditsInfo } = require('./LeaveRecordController');
@@ -302,6 +303,86 @@ const getLeaveRequest = async (req, res) => {
   }
 };
 
+// Helper function to return leave credits when a leave is cancelled
+const returnLeaveCredits = async (leaveRequest) => {
+  try {
+    // Get the month and year when the leave was scheduled (not current date)
+    const leaveDate = new Date(leaveRequest.start_date);
+    const leaveMonth = leaveDate.getMonth() + 1; // getMonth() is zero-based
+    const leaveYear = leaveDate.getFullYear();
+
+    // Get the actual user_id from the leave request (handle both populated and non-populated cases)
+    const userId = leaveRequest.user_id && typeof leaveRequest.user_id === 'object' 
+      ? leaveRequest.user_id.user_id 
+      : leaveRequest.user_id;
+
+    // Find the corresponding leave record
+    const leaveRecord = await LeaveRecord.findOne({
+      user_id: userId,
+      month: leaveMonth,
+      year: leaveYear
+    });
+
+    if (!leaveRecord) {
+      // If no record exists for this month, nothing to return
+      return;
+    }
+
+    // For vacation leave - return credits from vacation credits
+    if (leaveRequest.leave_type === 'vacation') {
+      // Return the deducted days back to vacation credits
+      leaveRecord.vacation_used = Math.max(0, leaveRecord.vacation_used - leaveRequest.number_of_days);
+      // Recalculate balance based on earned minus used
+      leaveRecord.vacation_balance = leaveRecord.vacation_earned - leaveRecord.vacation_used;
+    }
+    // For sick leave - return credits from sick credits
+    else if (leaveRequest.leave_type === 'sick') {
+      // Return the deducted days back to sick credits
+      leaveRecord.sick_used = Math.max(0, leaveRecord.sick_used - leaveRequest.number_of_days);
+      // Recalculate balance based on earned minus used
+      leaveRecord.sick_balance = leaveRecord.sick_earned - leaveRecord.sick_used;
+    }
+
+    // Instead of removing the entry, mark it as cancelled in the entries array
+    if (leaveRecord.vacation_entries && Array.isArray(leaveRecord.vacation_entries)) {
+      const leaveStartDate = new Date(leaveRequest.start_date).toISOString().split('T')[0];
+      const leaveEndDate = new Date(leaveRequest.end_date).toISOString().split('T')[0];
+      
+      leaveRecord.vacation_entries = leaveRecord.vacation_entries.map(entry => 
+        (entry.start_date === leaveStartDate && 
+         entry.end_date === leaveEndDate &&
+         entry.days === leaveRequest.number_of_days &&
+         entry.type === leaveRequest.leave_type) 
+          ? { ...entry, cancelled: true, status: 'cancelled' } // Mark as cancelled instead of removing
+          : entry
+      );
+    }
+    if (leaveRecord.sick_entries && Array.isArray(leaveRecord.sick_entries)) {
+      const leaveStartDate = new Date(leaveRequest.start_date).toISOString().split('T')[0];
+      const leaveEndDate = new Date(leaveRequest.end_date).toISOString().split('T')[0];
+      
+      leaveRecord.sick_entries = leaveRecord.sick_entries.map(entry => 
+        (entry.start_date === leaveStartDate && 
+         entry.end_date === leaveEndDate &&
+         entry.days === leaveRequest.number_of_days &&
+         entry.type === leaveRequest.leave_type) 
+          ? { ...entry, cancelled: true, status: 'cancelled' } // Mark as cancelled instead of removing
+          : entry
+      );
+    }
+
+    // If it was a leave without pay, reduce the LWOP days as well
+    if (leaveRequest.without_pay) {
+      leaveRecord.lwop_days = Math.max(0, (leaveRecord.lwop_days || 0) - leaveRequest.number_of_days);
+    }
+
+    await leaveRecord.save();
+  } catch (error) {
+    console.error('Error returning leave credits:', error);
+    throw error;
+  }
+};
+
 // @desc    Cancel a leave request
 // @route   DELETE /api/leave-requests/:id
 // @access  Private
@@ -330,12 +411,18 @@ const cancelLeaveRequest = async (req, res) => {
     }
 
     // Check if the leave request can be cancelled
-    const cancellableStatuses = ['pending', 'recommended', 'hr_approved'];
+    // Allow cancellation even after approval
+    const cancellableStatuses = ['pending', 'recommended', 'hr_approved', 'approved'];
     if (!cancellableStatuses.includes(leaveRequest.status)) {
       return res.status(400).json({
         success: false,
         message: 'This leave request cannot be cancelled at this stage'
       });
+    }
+
+    // If the leave request was approved, we need to return the credits
+    if (leaveRequest.status === 'approved') {
+      await returnLeaveCredits(leaveRequest);
     }
 
     // Update status to cancelled
@@ -344,7 +431,7 @@ const cancelLeaveRequest = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Leave request has been successfully cancelled',
+      message: 'Leave request has been successfully cancelled and credits have been returned',
       data: updatedLeaveRequest
     });
   } catch (error) {
