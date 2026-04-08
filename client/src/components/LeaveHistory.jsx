@@ -131,14 +131,23 @@ const LeaveHistory = () => {
   };
 
   const getLeaveTypeText = (type) => {
-    switch (type) {
-      case 'vacation':
-        return 'Vacation Leave';
-      case 'sick':
-        return 'Sick Leave';
-      default:
-        return type;
-    }
+    const typeMap = {
+      vacation: 'Vacation Leave',
+      sick: 'Sick Leave',
+      mandatory_forced_leave: 'Mandatory/Forced Leave',
+      maternity_leave: 'Maternity Leave',
+      paternity_leave: 'Paternity Leave',
+      special_privilege_leave: 'Special Privilege Leave',
+      solo_parent_leave: 'Solo Parent Leave',
+      study_leave: 'Study Leave',
+      vawc_leave: '10-Day VAWC Leave',
+      rehabilitation_privilege: 'Rehabilitation Privilege',
+      special_leave_benefits_women: 'Special Leave Benefits for Women',
+      special_emergency: 'Special Emergency (Calamity)',
+      adoption_leave: 'Adoption Leave',
+      others_specify: 'Others (Specify)'
+    };
+    return typeMap[type] || type;
   };
 
   const formatDate = (dateString) => {

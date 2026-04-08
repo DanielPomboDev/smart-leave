@@ -37,6 +37,40 @@ const HRLeaveRecord = () => {
   const [leaveTypeSummary, setLeaveTypeSummary] = useState({});
   const [apiLeaveTypeSummary, setApiLeaveTypeSummary] = useState({});
 
+  // Leave record data entry state — manual leave request entry
+  const [showAddRecordModal, setShowAddRecordModal] = useState(false);
+  const [recordFormError, setRecordFormError] = useState('');
+  const [recordFormLoading, setRecordFormLoading] = useState(false);
+  const [recordForm, setRecordForm] = useState({
+    leaveType: '',
+    otherSpecify: '',
+    startDate: '',
+    endDate: '',
+    numberOfDays: 1,
+    locationType: '',
+    locationSpecify: '',
+    commutation: '',
+    status: 'approved',
+    withoutPay: false
+  });
+
+  const leaveTypeOptions = [
+    { value: 'vacation', label: 'Vacation Leave' },
+    { value: 'sick', label: 'Sick Leave' },
+    { value: 'mandatory_forced_leave', label: 'Mandatory/Forced Leave' },
+    { value: 'maternity_leave', label: 'Maternity Leave' },
+    { value: 'paternity_leave', label: 'Paternity Leave' },
+    { value: 'special_privilege_leave', label: 'Special Privilege Leave' },
+    { value: 'solo_parent_leave', label: 'Solo Parent Leave' },
+    { value: 'study_leave', label: 'Study Leave' },
+    { value: 'vawc_leave', label: '10-Day VAWC Leave' },
+    { value: 'rehabilitation_privilege', label: 'Rehabilitation Privilege' },
+    { value: 'special_leave_benefits_women', label: 'Special Leave Benefits for Women' },
+    { value: 'special_emergency', label: 'Special Emergency (Calamity)' },
+    { value: 'adoption_leave', label: 'Adoption Leave' },
+    { value: 'others_specify', label: 'Others (Specify)' }
+  ];
+
   // Conversion tables for hours and minutes to days
   const hoursToDays = {
     1: 0.125, 2: 0.250, 3: 0.375, 4: 0.500, 5: 0.625,
@@ -228,6 +262,118 @@ const HRLeaveRecord = () => {
     return months[monthNumber - 1] || '';
   };
 
+  // Open add record modal
+  const openAddRecordModal = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setRecordForm({
+      leaveType: '',
+      otherSpecify: '',
+      startDate: today,
+      endDate: today,
+      numberOfDays: 1,
+      locationType: '',
+      locationSpecify: '',
+      commutation: '',
+      status: 'approved',
+      withoutPay: false
+    });
+    setRecordFormError('');
+    setShowAddRecordModal(true);
+  };
+
+  // Calculate number of days between start and end dates
+  const calculateDays = (start, end) => {
+    if (start && end) {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      if (startDate && endDate && !isNaN(startDate) && !isNaN(endDate)) {
+        const timeDiff = Math.abs(endDate.getTime() - startDate.getTime());
+        return Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+      }
+    }
+    return 1;
+  };
+
+  // Handle record form input changes
+  const handleRecordInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    const newValue = type === 'checkbox' ? checked : value;
+
+    setRecordForm(prev => {
+      const updated = { ...prev, [name]: newValue };
+      if (name === 'startDate' || name === 'endDate') {
+        const start = name === 'startDate' ? newValue : updated.startDate;
+        const end = name === 'endDate' ? newValue : updated.endDate;
+        updated.numberOfDays = calculateDays(start, end);
+      }
+      if (name === 'leaveType' && newValue !== 'others_specify') {
+        updated.otherSpecify = '';
+      }
+      if (name === 'locationType' && newValue !== 'abroad' && newValue !== 'outpatient' && newValue !== 'hospital') {
+        updated.locationSpecify = '';
+      }
+      return updated;
+    });
+  };
+
+  // Save manually recorded leave request
+  const handleSaveRecord = async (e) => {
+    e.preventDefault();
+    setRecordFormError('');
+    setRecordFormLoading(true);
+
+    try {
+      const actualLeaveType = recordForm.leaveType === 'others_specify'
+        ? recordForm.otherSpecify
+        : recordForm.leaveType;
+
+      // Determine where_spent
+      let whereSpentValue = recordForm.locationType || 'not_applicable';
+
+      const payload = {
+        user_id: employee.user_id,
+        leave_type: actualLeaveType,
+        start_date: recordForm.startDate,
+        end_date: recordForm.endDate,
+        number_of_days: recordForm.numberOfDays,
+        where_spent: whereSpentValue,
+        commutation: recordForm.commutation || '0',
+        location_specify: recordForm.locationSpecify || '',
+        status: recordForm.status,
+        without_pay: recordForm.withoutPay,
+        manually_recorded: true
+      };
+
+      const response = await axios.post('/api/leave-requests', payload);
+
+      if (response.data.success) {
+        setShowAddRecordModal(false);
+        // Refresh page data
+        const params = {};
+        if (filters.year) params.year = filters.year;
+        const res = await axios.get(`/api/leave-records/${id}`, { params });
+        if (res.data.employee) {
+          setEmployee(res.data.employee);
+          setVacationSummary(res.data.vacationSummary);
+          setSickSummary(res.data.sickSummary);
+          setApiLeaveTypeSummary(res.data.leaveTypeSummary || {});
+          const formattedRecords = Object.values(res.data.leaveRecords).flat().map(r => ({
+            ...r,
+            month_year: `${getMonthName(r.month)} ${r.year}`,
+            formatted_undertime: r.undertime_hours > 0 ? r.undertime_hours.toFixed(3) : '0.000'
+          }));
+          setLeaveRecords(formattedRecords);
+        }
+      } else {
+        setRecordFormError(response.data.message || 'Failed to save leave record');
+      }
+    } catch (error) {
+      setRecordFormError(error.response?.data?.message || 'Failed to save leave record');
+    } finally {
+      setRecordFormLoading(false);
+    }
+  };
+
   // Calculate days from hours and minutes
   const calculateDaysFromTime = (hours, minutes) => {
     let totalDays = 0;
@@ -394,10 +540,16 @@ const HRLeaveRecord = () => {
                 <p className="text-sm text-gray-500">Employee ID: {employee.user_id}</p>
               </div>
             </div>
-            <button onClick={openAddUndertimeModal} className="btn btn-primary btn-sm sm:btn-md whitespace-nowrap">
-              <i className="fas fa-plus mr-2"></i>
-              Add Undertime
-            </button>
+            <div className="flex gap-2">
+              <button onClick={openAddRecordModal} className="btn btn-secondary btn-sm sm:btn-md whitespace-nowrap">
+                <i className="fas fa-clipboard-list mr-2"></i>
+                Add Record
+              </button>
+              <button onClick={openAddUndertimeModal} className="btn btn-primary btn-sm sm:btn-md whitespace-nowrap">
+                <i className="fas fa-plus mr-2"></i>
+                Add Undertime
+              </button>
+            </div>
           </div>
 
           {/* Summary Cards */}
@@ -781,6 +933,278 @@ const HRLeaveRecord = () => {
           </div>
         </div>
       </div>
+
+      {/* Add Leave Record Modal (Manual Leave Request Entry) */}
+      {showAddRecordModal && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-lg">
+            <h3 className="font-bold text-lg mb-1">Record Past Leave</h3>
+            <p className="text-sm text-gray-500 mb-4">Manually record a leave request for this employee (e.g., paper-filed leave)</p>
+            <form onSubmit={handleSaveRecord} className="space-y-4">
+              {recordFormError && (
+                <div className="alert alert-error text-sm">
+                  <i className="fas fa-exclamation-circle mr-1"></i>
+                  {recordFormError}
+                </div>
+              )}
+
+              {/* Leave Type */}
+              <div className="form-control w-full">
+                <label className="label">
+                  <span className="label-text font-medium">Leave Type</span>
+                </label>
+                <select
+                  name="leaveType"
+                  value={recordForm.leaveType}
+                  onChange={handleRecordInputChange}
+                  className="select select-bordered w-full"
+                  required
+                >
+                  <option value="" disabled>-- Select Leave Type --</option>
+                  {leaveTypeOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Others Specify */}
+              {recordForm.leaveType === 'others_specify' && (
+                <div className="form-control w-full">
+                  <label className="label">
+                    <span className="label-text font-medium">Specify Purpose</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="otherSpecify"
+                    value={recordForm.otherSpecify}
+                    onChange={handleRecordInputChange}
+                    placeholder="e.g. Community service"
+                    className="input input-bordered w-full"
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="form-control w-full">
+                  <label className="label">
+                    <span className="label-text font-medium">Start Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="startDate"
+                    value={recordForm.startDate}
+                    onChange={handleRecordInputChange}
+                    className="input input-bordered w-full"
+                    required
+                  />
+                </div>
+                <div className="form-control w-full">
+                  <label className="label">
+                    <span className="label-text font-medium">End Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="endDate"
+                    value={recordForm.endDate}
+                    onChange={handleRecordInputChange}
+                    className="input input-bordered w-full"
+                    min={recordForm.startDate}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Number of Days */}
+              <div className="form-control w-full">
+                <label className="label">
+                  <span className="label-text font-medium">Number of Days</span>
+                </label>
+                <input
+                  type="number"
+                  name="numberOfDays"
+                  value={recordForm.numberOfDays}
+                  onChange={handleRecordInputChange}
+                  className="input input-bordered w-full"
+                  min="1"
+                  step="0.001"
+                  readOnly
+                />
+                <label className="label">
+                  <span className="label-text-alt text-gray-500">Auto-calculated from dates</span>
+                </label>
+              </div>
+
+              {/* Where Leave Will Be Spent */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="font-medium text-gray-800 text-sm mb-3">Where Leave Will Be Spent</h4>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="locationType"
+                      value="philippines"
+                      checked={recordForm.locationType === 'philippines'}
+                      onChange={handleRecordInputChange}
+                      className="radio radio-sm radio-primary"
+                    />
+                    <span className="text-sm">Within the Philippines</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="locationType"
+                      value="abroad"
+                      checked={recordForm.locationType === 'abroad'}
+                      onChange={handleRecordInputChange}
+                      className="radio radio-sm radio-primary"
+                    />
+                    <span className="text-sm">Abroad</span>
+                  </label>
+                  {recordForm.locationType === 'abroad' && (
+                    <input
+                      type="text"
+                      name="locationSpecify"
+                      value={recordForm.locationSpecify}
+                      onChange={handleRecordInputChange}
+                      placeholder="Specify country/location"
+                      className="input input-bordered input-sm w-full ml-6"
+                    />
+                  )}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="locationType"
+                      value="hospital"
+                      checked={recordForm.locationType === 'hospital'}
+                      onChange={handleRecordInputChange}
+                      className="radio radio-sm radio-primary"
+                    />
+                    <span className="text-sm">In Hospital</span>
+                  </label>
+                  {recordForm.locationType === 'hospital' && (
+                    <input
+                      type="text"
+                      name="locationSpecify"
+                      value={recordForm.locationSpecify}
+                      onChange={handleRecordInputChange}
+                      placeholder="Specify hospital name"
+                      className="input input-bordered input-sm w-full ml-6"
+                    />
+                  )}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="locationType"
+                      value="outpatient"
+                      checked={recordForm.locationType === 'outpatient'}
+                      onChange={handleRecordInputChange}
+                      className="radio radio-sm radio-primary"
+                    />
+                    <span className="text-sm">Outpatient Care</span>
+                  </label>
+                  {recordForm.locationType === 'outpatient' && (
+                    <input
+                      type="text"
+                      name="locationSpecify"
+                      value={recordForm.locationSpecify}
+                      onChange={handleRecordInputChange}
+                      placeholder="Specify clinic/center"
+                      className="input input-bordered input-sm w-full ml-6"
+                    />
+                  )}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="locationType"
+                      value="masteral"
+                      checked={recordForm.locationType === 'masteral'}
+                      onChange={handleRecordInputChange}
+                      className="radio radio-sm radio-primary"
+                    />
+                    <span className="text-sm">Completion of Master's Degree</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="locationType"
+                      value="board_review"
+                      checked={recordForm.locationType === 'board_review'}
+                      onChange={handleRecordInputChange}
+                      className="radio radio-sm radio-primary"
+                    />
+                    <span className="text-sm">BAR/Board Examination Review</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Commutation */}
+              <div className="form-control w-full">
+                <label className="label">
+                  <span className="label-text font-medium">Commutation</span>
+                </label>
+                <select
+                  name="commutation"
+                  value={recordForm.commutation}
+                  onChange={handleRecordInputChange}
+                  className="select select-bordered w-full"
+                  required
+                >
+                  <option value="" disabled>-- Select --</option>
+                  <option value="1">Requested (Monetization)</option>
+                  <option value="0">Not Requested</option>
+                </select>
+              </div>
+
+              {/* Status */}
+              <div className="form-control w-full">
+                <label className="label">
+                  <span className="label-text font-medium">Status</span>
+                </label>
+                <select
+                  name="status"
+                  value={recordForm.status}
+                  onChange={handleRecordInputChange}
+                  className="select select-bordered w-full"
+                  required
+                >
+                  <option value="approved">Approved</option>
+                  <option value="hr_approved">HR Approved</option>
+                  <option value="disapproved">Disapproved</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              {/* Without Pay */}
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-2">
+                  <input
+                    type="checkbox"
+                    name="withoutPay"
+                    checked={recordForm.withoutPay}
+                    onChange={handleRecordInputChange}
+                    className="checkbox checkbox-sm checkbox-primary"
+                  />
+                  <span className="label-text font-medium">Without Pay (LWOP)</span>
+                </label>
+              </div>
+
+              <div className="modal-action">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowAddRecordModal(false)} disabled={recordFormLoading}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={recordFormLoading}>
+                  {recordFormLoading ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs"></span>
+                      Saving...
+                    </>
+                  ) : 'Record Leave'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Add Undertime Modal */}
       {showAddUndertimeModal && (

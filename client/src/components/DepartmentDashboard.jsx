@@ -28,7 +28,7 @@ const DepartmentDashboard = () => {
         });
 
         if (response.data.success) {
-          console.log('Dashboard data structure:', response.data);
+
           setStats(response.data.stats);
           setLeaveRequests(response.data.leaveRequests || []);
         }

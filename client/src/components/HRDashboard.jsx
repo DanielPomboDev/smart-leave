@@ -10,11 +10,19 @@ const HRDashboard = () => {
     rejected_this_month: 0,
     total_employees: 0
   });
-  
+
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  // Department management state
+  const [departments, setDepartments] = useState([]);
+  const [showDeptModal, setShowDeptModal] = useState(false);
+  const [editingDept, setEditingDept] = useState(null);
+  const [deptForm, setDeptForm] = useState({ name: '', description: '' });
+  const [deptError, setDeptError] = useState('');
+  const [deptLoading, setDeptLoading] = useState(false);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -41,7 +49,80 @@ const HRDashboard = () => {
     };
 
     fetchDashboardData();
+    fetchDepartments();
   }, []);
+
+  // Fetch departments
+  const fetchDepartments = async () => {
+    try {
+      const response = await axios.get('/api/hr/departments');
+      if (response.data.success) {
+        setDepartments(response.data.departments);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
+
+  // Open department modal for create
+  const openCreateDept = () => {
+    setEditingDept(null);
+    setDeptForm({ name: '', description: '' });
+    setDeptError('');
+    setShowDeptModal(true);
+  };
+
+  // Open department modal for edit
+  const openEditDept = (dept) => {
+    setEditingDept(dept);
+    setDeptForm({ name: dept.name, description: dept.description || '' });
+    setDeptError('');
+    setShowDeptModal(true);
+  };
+
+  // Delete department
+  const handleDeleteDept = async (dept) => {
+    if (!confirm(`Delete "${dept.name}"? This cannot be undone.`)) return;
+
+    try {
+      const response = await axios.delete(`/api/hr/departments/${dept._id}`);
+      if (response.data.success) {
+        fetchDepartments();
+        localStorage.setItem('departments_updated', Date.now().toString());
+        window.dispatchEvent(new Event('departments_updated'));
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to delete department');
+    }
+  };
+
+  // Save department (create or update)
+  const handleSaveDept = async (e) => {
+    e.preventDefault();
+    setDeptError('');
+    setDeptLoading(true);
+
+    try {
+      let response;
+      if (editingDept) {
+        response = await axios.put(`/api/hr/departments/${editingDept._id}`, deptForm);
+      } else {
+        response = await axios.post('/api/hr/departments', deptForm);
+      }
+
+      if (response.data.success) {
+        setShowDeptModal(false);
+        fetchDepartments();
+        // Notify other components
+        localStorage.setItem('departments_updated', Date.now().toString());
+        window.dispatchEvent(new Event('departments_updated'));
+      }
+    } catch (error) {
+      setDeptError(error.response?.data?.message || 'Failed to save department');
+    } finally {
+      setDeptLoading(false);
+    }
+  };
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -185,7 +266,141 @@ const HRDashboard = () => {
           </div>
         </div>
       </div>
-      
+
+      {/* Department Management */}
+      <div className="bg-white rounded-lg shadow mb-6">
+        <div className="px-6 py-3 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold text-gray-800">
+              <i className="fas fa-building text-blue-500 mr-2"></i>
+              Departments ({departments.length})
+            </h2>
+            <button
+              className="btn btn-xs btn-primary"
+              onClick={openCreateDept}
+            >
+              <i className="fas fa-plus mr-1"></i>
+              Add
+            </button>
+          </div>
+        </div>
+        <div className="p-3">
+          {departments.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="table table-sm w-full">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left text-xs font-semibold text-gray-600 py-2 px-3">Department</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 py-2 px-3 hidden sm:table-cell">Description</th>
+                    <th className="text-center text-xs font-semibold text-gray-600 py-2 px-3 w-20">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departments.map((dept) => (
+                    <tr key={dept._id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 px-3 font-medium text-sm text-gray-800">{dept.name}</td>
+                      <td className="py-2 px-3 text-xs text-gray-500 hidden sm:table-cell max-w-xs truncate">{dept.description || '—'}</td>
+                      <td className="py-2 px-3 text-center">
+                        <div className="flex justify-center gap-1">
+                          <button
+                            onClick={() => openEditDept(dept)}
+                            className="btn btn-xs btn-ghost btn-square p-0 h-6 w-6"
+                            title="Edit"
+                          >
+                            <i className="fas fa-pen text-gray-400 hover:text-blue-500 text-xs"></i>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDept(dept)}
+                            className="btn btn-xs btn-ghost btn-square p-0 h-6 w-6"
+                            title="Delete"
+                          >
+                            <i className="fas fa-trash text-gray-400 hover:text-red-500 text-xs"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-gray-500 text-sm">
+              <i className="fas fa-building text-2xl mb-1 text-gray-300"></i>
+              <p>No departments yet. Click "Add" to create one.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Department Modal */}
+      {showDeptModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800">
+                {editingDept ? 'Edit Department' : 'Add Department'}
+              </h3>
+            </div>
+            <form onSubmit={handleSaveDept} className="p-6 space-y-4">
+              {deptError && (
+                <div className="alert alert-error text-sm">
+                  <i className="fas fa-exclamation-circle mr-1"></i>
+                  {deptError}
+                </div>
+              )}
+              <div className="form-control w-full">
+                <label className="label">
+                  <span className="label-text font-medium text-gray-700">Department Name</span>
+                </label>
+                <input
+                  type="text"
+                  value={deptForm.name}
+                  onChange={(e) => setDeptForm(prev => ({...prev, name: e.target.value}))}
+                  placeholder="e.g. Engineering Office"
+                  className="input input-bordered w-full"
+                  required
+                />
+              </div>
+              <div className="form-control w-full">
+                <label className="label">
+                  <span className="label-text font-medium text-gray-700">Description (optional)</span>
+                </label>
+                <textarea
+                  value={deptForm.description}
+                  onChange={(e) => setDeptForm(prev => ({...prev, description: e.target.value}))}
+                  placeholder="Brief description..."
+                  className="textarea textarea-bordered w-full h-20"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setShowDeptModal(false)}
+                  disabled={deptLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={deptLoading}
+                >
+                  {deptLoading ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs"></span>
+                      Saving...
+                    </>
+                  ) : (
+                    editingDept ? 'Update' : 'Create'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Recent Leave Requests Table */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">

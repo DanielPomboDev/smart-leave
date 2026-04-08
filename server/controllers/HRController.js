@@ -82,7 +82,6 @@ const getHRDashboardStats = async (req, res) => {
 // @access  Private (HR only)
 const getHRDepartments = async (req, res) => {
   try {
-    // req.user is set by the auth middleware
     if (!req.user || req.user.user_type !== 'hr') {
       return res.status(403).json({
         success: false,
@@ -90,8 +89,7 @@ const getHRDepartments = async (req, res) => {
       });
     }
 
-    // Get all departments
-    const departments = await Department.find();
+    const departments = await Department.find().sort({ name: 1 });
 
     res.json({
       success: true,
@@ -102,6 +100,175 @@ const getHRDepartments = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while fetching departments'
+    });
+  }
+};
+
+// @desc    Create a department
+// @route   POST /api/hr/departments
+// @access  Private (HR only)
+const createDepartment = async (req, res) => {
+  try {
+    if (!req.user || req.user.user_type !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. HR access required.'
+      });
+    }
+
+    const { name, description } = req.body;
+
+    if (!name || name.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Department name is required'
+      });
+    }
+
+    // Check for duplicate
+    const existing = await Department.findOne({ name: new RegExp(`^${name.trim()}$`, 'i') });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: 'A department with this name already exists'
+      });
+    }
+
+    const department = new Department({
+      name: name.trim(),
+      description: description ? description.trim() : ''
+    });
+
+    await department.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Department created successfully',
+      department
+    });
+  } catch (error) {
+    console.error('Error creating department:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'A department with this name already exists'
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: 'Server error while creating department'
+    });
+  }
+};
+
+// @desc    Update a department
+// @route   PUT /api/hr/departments/:id
+// @access  Private (HR only)
+const updateDepartment = async (req, res) => {
+  try {
+    if (!req.user || req.user.user_type !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. HR access required.'
+      });
+    }
+
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if (!name || name.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Department name is required'
+      });
+    }
+
+    // Check for duplicate (excluding current department)
+    const existing = await Department.findOne({
+      _id: { $ne: id },
+      name: new RegExp(`^${name.trim()}$`, 'i')
+    });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: 'A department with this name already exists'
+      });
+    }
+
+    const department = await Department.findByIdAndUpdate(
+      id,
+      { name: name.trim(), description: description ? description.trim() : '' },
+      { new: true, runValidators: true }
+    );
+
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: 'Department not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Department updated successfully',
+      department
+    });
+  } catch (error) {
+    console.error('Error updating department:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'A department with this name already exists'
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating department'
+    });
+  }
+};
+
+// @desc    Delete a department
+// @route   DELETE /api/hr/departments/:id
+// @access  Private (HR only)
+const deleteDepartment = async (req, res) => {
+  try {
+    if (!req.user || req.user.user_type !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. HR access required.'
+      });
+    }
+
+    const { id } = req.params;
+
+    // Check if any users are assigned to this department
+    const userCount = await User.countDocuments({ department_id: id });
+    if (userCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete department. ${userCount} employee(s) are assigned to it. Reassign them first.`
+      });
+    }
+
+    const department = await Department.findByIdAndDelete(id);
+
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: 'Department not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Department deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting department:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deleting department'
     });
   }
 };
@@ -745,6 +912,9 @@ const getHRReports = async (req, res) => {
 module.exports = {
   getHRDashboardStats,
   getHRDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
   getHRLeaveRequests,
   getHRLeaveRequest,
   processHRLeaveApproval,

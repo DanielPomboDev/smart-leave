@@ -2,6 +2,9 @@ const express = require('express');
 const {
   getHRDashboardStats,
   getHRDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
   getHRLeaveRequests,
   getHRLeaveRequest,
   processHRLeaveApproval,
@@ -20,6 +23,11 @@ router.get('/dashboard', getHRDashboardStats);
 
 // Get all departments
 router.get('/departments', getHRDepartments);
+
+// Department management
+router.post('/departments', createDepartment);
+router.put('/departments/:id', updateDepartment);
+router.delete('/departments/:id', deleteDepartment);
 
 // Get all leave requests for HR
 router.get('/leave-requests', getHRLeaveRequests);

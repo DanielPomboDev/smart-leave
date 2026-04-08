@@ -29,7 +29,7 @@ const DepartmentLeaveRequests = () => {
       });
 
       if (response.data.success) {
-        console.log('Leave requests data structure:', response.data.data);
+
         setLeaveRequests(response.data.data || []);
         setFilteredRequests(response.data.data || []);
       }
@@ -403,7 +403,7 @@ const DepartmentLeaveRequests = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                        {formatDate(request.created_at)}
+                        {formatDate(request.createdAt)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                         <button

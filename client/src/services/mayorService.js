@@ -17,7 +17,7 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('Making request to:', config.url, 'with config:', config);
+
     return config;
   },
   (error) => {
@@ -29,7 +29,7 @@ apiClient.interceptors.request.use(
 // Add a response interceptor to handle errors
 apiClient.interceptors.response.use(
   (response) => {
-    console.log('Received response:', response.status, response.data);
+
     return response;
   },
   (error) => {
@@ -43,9 +43,9 @@ const MAYOR_API_BASE_URL = '/api/mayor';
 // Dashboard API calls
 export const getDashboardStats = async () => {
   try {
-    console.log('Fetching dashboard stats');
+
     const response = await apiClient.get(`${MAYOR_API_BASE_URL}/dashboard/stats`);
-    console.log('Dashboard stats response:', response.data);
+
     return response.data;
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
@@ -55,9 +55,9 @@ export const getDashboardStats = async () => {
 
 export const getRecentLeaveRequests = async () => {
   try {
-    console.log('Fetching recent leave requests');
+
     const response = await apiClient.get(`${MAYOR_API_BASE_URL}/dashboard/recent-requests`);
-    console.log('Recent leave requests response:', response.data);
+
     return response.data;
   } catch (error) {
     console.error('Error fetching recent leave requests:', error);
@@ -68,9 +68,9 @@ export const getRecentLeaveRequests = async () => {
 // Leave requests API calls
 export const getLeaveRequests = async () => {
   try {
-    console.log('Fetching leave requests');
+
     const response = await apiClient.get(`${MAYOR_API_BASE_URL}/leave-requests`);
-    console.log('Leave requests response:', response.data);
+
     return response.data;
   } catch (error) {
     console.error('Error fetching leave requests:', error);
@@ -80,9 +80,9 @@ export const getLeaveRequests = async () => {
 
 export const getLeaveRequestDetails = async (id) => {
   try {
-    console.log('Fetching leave request details for ID:', id);
+
     const response = await apiClient.get(`${MAYOR_API_BASE_URL}/leave-requests/${id}`);
-    console.log('Leave request details response:', response.data);
+
     return response.data;
   } catch (error) {
     console.error('Error fetching leave request details:', error);
@@ -92,7 +92,7 @@ export const getLeaveRequestDetails = async (id) => {
 
 export const processLeaveRequest = async (id, decision) => {
   try {
-    console.log('Processing leave request:', id, 'with decision:', decision);
+
     // Validate ID before making the request
     if (!id) {
       throw new Error('Invalid leave request ID');
@@ -100,7 +100,7 @@ export const processLeaveRequest = async (id, decision) => {
     const response = await apiClient.post(`${MAYOR_API_BASE_URL}/leave-requests/${id}/process`, {
       decision
     });
-    console.log('Process leave request response:', response.data);
+
     return response.data;
   } catch (error) {
     console.error('Error processing leave request:', error);

@@ -25,21 +25,29 @@ const HRLeaveRequests = () => {
   const pollingInterval = useRef(null);
 
   // Fetch leave requests and departments
-  const fetchData = useCallback(async () => {
+  const fetchDepartments = async () => {
     try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
-      // Fetch departments
       const deptResponse = await axios.get('/api/hr/departments', {
         headers: {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (deptResponse.data.success) {
         setDepartments(deptResponse.data.departments);
       }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+
+      // Fetch departments
+      await fetchDepartments();
       
       // Fetch leave requests
       const params = new URLSearchParams(filters).toString();
@@ -69,15 +77,25 @@ const HRLeaveRequests = () => {
   // Fetch data on component mount and set up polling
   useEffect(() => {
     fetchData();
-    
+
     // Set up polling to refresh every 30 seconds
     pollingInterval.current = setInterval(fetchData, 30000);
-    
+
+    // Listen for department changes from other tabs and same tab
+    const handleDeptChange = () => fetchDepartments();
+    const handleStorageChange = (e) => {
+      if (e.key === 'departments_updated') handleDeptChange();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('departments_updated', handleDeptChange);
+
     // Clean up interval on component unmount
     return () => {
       if (pollingInterval.current) {
         clearInterval(pollingInterval.current);
       }
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('departments_updated', handleDeptChange);
     };
   }, [fetchData]);
 

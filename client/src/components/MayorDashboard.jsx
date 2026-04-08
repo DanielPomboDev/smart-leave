@@ -24,8 +24,12 @@ const MayorDashboard = () => {
           getRecentLeaveRequests()
         ]);
         
-        setStats(statsData);
-        setLeaveRequests(requestsData);
+        if (statsData.success) {
+          setStats(statsData.stats);
+        }
+        if (requestsData.success) {
+          setLeaveRequests(requestsData.leaveRequests);
+        }
         setLoading(false);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);

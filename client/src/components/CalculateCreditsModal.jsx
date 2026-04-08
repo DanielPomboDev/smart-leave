@@ -28,7 +28,7 @@ const CalculateCreditsModal = ({ isOpen, onClose, onConfirm, title = "Calculate 
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
-  const isFutureMonth = parseInt(year) > currentYear || (parseInt(year) === currentYear && parseInt(month) >= currentMonth);
+  const isFutureMonth = parseInt(year) > currentYear || (parseInt(year) === currentYear && parseInt(month) > currentMonth);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

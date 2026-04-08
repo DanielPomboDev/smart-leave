@@ -59,6 +59,17 @@ const HREmployees = () => {
   });
 
   // Fetch employees
+  const fetchDepartments = async () => {
+    try {
+      const response = await axios.get('/api/hr/departments');
+      if (response.data.success) {
+        setDepartments(response.data.departments);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
+
   const fetchEmployees = async (page = 1) => {
     try {
       setLoading(true);
@@ -289,6 +300,24 @@ const HREmployees = () => {
       search: ''
     });
   };
+
+  // Effect to fetch departments and employees on initial load
+  useEffect(() => {
+    fetchDepartments();
+
+    // Listen for department changes
+    const handleDeptChange = () => fetchDepartments();
+    const handleStorageChange = (e) => {
+      if (e.key === 'departments_updated') handleDeptChange();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('departments_updated', handleDeptChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('departments_updated', handleDeptChange);
+    };
+  }, []);
 
   // Effect to fetch employees when filters or pagination changes
   useEffect(() => {

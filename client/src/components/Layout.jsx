@@ -226,7 +226,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
             <div className="flex items-center space-x-3">
               <div className="relative">
                 <NotificationDropdown 
-                  userId={user._id || user.user_id} 
+                  userId={user.user_id} 
                   userType={user.user_type} 
                   notificationCount={notificationCount}
                   fetchNotificationCount={fetchNotificationCount}

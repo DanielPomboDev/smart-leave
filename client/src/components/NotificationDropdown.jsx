@@ -28,13 +28,7 @@ const NotificationDropdown = ({ userId, userType, notificationCount, fetchNotifi
     if (isOpen) {
       fetchNotifications();
     }
-  }, [isOpen, userId, userType]);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchNotifications();
-    }
-  }, [notificationCount, isOpen]);
+  }, [isOpen, userId, userType, notificationCount]);
 
   const fetchNotifications = async () => {
     try {

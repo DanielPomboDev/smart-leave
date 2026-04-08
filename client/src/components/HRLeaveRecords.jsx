@@ -160,6 +160,19 @@ const HRLeaveRecords = () => {
   // Effect to fetch departments and leave records on initial load
   useEffect(() => {
     fetchDepartments();
+
+    // Listen for department changes
+    const handleDeptChange = () => fetchDepartments();
+    const handleStorageChange = (e) => {
+      if (e.key === 'departments_updated') handleDeptChange();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('departments_updated', handleDeptChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('departments_updated', handleDeptChange);
+    };
   }, []);
 
   // Effect to fetch leave records when filters or pagination changes

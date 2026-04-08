@@ -159,7 +159,7 @@ const RequestLeaveAdvanced = () => {
       }
       
       // Clear location specify field when changing location type
-      if (name === 'locationType' && newValue !== 'abroad' && newValue !== 'outpatient') {
+      if (name === 'locationType' && newValue !== 'abroad' && newValue !== 'outpatient' && newValue !== 'hospital') {
         updatedData.locationSpecify = '';
       }
       
@@ -385,15 +385,12 @@ const RequestLeaveAdvanced = () => {
       
       // Determine where_spent based on leave type requirements
       let whereSpentValue = submitData.locationType;
-      const requiresLocationInfo = 
-        submitData.leaveType === 'vacation' || 
-        (submitData.leaveType === 'others' && 
-         formData.otherLeaveType === 'special_privilege_leave' || 
-         formData.otherLeaveType === 'study_leave' || 
-         formData.otherLeaveType === 'others_specify') ||
-        submitData.leaveType === 'sick' ||
+      const requiresLocationInfo =
+        submitData.leaveType === 'vacation' ||
         submitData.leaveType === 'special_privilege_leave' ||
         submitData.leaveType === 'study_leave' ||
+        submitData.leaveType === 'others_specify' ||
+        submitData.leaveType === 'sick' ||
         submitData.leaveType === 'special_leave_benefits_women';
 
       if (!requiresLocationInfo) {

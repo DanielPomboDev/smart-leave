@@ -16,7 +16,7 @@ const MayorLeaveRequestDetails = () => {
 
   // Debug: Log the ID parameter
   useEffect(() => {
-    console.log('Leave request ID from URL params:', id);
+
     if (!id) {
       console.error('No ID provided in URL params');
       setError('Invalid leave request ID');
@@ -49,7 +49,7 @@ const MayorLeaveRequestDetails = () => {
     setProcessing(true);
     
     // Debug: Log the ID and decision before processing
-    console.log('Processing leave request with ID:', id, 'and decision:', decision);
+
     
     // Check if ID is valid before processing
     if (!id) {
@@ -68,7 +68,7 @@ const MayorLeaveRequestDetails = () => {
       
       // Check the response to see if there might be a partial success
       if (response && response.message) {
-        console.log('Server response message:', response.message);
+
       }
       
       // Show success modal

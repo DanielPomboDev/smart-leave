@@ -134,11 +134,9 @@ const getDepartmentLeaveRequests = async (req, res) => {
 // @access  Private (Department Admin only)
 const getDepartmentLeaveRequest = async (req, res) => {
   try {
-    console.log('Fetching leave request with ID:', req.params.id);
     
     // req.user is set by the auth middleware and already populated with department info
     if (!req.user || req.user.user_type !== 'department_admin') {
-      console.log('User validation failed:', { user: req.user, userType: req.user?.user_type });
       return res.status(403).json({
         success: false,
         message: 'Access denied. Department admin access required.'
@@ -146,17 +144,13 @@ const getDepartmentLeaveRequest = async (req, res) => {
     }
     
     const departmentId = req.user.department_id;
-    console.log('Department ID:', departmentId);
     
     const leaveRequestId = req.params.id;
-    console.log('Leave request ID:', leaveRequestId);
     
     // Get the leave request with populated user data
     const leaveRequest = await LeaveRequest.findById(leaveRequestId);
-    console.log('Found leave request:', JSON.stringify(leaveRequest, null, 2));
     
     if (!leaveRequest) {
-      console.log('Leave request not found');
       return res.status(404).json({
         success: false,
         message: 'Leave request not found'
@@ -164,10 +158,6 @@ const getDepartmentLeaveRequest = async (req, res) => {
     }
     
     // Check if the leave request belongs to an employee in the same department
-    console.log('Checking if leave request belongs to department.');
-    console.log('Leave request user_id type:', typeof leaveRequest.user_id);
-    console.log('Leave request user_id value:', leaveRequest.user_id);
-    console.log('Department admin department_id:', departmentId);
     
     // Handle case where user_id is already populated (object) or is a string
     let user = null;
@@ -177,20 +167,16 @@ const getDepartmentLeaveRequest = async (req, res) => {
       // user_id is already populated with user object
       user = leaveRequest.user_id;
       userId = user.user_id;
-      console.log('User is already populated:', JSON.stringify(user, null, 2));
     } else if (typeof leaveRequest.user_id === 'string') {
       // user_id is a string, need to find the user
       userId = leaveRequest.user_id;
-      console.log('Searching for user with user_id:', `"${userId}"`);
       user = await User.findOne({ user_id: userId });
       
       // If not found, try trimming whitespace
       if (!user) {
-        console.log('User not found, trying trimmed user_id');
         user = await User.findOne({ user_id: userId.trim() });
       }
     } else {
-      console.log('Invalid user_id format:', typeof leaveRequest.user_id);
       return res.status(500).json({
         success: false,
         message: 'Invalid user ID format in leave request.'
@@ -199,21 +185,16 @@ const getDepartmentLeaveRequest = async (req, res) => {
     
     // If still no user found
     if (!user) {
-      console.log('User not found for leave request with user_id:', userId);
       return res.status(404).json({
         success: false,
         message: 'User not found for this leave request.'
       });
     }
     
-    console.log('Found user:', JSON.stringify(user, null, 2));
-    console.log('User department_id:', user.department_id);
-    console.log('Comparing department IDs:', user.department_id.toString(), departmentId.toString());
     
     // Check if user's department matches department admin's department
     // Both are ObjectIds, so we need to compare their string representations
     if (user.department_id.toString() !== departmentId.toString()) {
-      console.log('Department mismatch');
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to view this leave request.'
@@ -226,7 +207,6 @@ const getDepartmentLeaveRequest = async (req, res) => {
       // Since the LeaveRequest model has a pre-find hook that populates user data,
       // we just need to fetch the request again to get the populated version
       populatedLeaveRequest = await LeaveRequest.findById(leaveRequestId);
-      console.log('Populated leave request:', JSON.stringify(populatedLeaveRequest, null, 2));
     }
     
     res.json({

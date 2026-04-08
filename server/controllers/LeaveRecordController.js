@@ -103,11 +103,10 @@ exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
     let availableCredits = 0;
     
     // Vacation-type leaves use vacation credits
-    if (leaveType === 'vacation' || 
-        (leaveType === 'others' && 
-         (leaveType === 'special_privilege_leave' || 
-          leaveType === 'study_leave' || 
-          leaveType === 'others_specify'))) {
+    if (leaveType === 'vacation' ||
+        leaveType === 'special_privilege_leave' ||
+        leaveType === 'study_leave' ||
+        leaveType === 'others_specify') {
       availableCredits = vacationBalance;
     }
     // Sick-type leaves use sick credits

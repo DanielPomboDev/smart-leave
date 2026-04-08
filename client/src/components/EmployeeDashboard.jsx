@@ -124,21 +124,17 @@ const EmployeeDashboard = () => {
   useEffect(() => {
     fetchRecentLeaveRequests();
     fetchLeaveCredits();
-  }, []);
 
-  // Set minimum start date based on today
-  useEffect(() => {
+    // Set minimum start date and default dates
     const today = new Date();
     const formattedToday = today.toISOString().split('T')[0];
     setMinStartDate(formattedToday);
-    
-    // Set default dates to today and calculate days
+
     const defaultData = {
       startDate: formattedToday,
       endDate: formattedToday
     };
     const numberOfDays = calculateDays(defaultData);
-    
     setQuickLeaveData(prev => ({
       ...prev,
       ...defaultData,
@@ -668,24 +664,27 @@ const EmployeeDashboard = () => {
       const submitData = isAdjusted ? quickLeaveData._adjustedData : quickLeaveData;
       
       // Determine where_spent based on leave type requirements
+      // Handle both direct leave types and 'others' with otherLeaveType
+      const effectiveLeaveType = submitData.leaveType === 'others'
+        ? submitData.otherLeaveType
+        : submitData.leaveType;
+
       let whereSpentValue = submitData.locationType;
-      const requiresLocationInfo = 
-        submitData.leaveType === 'vacation' || 
-        submitData.leaveType === 'special_privilege_leave' || 
-        submitData.leaveType === 'others_specify' || 
-        submitData.leaveType === 'study_leave' || 
-        submitData.leaveType === 'special_leave_benefits_women' ||
-        submitData.leaveType === 'sick';
+      const requiresLocationInfo =
+        effectiveLeaveType === 'vacation' ||
+        effectiveLeaveType === 'special_privilege_leave' ||
+        effectiveLeaveType === 'others_specify' ||
+        effectiveLeaveType === 'study_leave' ||
+        effectiveLeaveType === 'special_leave_benefits_women' ||
+        effectiveLeaveType === 'sick';
 
       if (!requiresLocationInfo) {
-        whereSpentValue = 'not_applicable'; // Use a default value for leave types that don't require location
+        whereSpentValue = 'not_applicable';
       }
 
       // For the new structure, we will use leave_type directly with the correct value
-      // When 'others' is selected, we use the specific leave type from otherLeaveType
-      // When 'others_specify' is selected, we use the user's specification
-      const actualLeaveType = submitData.leaveType === 'others' 
-        ? submitData.otherLeaveType 
+      const actualLeaveType = submitData.leaveType === 'others'
+        ? submitData.otherLeaveType
         : submitData.leaveType;
         
       const requestData = {
@@ -1351,25 +1350,27 @@ const EmployeeDashboard = () => {
           
           try {
             // Determine where_spent based on leave type requirements
+            const effectiveLeaveType = submitData.leaveType === 'others'
+              ? submitData.otherLeaveType
+              : submitData.leaveType;
+
             let whereSpentValue = submitData.locationType;
-            const requiresLocationInfo = 
-              submitData.leaveType === 'vacation' || 
-              submitData.leaveType === 'special_privilege_leave' || 
-              submitData.leaveType === 'others_specify' || 
-              submitData.leaveType === 'study_leave' || 
-              submitData.leaveType === 'special_leave_benefits_women' ||
-              submitData.leaveType === 'sick';
+            const requiresLocationInfo =
+              effectiveLeaveType === 'vacation' ||
+              effectiveLeaveType === 'special_privilege_leave' ||
+              effectiveLeaveType === 'others_specify' ||
+              effectiveLeaveType === 'study_leave' ||
+              effectiveLeaveType === 'special_leave_benefits_women' ||
+              effectiveLeaveType === 'sick';
 
             if (!requiresLocationInfo) {
-              whereSpentValue = 'not_applicable'; // Use a default value for leave types that don't require location
+              whereSpentValue = 'not_applicable';
             }
 
             // For the new structure, we will use leave_type as the main field and subtype as the same
             // This maintains compatibility with the server which expects both fields
-            // When 'others' is selected, we use the specific leave type from otherLeaveType
-            // When 'others_specify' is selected, we use the user's specification
-            const actualLeaveType = submitData.leaveType === 'others' 
-              ? submitData.otherLeaveType 
+            const actualLeaveType = submitData.leaveType === 'others'
+              ? submitData.otherLeaveType
               : submitData.leaveType;
               
             const requestData = {

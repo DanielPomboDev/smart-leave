@@ -22,24 +22,24 @@ const DepartmentLeaveRequestDetails = () => {
     const fetchLeaveRequest = async () => {
       try {
         const token = localStorage.getItem('token');
-        console.log('Fetching leave request with ID:', id);
+
         const response = await axios.get(`/api/department/leave-requests/${id}`, {
           headers: {
             'Content-Type': 'application/json'
           }
         });
 
-        console.log('Leave request response:', response);
+
 
         if (response.data.success) {
-          console.log('Leave request data:', response.data.data);
+
           setLeaveRequest(response.data.data);
         } else {
           setError(response.data.message || 'Failed to load leave request details');
         }
       } catch (error) {
         console.error('Error fetching leave request:', error);
-        console.error('Error response:', error.response);
+
         setError('Failed to load leave request details');
       } finally {
         setLoading(false);

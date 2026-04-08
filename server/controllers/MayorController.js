@@ -156,7 +156,6 @@ class MayorController {
   // Get dashboard statistics
   static async getDashboardStats(req, res) {
     try {
-      console.log('Fetching dashboard stats for user:', req.user);
       const stats = {
         pending: await LeaveRequest.countDocuments({ status: 'pending' }),
         approved_this_month: await LeaveRequest.countDocuments({
@@ -176,10 +175,8 @@ class MayorController {
         total_employees: await User.countDocuments()
       };
 
-      console.log('Dashboard stats:', stats);
-      res.json(stats);
+      res.json({ success: true, stats });
     } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   }
@@ -187,7 +184,6 @@ class MayorController {
   // Get recent leave requests for dashboard
   static async getRecentLeaveRequests(req, res) {
     try {
-      console.log('Fetching recent leave requests for user:', req.user);
       const leaveRequests = await LeaveRequest.find({
         status: { $in: ['hr_approved', 'approved', 'cancelled'] }
       })
@@ -217,10 +213,8 @@ class MayorController {
         };
       });
 
-      console.log('Recent leave requests count:', mappedLeaveRequests.length);
-      res.json(mappedLeaveRequests);
+      res.json({ success: true, leaveRequests: mappedLeaveRequests });
     } catch (error) {
-      console.error('Error fetching recent leave requests:', error);
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   }
@@ -228,15 +222,12 @@ class MayorController {
   // Get leave requests with filtering and pagination
   static async getLeaveRequests(req, res) {
     try {
-      console.log('Fetching leave requests');
-      console.log('User:', req.user);
 
       // Build filter query
       const filter = {
         status: { $in: ['hr_approved', 'approved', 'disapproved', 'cancelled'] }
       };
 
-      console.log('Final filter:', JSON.stringify(filter, null, 2));
 
       // Get leave requests
       const leaveRequests = await LeaveRequest.find(filter)
@@ -259,13 +250,12 @@ class MayorController {
         };
       });
 
-      console.log('Found leave requests:', mappedLeaveRequests.length);
 
       res.json({
+        success: true,
         leaveRequests: mappedLeaveRequests
       });
     } catch (error) {
-      console.error('Error fetching leave requests:', error);
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   }
@@ -273,12 +263,9 @@ class MayorController {
   // Get details of a specific leave request
   static async getLeaveRequestDetails(req, res) {
     try {
-      console.log('Fetching leave request details for ID:', req.params.id);
-      console.log('User:', req.user);
       
       // Check if ID is provided and valid
       if (!req.params.id || req.params.id === 'undefined') {
-        console.log('Invalid or missing ID:', req.params.id);
         return res.status(400).json({ message: 'Invalid leave request ID' });
       }
       
@@ -293,13 +280,11 @@ class MayorController {
         });
 
       if (!leaveRequest) {
-        console.log('Leave request not found for ID:', req.params.id);
         return res.status(404).json({ message: 'Leave request not found' });
       }
 
       // Check if the leave request is eligible for mayor action
       if (!['hr_approved', 'approved', 'disapproved', 'cancelled'].includes(leaveRequest.status)) {
-        console.log('Leave request not eligible for mayor action, status:', leaveRequest.status);
         return res.status(403).json({ message: 'This request is not eligible for mayor approval.' });
       }
 
@@ -330,7 +315,6 @@ class MayorController {
 
       res.json(leaveRequestWithDetails);
     } catch (error) {
-      console.error('Error fetching leave request details:', error);
       // Handle CastError specifically
       if (error.name === 'CastError') {
         return res.status(400).json({ message: 'Invalid leave request ID format' });
@@ -342,12 +326,9 @@ class MayorController {
   // Process mayor's decision on a leave request
   static async processLeaveRequest(req, res) {
     try {
-      console.log('Processing leave request:', req.params.id);
-      console.log('User:', req.user);
       
       // Check if ID is provided and valid
       if (!req.params.id || req.params.id === 'undefined') {
-        console.log('Invalid or missing ID:', req.params.id);
         return res.status(400).json({ message: 'Invalid leave request ID' });
       }
       
@@ -355,7 +336,6 @@ class MayorController {
 
       // Validate decision
       if (!['approve', 'disapprove'].includes(decision)) {
-        console.log('Invalid decision value:', decision);
         return res.status(400).json({ message: 'Invalid decision value' });
       }
 
@@ -369,13 +349,11 @@ class MayorController {
         });
 
       if (!leaveRequest) {
-        console.log('Leave request not found for ID:', req.params.id);
         return res.status(404).json({ message: 'Leave request not found' });
       }
 
       // Check if the leave request is eligible for mayor action
       if (leaveRequest.status !== 'hr_approved') {
-        console.log('Leave request not HR-approved yet, status:', leaveRequest.status);
         return res.status(400).json({ message: 'Request not HR-approved yet.' });
       }
 
