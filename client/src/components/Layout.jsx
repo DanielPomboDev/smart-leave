@@ -118,6 +118,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Employees", icon: "fas fa-users", route: "/hr/employees" },
           { label: "Leave Records", icon: "fas fa-file-alt", route: "/hr/leave-records" },
           { label: "Leave Requests", icon: "fas fa-tasks", route: "/hr/leave-requests" },
+          { label: "Reports", icon: "fas fa-chart-bar", route: "/hr/reports" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }
         ];

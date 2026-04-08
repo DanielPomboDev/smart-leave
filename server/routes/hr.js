@@ -1,11 +1,12 @@
 const express = require('express');
-const { 
-  getHRDashboardStats, 
+const {
+  getHRDashboardStats,
   getHRDepartments,
-  getHRLeaveRequests, 
-  getHRLeaveRequest, 
+  getHRLeaveRequests,
+  getHRLeaveRequest,
   processHRLeaveApproval,
-  getHRLeaveRecords
+  getHRLeaveRecords,
+  getHRReports
 } = require('../controllers/HRController');
 const { protect } = require('../middleware/auth');
 
@@ -31,5 +32,8 @@ router.post('/leave-requests/:id/approve', processHRLeaveApproval);
 
 // Get leave records for HR
 router.get('/leave-records', getHRLeaveRecords);
+
+// Get reports data
+router.get('/reports', getHRReports);
 
 module.exports = router;

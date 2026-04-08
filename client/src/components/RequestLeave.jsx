@@ -5,7 +5,7 @@ import axios from '../services/api';
 import SuccessModal from './SuccessModal';
 import ConfirmationModal from './ConfirmationModal';
 
-const RequestLeaveAdvanced = () => {
+const RequestLeave = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,7 @@ const RequestLeaveAdvanced = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
-
+  
   const [formData, setFormData] = useState({
     leaveType: '',
     otherSpecify: '',
@@ -38,7 +38,6 @@ const RequestLeaveAdvanced = () => {
   const [vacationBalance, setVacationBalance] = useState(0);
   const [sickBalance, setSickBalance] = useState(0);
   const [loadingCredits, setLoadingCredits] = useState(true);
-  const [userRole, setUserRole] = useState('');
 
   // Set minimum start date based on today
   useEffect(() => {
@@ -51,37 +50,22 @@ const RequestLeaveAdvanced = () => {
     }));
   }, []);
 
-  // Fetch current user role and leave credits
-  const fetchUserData = async () => {
+  // Fetch current leave credits
+  const fetchLeaveCredits = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
+      const response = await axios.get('/api/leave-records/current', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
-      // Get user info from the profile endpoint
-      const response = await axios.get('/api/auth/profile');
-      
-      console.log('Profile response:', response.data); // Debug log
-      
-      if (response.data && response.data.success && response.data.user) {
-        setUserRole(response.data.user.user_type || 'employee');
-      } else {
-        // Fallback to 'employee' if no user data is available
-        setUserRole('employee');
-      }
-
-      // Fetch leave credits
-      const creditsResponse = await axios.get('/api/leave-records/current');
-      
-      if (creditsResponse.data) {
-        setVacationBalance(creditsResponse.data.vacationBalance || 0);
-        setSickBalance(creditsResponse.data.sickBalance || 0);
+      if (response.data) {
+        setVacationBalance(response.data.vacationBalance || 0);
+        setSickBalance(response.data.sickBalance || 0);
       }
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      // Default to employee if we cannot determine role
-      setUserRole('employee');
+      console.error('Error fetching leave credits:', error);
       // Set default values in case of error
       setVacationBalance(0);
       setSickBalance(0);
@@ -91,7 +75,7 @@ const RequestLeaveAdvanced = () => {
   };
 
   useEffect(() => {
-    fetchUserData();
+    fetchLeaveCredits();
   }, []);
 
   // Handle start date changes
@@ -331,7 +315,7 @@ const RequestLeaveAdvanced = () => {
     });
   };
 
-  // Submit leave request with role-based approval logic
+  // Submit leave request
   const submitLeaveRequest = async () => {
     // Close confirmation modal
     setShowConfirmModal(false);
@@ -406,7 +390,6 @@ const RequestLeaveAdvanced = () => {
         ? submitData.otherSpecify 
         : submitData.leaveType;
 
-      // Prepare the request data based on role
       const requestData = {
         leave_type: actualLeaveType,
         start_date: submitData.startDate,
@@ -416,12 +399,6 @@ const RequestLeaveAdvanced = () => {
         commutation: submitData.commutation,
         location_specify: submitData.locationSpecify
       };
-
-      // Add a special field to indicate role-based handling
-      if (userRole === 'department_admin' || userRole === 'hr' || userRole === 'mayor') {
-        requestData.role_based_approval = true;
-        requestData.requester_role = userRole;
-      }
 
       // Get token from localStorage
       const token = localStorage.getItem('token');
@@ -446,13 +423,10 @@ const RequestLeaveAdvanced = () => {
           });
         }
         
-        // Determine where to navigate based on role
+        // Reset form after a delay
         setTimeout(() => {
           setShowSuccessModal(false);
-          // All roles will go to their own leave history
-          // Handle special case for department_admin
-          const basePath = userRole === 'department_admin' ? '/department_admin' : `/${userRole}`;
-          navigate(`${basePath}/leave-history`);
+          navigate('/employee/leave-history');
         }, 3000);
       } else {
         setError(response.data.message || 'Failed to submit leave request');
@@ -489,52 +463,223 @@ const RequestLeaveAdvanced = () => {
     return new Date().toISOString().split('T')[0];
   };
 
-  // Show different message based on role
-  const getRoleMessage = () => {
-    if (userRole === 'department_admin') {
-      return "As a Department Admin, your leave request will be sent directly to HR for approval.";
-    } else if (userRole === 'hr') {
-      return "As an HR Manager, your leave request will be sent directly to the Mayor for approval.";
-    } else if (userRole === 'mayor') {
-      return "As the Mayor, your leave request will be automatically approved and recorded.";
-    } else {
-      return "New Leave Request";
+  // Leave type requirements based on CS Form No. 6, Revised 2020
+  const leaveTypeRequirements = {
+    vacation: {
+      title: 'Vacation Leave',
+      icon: 'fa-umbrella-beach',
+      color: 'blue',
+      requirements: [
+        'Apply at least 5 days before the start date',
+        'Must have available vacation leave credits',
+        'Specify where the leave will be spent (Philippines or Abroad)',
+        'Indicate if commutation (monetization) is requested'
+      ]
+    },
+    sick: {
+      title: 'Sick Leave',
+      icon: 'fa-hospital',
+      color: 'green',
+      requirements: [
+        'May be applied before or after the leave period',
+        'Must have available sick leave credits',
+        'Specify illness or medical condition',
+        'Medical certificate may be required for extended leave'
+      ]
+    },
+    mandatory_forced_leave: {
+      title: 'Mandatory/Forced Leave',
+      icon: 'fa-gavel',
+      color: 'orange',
+      requirements: [
+        'Applied when employee is directed to take leave',
+        'Usually charged against accumulated vacation credits',
+        'Official directive or memo may be required'
+      ]
+    },
+    maternity_leave: {
+      title: 'Maternity Leave',
+      icon: 'fa-baby',
+      color: 'pink',
+      requirements: [
+        'Available to female employees',
+        'Up to 105 days with pay (RA 11210 - Expanded Maternity Leave Law)',
+        'May be extended for 30 days without pay',
+        'Must notify SSS within 120 days of effectivity of pregnancy',
+        'Maternity notification form and SSS documents required'
+      ]
+    },
+    paternity_leave: {
+      title: 'Paternity Leave',
+      icon: 'fa-person-breastfeeding',
+      color: 'teal',
+      requirements: [
+        'Available to married male employees (RA 8187)',
+        '7 days with pay for the first 4 deliveries',
+        'Must be living with the spouse',
+        'Marriage certificate may be required'
+      ]
+    },
+    special_privilege_leave: {
+      title: 'Special Privilege Leave',
+      icon: 'fa-star',
+      color: 'purple',
+      requirements: [
+        'Also known as "Incentive Leave" for government employees',
+        '7 days per year for those in hazardous or difficult assignments',
+        'Certification of eligibility from agency head required',
+        'Specify where the leave will be spent'
+      ]
+    },
+    solo_parent_leave: {
+      title: 'Solo Parent Leave',
+      icon: 'fa-person',
+      color: 'indigo',
+      requirements: [
+        '7 days with pay per year for solo parents (RA 8972)',
+        'Must have a valid Solo Parent ID',
+        'Certification of eligibility required',
+        'Applicable to employees with at least 1 year of service'
+      ]
+    },
+    study_leave: {
+      title: 'Study Leave',
+      icon: 'fa-graduation-cap',
+      color: 'cyan',
+      requirements: [
+        'For completion of Master\'s Degree or BAR/Board Examination Review',
+        'Must have at least 1 year of service',
+        'Certification from school/program required',
+        'Specify if for Master\'s Degree completion or Board Exam Review',
+        'May require a bond or service agreement'
+      ]
+    },
+    vawc_leave: {
+      title: '10-Day VAWC Leave',
+      icon: 'fa-shield-heart',
+      color: 'rose',
+      requirements: [
+        'For victims of Violence Against Women and Children (RA 9262)',
+        '10 days with pay',
+        'Barangay protection order or certification required',
+        'Confidentiality of the case must be maintained',
+        'Certification from DSWD or social worker may be required'
+      ]
+    },
+    rehabilitation_privilege: {
+      title: 'Rehabilitation Privilege',
+      icon: 'fa-hand-holding-medical',
+      color: 'amber',
+      requirements: [
+        'For employees undergoing rehabilitation treatment',
+        'Privilege under RA 9165 (Comprehensive Dangerous Drugs Act)',
+        'Medical certification required',
+        'Confidentiality must be maintained'
+      ]
+    },
+    special_leave_benefits_women: {
+      title: 'Special Leave Benefits for Women',
+      icon: 'fa-venus',
+      color: 'fuchsia',
+      requirements: [
+        '2 months with pay for gynecological disorders (RA 9710 - Magna Carta of Women)',
+        'Must have at least 6 months of service in the last 12 months',
+        'Medical certification of gynecological condition required',
+        'Specify the nature of the medical condition'
+      ]
+    },
+    special_emergency: {
+      title: 'Special Emergency (Calamity) Leave',
+      icon: 'fa-house-crack',
+      color: 'red',
+      requirements: [
+        'For employees affected by calamities (typhoon, earthquake, fire, etc.)',
+        'Must be a resident of the affected area',
+        'Certification from local authorities (barangay/municipal) required',
+        'Specify the type of calamity and affected area'
+      ]
+    },
+    adoption_leave: {
+      title: 'Adoption Leave',
+      icon: 'fa-hands-holding-child',
+      color: 'emerald',
+      requirements: [
+        '60 days with pay for adoptive parents (RA 8552)',
+        'Must have at least 1 year of service',
+        'Court order or placement authority document required',
+        'Applicable for adoption of a child up to 7 years old'
+      ]
+    },
+    others_specify: {
+      title: 'Others (Specify)',
+      icon: 'fa-pen',
+      color: 'gray',
+      requirements: [
+        'Please specify the purpose or nature of your leave',
+        'Supporting documents may be required',
+        'Leave credits will depend on the type of leave specified'
+      ]
     }
   };
 
-  // Show different message based on role
-  const getRoleBasedMessage = (role) => {
-    switch (role) {
-      case 'department_admin':
-        return "It will be forwarded directly to HR for approval.";
-      case 'hr':
-        return "It will be forwarded directly to the Mayor for approval.";
-      case 'mayor':
-        return "It has been automatically approved and recorded.";
-      default:
-        return "It is pending approval.";
-    }
+  // Get all leave type options
+  const leaveTypeOptions = [
+    { value: 'vacation', label: 'Vacation Leave' },
+    { value: 'sick', label: 'Sick Leave' },
+    { value: 'mandatory_forced_leave', label: 'Mandatory/Forced Leave' },
+    { value: 'maternity_leave', label: 'Maternity Leave' },
+    { value: 'paternity_leave', label: 'Paternity Leave' },
+    { value: 'special_privilege_leave', label: 'Special Privilege Leave' },
+    { value: 'solo_parent_leave', label: 'Solo Parent Leave' },
+    { value: 'study_leave', label: 'Study Leave' },
+    { value: 'vawc_leave', label: '10-Day VAWC Leave' },
+    { value: 'rehabilitation_privilege', label: 'Rehabilitation Privilege' },
+    { value: 'special_leave_benefits_women', label: 'Special Leave Benefits for Women' },
+    { value: 'special_emergency', label: 'Special Emergency (Calamity)' },
+    { value: 'adoption_leave', label: 'Adoption Leave' },
+    { value: 'others_specify', label: 'Others (Specify)' }
+  ];
+
+  // Get color classes for requirements display
+  const getColorClasses = (color) => {
+    const colorMap = {
+      blue: 'border-blue-500 bg-blue-50 text-blue-800',
+      green: 'border-green-500 bg-green-50 text-green-800',
+      orange: 'border-orange-500 bg-orange-50 text-orange-800',
+      pink: 'border-pink-500 bg-pink-50 text-pink-800',
+      teal: 'border-teal-500 bg-teal-50 text-teal-800',
+      purple: 'border-purple-500 bg-purple-50 text-purple-800',
+      indigo: 'border-indigo-500 bg-indigo-50 text-indigo-800',
+      cyan: 'border-cyan-500 bg-cyan-50 text-cyan-800',
+      rose: 'border-rose-500 bg-rose-50 text-rose-800',
+      amber: 'border-amber-500 bg-amber-50 text-amber-800',
+      fuchsia: 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800',
+      red: 'border-red-500 bg-red-50 text-red-800',
+      emerald: 'border-emerald-500 bg-emerald-50 text-emerald-800',
+      gray: 'border-gray-500 bg-gray-50 text-gray-800'
+    };
+    return colorMap[color] || colorMap.gray;
   };
 
-  // Show loading state while fetching user data
-  if (loadingCredits) {
-    return (
-      <Layout>
-        <header className="bg-white shadow">
-          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <h1 className="text-3xl font-bold text-gray-900">Request Leave</h1>
-          </div>
-        </header>
-        <main>
-          <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <div className="flex justify-center items-center h-64">
-              <span className="loading loading-spinner loading-lg"></span>
-            </div>
-          </div>
-        </main>
-      </Layout>
-    );
-  }
+  const getIconBgColor = (color) => {
+    const colorMap = {
+      blue: 'bg-blue-100 text-blue-600',
+      green: 'bg-green-100 text-green-600',
+      orange: 'bg-orange-100 text-orange-600',
+      pink: 'bg-pink-100 text-pink-600',
+      teal: 'bg-teal-100 text-teal-600',
+      purple: 'bg-purple-100 text-purple-600',
+      indigo: 'bg-indigo-100 text-indigo-600',
+      cyan: 'bg-cyan-100 text-cyan-600',
+      rose: 'bg-rose-100 text-rose-600',
+      amber: 'bg-amber-100 text-amber-600',
+      fuchsia: 'bg-fuchsia-100 text-fuchsia-600',
+      red: 'bg-red-100 text-red-600',
+      emerald: 'bg-emerald-100 text-emerald-600',
+      gray: 'bg-gray-100 text-gray-600'
+    };
+    return colorMap[color] || colorMap.gray;
+  };
 
   return (
     <Layout>
@@ -545,24 +690,14 @@ const RequestLeaveAdvanced = () => {
       </header>
 
       <main>
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pb-24">
           
           <div className="card bg-white shadow-md mb-6">
-            <div className="card-body">
+            <div className="card-body pb-8">
               <h2 className="card-title text-xl font-bold text-gray-800 mb-4">
                 <i className="fas fa-calendar-plus text-blue-500 mr-2"></i>
-                {getRoleMessage()}
+                New Leave Request
               </h2>
-              
-              {/* User Role specific information */}
-              {userRole && (
-                <div className="alert bg-info text-info-content mb-4">
-                  <div>
-                    <i className="fas fa-info-circle mr-2"></i>
-                    <span>Role: {userRole.toLowerCase().replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
-                  </div>
-                </div>
-              )}
               
               {/* Leave Credits Display */}
               {!loadingCredits && (vacationBalance !== 0 || sickBalance !== 0) && (
@@ -570,7 +705,7 @@ const RequestLeaveAdvanced = () => {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-center">
                       <div className="mr-3 flex-shrink-0">
-                        <i className="fas fa-sun text-blue-500 text-xl"></i>
+                        <i className="fas fa-suitcase-rolling text-blue-500 text-xl"></i>
                       </div>
                       <div>
                         <p className="text-sm text-blue-600 font-medium">Vacation Leave</p>
@@ -644,270 +779,75 @@ const RequestLeaveAdvanced = () => {
               
               {/* Step 1: Leave Type */}
               {currentStep === 1 && (
-                <div id="step1" className="space-y-6">
+                <div id="step1" className="space-y-6 pb-4">
                   <h3 className="font-medium text-lg text-gray-800">Select Leave Type</h3>
-                  
-                  <div className="space-y-4">
-                    {/* Vacation Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'vacation', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="vacationLeave" 
-                          value="vacation" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'vacation'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="vacationLeave" className="ml-2 font-medium text-gray-800">Vacation Leave</label>
-                      </div>
-                      {formData.leaveType === 'vacation' && (
-                        <div className="alert bg-blue-100 border border-blue-300 text-blue-700 px-4 py-2 rounded mt-2">
-                          <i className="fas fa-info-circle mr-2"></i>
-                          <span className="text-xs">Vacation leave must be applied at least 5 days before the start date</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Sick Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'sick', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="sickLeave" 
-                          value="sick" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'sick'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="sickLeave" className="ml-2 font-medium text-gray-800">Sick Leave</label>
-                      </div>
-                      {formData.leaveType === 'sick' && (
-                        <div className="alert bg-green-100 border border-green-300 text-green-700 px-4 py-2 rounded mt-2">
-                          <i className="fas fa-check-circle mr-2"></i>
-                          <span className="text-xs">Sick leave can be applied after the leave period</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Mandatory/Forced Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'mandatory_forced_leave', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="mandatoryForcedLeave" 
-                          value="mandatory_forced_leave" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'mandatory_forced_leave'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="mandatoryForcedLeave" className="ml-2 font-medium text-gray-800">Mandatory/Forced Leave</label>
-                      </div>
-                    </div>
-                    
-                    {/* Maternity Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'maternity_leave', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="maternityLeave" 
-                          value="maternity_leave" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'maternity_leave'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="maternityLeave" className="ml-2 font-medium text-gray-800">Maternity Leave</label>
-                      </div>
-                    </div>
-                    
-                    {/* Paternity Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'paternity_leave', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="paternityLeave" 
-                          value="paternity_leave" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'paternity_leave'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="paternityLeave" className="ml-2 font-medium text-gray-800">Paternity Leave</label>
-                      </div>
-                    </div>
-                    
-                    {/* Special Privilege Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'special_privilege_leave', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="specialPrivilegeLeave" 
-                          value="special_privilege_leave" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'special_privilege_leave'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="specialPrivilegeLeave" className="ml-2 font-medium text-gray-800">Special Privilege Leave</label>
-                      </div>
-                    </div>
-                    
-                    {/* Solo Parent Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'solo_parent_leave', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="soloParentLeave" 
-                          value="solo_parent_leave" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'solo_parent_leave'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="soloParentLeave" className="ml-2 font-medium text-gray-800">Solo Parent Leave</label>
-                      </div>
-                    </div>
-                    
-                    {/* Study Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'study_leave', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="studyLeave" 
-                          value="study_leave" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'study_leave'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="studyLeave" className="ml-2 font-medium text-gray-800">Study Leave</label>
-                      </div>
-                    </div>
-                    
-                    {/* 10-Day VAWC Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'vawc_leave', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="vawcLeave" 
-                          value="vawc_leave" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'vawc_leave'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="vawcLeave" className="ml-2 font-medium text-gray-800">10-Day VAWC Leave</label>
-                      </div>
-                    </div>
-                    
-                    {/* Rehabilitation Privilege */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'rehabilitation_privilege', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="rehabilitationPrivilege" 
-                          value="rehabilitation_privilege" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'rehabilitation_privilege'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="rehabilitationPrivilege" className="ml-2 font-medium text-gray-800">Rehabilitation Privilege</label>
-                      </div>
-                    </div>
-                    
-                    {/* Special Leave Benefits for Women */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'special_leave_benefits_women', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="specialLeaveBenefitsWomen" 
-                          value="special_leave_benefits_women" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'special_leave_benefits_women'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="specialLeaveBenefitsWomen" className="ml-2 font-medium text-gray-800">Special Leave Benefits for Women</label>
-                      </div>
-                    </div>
-                    
-                    {/* Special Emergency (Calamity) */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'special_emergency', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="specialEmergency" 
-                          value="special_emergency" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'special_emergency'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="specialEmergency" className="ml-2 font-medium text-gray-800">Special Emergency (Calamity)</label>
-                      </div>
-                    </div>
-                    
-                    {/* Adoption Leave */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'adoption_leave', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="adoptionLeave" 
-                          value="adoption_leave" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'adoption_leave'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="adoptionLeave" className="ml-2 font-medium text-gray-800">Adoption Leave</label>
-                      </div>
-                    </div>
-                    
-                    {/* Others (Specify) */}
-                    <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors bg-gray-50">
-                      <div className="flex items-center cursor-pointer" onClick={() => setFormData(prev => ({...prev, leaveType: 'others_specify', otherSpecify: ''}))}>
-                        <input 
-                          type="radio" 
-                          name="leaveType" 
-                          id="othersSpecify" 
-                          value="others_specify" 
-                          className="radio radio-primary" 
-                          checked={formData.leaveType === 'others_specify'}
-                          onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
-                        />
-                        <label htmlFor="othersSpecify" className="ml-2 font-medium text-gray-800">Others (specify)</label>
-                      </div>
-                      
-                      {formData.leaveType === 'others_specify' && (
-                        <div className="pl-6 mt-3">
-                          <div className="form-control">
-                            <label className="label">
-                              <span className="label-text text-gray-700">Please specify the purpose of your leave</span>
-                            </label>
-                            <input 
-                              type="text" 
-                              id="otherSpecify" 
-                              name="otherSpecify" 
-                              value={formData.otherSpecify}
-                              onChange={handleInputChange}
-                              placeholder="Please specify" 
-                              className="input input-bordered border-gray-300 focus:border-blue-500 w-full"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
+
+                  {/* Leave Type Dropdown */}
+                  <div className="form-control w-full relative mb-2">
+                    <label className="label">
+                      <span className="label-text font-medium text-gray-700">Leave Type</span>
+                    </label>
+                    <select
+                      name="leaveType"
+                      value={formData.leaveType}
+                      onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                      className="select select-bordered w-full text-base"
+                    >
+                      <option value="" disabled>-- Select Leave Type --</option>
+                      {leaveTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  
+
+                  {/* Others Specify Input */}
+                  {formData.leaveType === 'others_specify' && (
+                    <div className="form-control w-full">
+                      <label className="label">
+                        <span className="label-text font-medium text-gray-700">Purpose of Leave</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="otherSpecify"
+                        value={formData.otherSpecify}
+                        onChange={handleInputChange}
+                        placeholder="Please specify the purpose of your leave"
+                        className="input input-bordered w-full"
+                      />
+                    </div>
+                  )}
+
+                  {/* Requirements Display */}
+                  {formData.leaveType && leaveTypeRequirements[formData.leaveType] && (
+                    <div className={`border-l-4 rounded-r-lg p-5 ${getColorClasses(leaveTypeRequirements[formData.leaveType].color)}`}>
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className={`rounded-full p-2 ${getIconBgColor(leaveTypeRequirements[formData.leaveType].color)}`}>
+                          <i className={`fas ${leaveTypeRequirements[formData.leaveType].icon} text-lg`}></i>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-lg">
+                            {leaveTypeRequirements[formData.leaveType].title}
+                          </h4>
+                          <p className="text-sm opacity-75">Requirements & Guidelines</p>
+                        </div>
+                      </div>
+                      <ul className="space-y-2">
+                        {leaveTypeRequirements[formData.leaveType].requirements.map((req, index) => (
+                          <li key={index} className="flex items-start gap-2">
+                            <i className="fas fa-check-circle mt-0.5 flex-shrink-0 opacity-75"></i>
+                            <span className="text-sm">{req}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   <div className="flex justify-end mt-6">
-                    <button 
-                      type="button" 
-                      className="btn bg-blue-500 hover:bg-blue-600 text-white" 
+                    <button
+                      type="button"
+                      className="btn bg-blue-500 hover:bg-blue-600 text-white"
                       onClick={() => nextStep(1)}
                     >
                       Next
@@ -1267,22 +1207,6 @@ const RequestLeaveAdvanced = () => {
                     </div>
                   </div>
                   
-                  {/* Role-specific message */}
-                  <div className="mt-4 p-4 bg-info text-info-content rounded-lg">
-                    <div className="flex">
-                      <i className="fas fa-info-circle mt-1 mr-2"></i>
-                      <div>
-                        <p className="font-medium">Approval Process:</p>
-                        <p>
-                          {userRole === 'department_admin' ? "Your request will be sent directly to HR for approval." :
-                           userRole === 'hr' ? "Your request will be sent directly to the Mayor for approval." :
-                           userRole === 'mayor' ? "Your request will be automatically approved and recorded." :
-                           "Your request will follow the standard approval process."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
                   <div className="flex justify-between mt-6">
                     <button 
                       type="button" 
@@ -1319,14 +1243,10 @@ const RequestLeaveAdvanced = () => {
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
         title="Leave Request Submitted"
-        message={`Your leave request has been submitted successfully. ${
-          getRoleBasedMessage(userRole)
-        }`}
+        message="Your leave request has been submitted successfully and is pending approval."
         onConfirm={() => {
           setShowSuccessModal(false);
-          // Handle special case for department_admin
-          const basePath = userRole === 'department_admin' ? '/department_admin' : `/${userRole}`;
-          navigate(`${basePath}/leave-history`);
+          navigate('/employee/leave-history');
         }}
       />
 
@@ -1366,7 +1286,6 @@ const RequestLeaveAdvanced = () => {
               ? submitData.otherSpecify 
               : submitData.leaveType;
 
-            // Prepare the request data based on role
             const requestData = {
               leave_type: actualLeaveType,
               start_date: submitData.startDate,
@@ -1376,12 +1295,6 @@ const RequestLeaveAdvanced = () => {
               commutation: submitData.commutation,
               location_specify: submitData.locationSpecify
             };
-
-            // Add a special field to indicate role-based handling
-            if (userRole === 'department_admin' || userRole === 'hr' || userRole === 'mayor') {
-              requestData.role_based_approval = true;
-              requestData.requester_role = userRole;
-            }
 
             // Get token from localStorage
             const token = localStorage.getItem('token');
@@ -1400,9 +1313,7 @@ const RequestLeaveAdvanced = () => {
               // Reset form after a delay
               setTimeout(() => {
                 setShowSuccessModal(false);
-                // Handle special case for department_admin
-                const basePath = userRole === 'department_admin' ? '/department_admin' : `/${userRole}`;
-                navigate(`${basePath}/leave-history`);
+                navigate('/employee/leave-history');
               }, 3000);
             } else {
               setError(response.data.message || 'Failed to submit leave request');
@@ -1437,4 +1348,4 @@ const RequestLeaveAdvanced = () => {
   );
 };
 
-export default RequestLeaveAdvanced;
+export default RequestLeave;

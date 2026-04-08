@@ -1,25 +1,26 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Login from './components/Login';
-import EmployeeDashboard from './components/EmployeeDashboard';
-import DepartmentDashboard from './components/DepartmentDashboard';
-import DepartmentLeaveRequests from './components/DepartmentLeaveRequests';
-import DepartmentLeaveRequestDetails from './components/DepartmentLeaveRequestDetails';
-import RequestLeave from './components/RequestLeave';
-import RequestLeaveAdvanced from './components/RequestLeaveAdvanced';
-import LeaveHistory from './components/LeaveHistory';
-import Profile from './components/Profile';
-import Settings from './components/Settings';
-import LeaveRequestDetails from './components/LeaveRequestDetails';
-import HRDashboard from './components/HRDashboard';
-import HRLeaveRequests from './components/HRLeaveRequests';
-import HRLeaveRequestDetails from './components/HRLeaveRequestDetails';
-import HREmployees from './components/HREmployees';
-import HRLeaveRecord from './components/HRLeaveRecord';
-import HRLeaveRecords from './components/HRLeaveRecords';
-import MayorDashboard from './components/MayorDashboard';
-import MayorLeaveRequests from './components/MayorLeaveRequests';
-import MayorLeaveRequestDetails from './components/MayorLeaveRequestDetails';
+import Login from './components/Login.jsx';
+import EmployeeDashboard from './components/EmployeeDashboard.jsx';
+import DepartmentDashboard from './components/DepartmentDashboard.jsx';
+import DepartmentLeaveRequests from './components/DepartmentLeaveRequests.jsx';
+import DepartmentLeaveRequestDetails from './components/DepartmentLeaveRequestDetails.jsx';
+import RequestLeave from './components/RequestLeave.jsx';
+import RequestLeaveAdvanced from './components/RequestLeaveAdvanced.jsx';
+import LeaveHistory from './components/LeaveHistory.jsx';
+import Profile from './components/Profile.jsx';
+import Settings from './components/Settings.jsx';
+import LeaveRequestDetails from './components/LeaveRequestDetails.jsx';
+import HRDashboard from './components/HRDashboard.jsx';
+import HRLeaveRequests from './components/HRLeaveRequests.jsx';
+import HRLeaveRequestDetails from './components/HRLeaveRequestDetails.jsx';
+import HREmployees from './components/HREmployees.jsx';
+import HRLeaveRecord from './components/HRLeaveRecord.jsx';
+import HRLeaveRecords from './components/HRLeaveRecords.jsx';
+import HRReports from './components/HRReports.jsx';
+import MayorDashboard from './components/MayorDashboard.jsx';
+import MayorLeaveRequests from './components/MayorLeaveRequests.jsx';
+import MayorLeaveRequestDetails from './components/MayorLeaveRequestDetails.jsx';
 import './App.css';
 
 function App() {
@@ -44,6 +45,7 @@ function App() {
           <Route path="/hr/leave-request/:id" element={<HRLeaveRequestDetails />} />
           <Route path="/hr/leave-records" element={<HRLeaveRecords />} />
           <Route path="/hr/leave-record/:id" element={<HRLeaveRecord />} />
+          <Route path="/hr/reports" element={<HRReports />} />
           <Route path="/mayor/dashboard" element={<MayorDashboard />} />
           <Route path="/mayor/leave-requests" element={<MayorLeaveRequests />} />
           <Route path="/mayor/leave-requests/:id" element={<MayorLeaveRequestDetails />} />

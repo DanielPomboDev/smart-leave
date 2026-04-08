@@ -297,30 +297,84 @@ exports.getCurrentLeaveCredits = async (req, res) => {
 exports.show = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+    const { year: filterYear } = req.query;
+
     // Find the employee by user_id field (not MongoDB _id)
     const employee = await User.findOne({ user_id: userId }).populate('department_id');
-    
+
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
     }
-    
+
     // Get leave records for this employee, ordered by year/month ascending
     const allLeaveRecords = await LeaveRecord.find({ user_id: employee.user_id })
       .sort({ year: 1, month: 1 })
       .exec();
-    
+
+    // Get all leave requests for this employee to populate entries
+    const allLeaveRequests = await LeaveRequest.find({ user_id: employee.user_id }).sort({ start_date: 1 });
+
     let vacationBalance = 0;
     let sickBalance = 0;
 
     const processedRecords = allLeaveRecords.map(record => {
       vacationBalance += record.vacation_earned - record.vacation_used;
       sickBalance += record.sick_earned - record.sick_used;
-      
+
+      // Build vacation_entries from leave requests for this month/year
+      const vacationEntries = allLeaveRequests
+        .filter(req => {
+          const reqDate = new Date(req.start_date);
+          return reqDate.getFullYear() === record.year &&
+                 (reqDate.getMonth() + 1) === record.month &&
+                 (req.leave_type === 'vacation' ||
+                  req.leave_type === 'special_privilege_leave' ||
+                  req.leave_type === 'study_leave' ||
+                  req.leave_type === 'mandatory_forced_leave' ||
+                  req.leave_type === 'maternity_leave' ||
+                  req.leave_type === 'paternity_leave' ||
+                  req.leave_type === 'solo_parent_leave' ||
+                  req.leave_type === 'vawc_leave' ||
+                  req.leave_type === 'rehabilitation_privilege' ||
+                  req.leave_type === 'special_leave_benefits_women' ||
+                  req.leave_type === 'special_emergency' ||
+                  req.leave_type === 'adoption_leave' ||
+                  req.leave_type === 'others_specify');
+        })
+        .map(req => ({
+          type: req.leave_type,
+          days: req.number_of_days,
+          start_date: new Date(req.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          end_date: new Date(req.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          paid: !req.without_pay,
+          status: req.status,
+          cancelled: req.status === 'cancelled'
+        }));
+
+      // Build sick_entries from leave requests for this month/year
+      const sickEntries = allLeaveRequests
+        .filter(req => {
+          const reqDate = new Date(req.start_date);
+          return reqDate.getFullYear() === record.year &&
+                 (reqDate.getMonth() + 1) === record.month &&
+                 (req.leave_type === 'sick');
+        })
+        .map(req => ({
+          type: req.leave_type,
+          days: req.number_of_days,
+          start_date: new Date(req.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          end_date: new Date(req.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          paid: !req.without_pay,
+          status: req.status,
+          cancelled: req.status === 'cancelled'
+        }));
+
       return {
         ...record.toObject(),
         vacation_balance: vacationBalance,
-        sick_balance: sickBalance
+        sick_balance: sickBalance,
+        vacation_entries: vacationEntries,
+        sick_entries: sickEntries
       };
     });
 
@@ -332,25 +386,48 @@ exports.show = async (req, res) => {
       }
       leaveRecords[record.year].push(record);
     });
-    
+
     // Calculate summary totals
     const vacationSummary = {
       earned: allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0),
       used: allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0),
       balance: vacationBalance
     };
-    
+
     const sickSummary = {
       earned: allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0),
       used: allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0),
       balance: sickBalance
     };
-    
+
+    // Calculate leave type summary (count of each leave type filed)
+    // Filter by year if provided, otherwise use all requests
+    let leaveRequestsForSummary = allLeaveRequests;
+    if (filterYear) {
+      leaveRequestsForSummary = allLeaveRequests.filter(req => {
+        const reqDate = new Date(req.start_date);
+        return reqDate.getFullYear() === parseInt(filterYear);
+      });
+    }
+
+    const leaveTypeCounts = {};
+    leaveRequestsForSummary.forEach(req => {
+      // Skip cancelled requests
+      if (req.status === 'cancelled') return;
+
+      const type = req.leave_type;
+      if (!leaveTypeCounts[type]) {
+        leaveTypeCounts[type] = 0;
+      }
+      leaveTypeCounts[type]++;
+    });
+
     res.json({
       employee,
       leaveRecords,
       vacationSummary,
-      sickSummary
+      sickSummary,
+      leaveTypeSummary: leaveTypeCounts
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching leave records', error: error.message });

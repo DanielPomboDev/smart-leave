@@ -34,6 +34,8 @@ const HRLeaveRecord = () => {
     month: '',
     year: ''
   });
+  const [leaveTypeSummary, setLeaveTypeSummary] = useState({});
+  const [apiLeaveTypeSummary, setApiLeaveTypeSummary] = useState({});
 
   // Conversion tables for hours and minutes to days
   const hoursToDays = {
@@ -60,7 +62,13 @@ const HRLeaveRecord = () => {
           throw new Error('No authentication token found');
         }
 
+        const params = {};
+        if (filters.year) {
+          params.year = filters.year;
+        }
+
         const response = await axios.get(`/api/leave-records/${id}`, {
+          params,
           headers: {
             'Content-Type': 'application/json'
           }
@@ -70,6 +78,7 @@ const HRLeaveRecord = () => {
           setEmployee(response.data.employee);
           setVacationSummary(response.data.vacationSummary);
           setSickSummary(response.data.sickSummary);
+          setApiLeaveTypeSummary(response.data.leaveTypeSummary || {});
           // Convert leave records to the format expected by the UI
           const formattedRecords = Object.values(response.data.leaveRecords).flat().map(record => ({
             ...record,
@@ -91,7 +100,7 @@ const HRLeaveRecord = () => {
     if (id) {
       fetchLeaveRecord();
     }
-  }, [id]);
+  }, [id, filters.year]);
 
   // Apply filters when filters change or when leaveRecords change
   useEffect(() => {
@@ -99,21 +108,116 @@ const HRLeaveRecord = () => {
       setFilteredLeaveRecords([]);
       return;
     }
-    
+
     let filtered = [...leaveRecords];
-    
+
     // Apply month filter
     if (filters.month) {
       filtered = filtered.filter(record => record.month.toString() === filters.month);
     }
-    
+
     // Apply year filter
     if (filters.year) {
       filtered = filtered.filter(record => record.year.toString() === filters.year);
     }
-    
+
     setFilteredLeaveRecords(filtered);
   }, [filters, leaveRecords]);
+
+  // Compute leave type summary based on API data (when year is selected) or filtered records
+  useEffect(() => {
+    const typeLabels = {
+      vacation: 'Vacation Leave',
+      sick: 'Sick Leave',
+      mandatory_forced_leave: 'Mandatory/Forced Leave',
+      maternity_leave: 'Maternity Leave',
+      paternity_leave: 'Paternity Leave',
+      special_privilege_leave: 'Special Privilege Leave',
+      solo_parent_leave: 'Solo Parent Leave',
+      study_leave: 'Study Leave',
+      vawc_leave: 'VAWC Leave',
+      rehabilitation_privilege: 'Rehabilitation Privilege',
+      special_leave_benefits_women: 'Special Leave (Women)',
+      special_emergency: 'Special Emergency (Calamity)',
+      adoption_leave: 'Adoption Leave',
+      others_specify: 'Others (Specify)'
+    };
+    const typeIcons = {
+      vacation: 'fa-umbrella-beach',
+      sick: 'fa-hospital',
+      mandatory_forced_leave: 'fa-gavel',
+      maternity_leave: 'fa-baby',
+      paternity_leave: 'fa-person-breastfeeding',
+      special_privilege_leave: 'fa-star',
+      solo_parent_leave: 'fa-person',
+      study_leave: 'fa-graduation-cap',
+      vawc_leave: 'fa-shield-heart',
+      rehabilitation_privilege: 'fa-hand-holding-medical',
+      special_leave_benefits_women: 'fa-venus',
+      special_emergency: 'fa-house-crack',
+      adoption_leave: 'fa-hands-holding-child',
+      others_specify: 'fa-pen'
+    };
+
+    // When year is selected, use API data
+    if (filters.year && Object.keys(apiLeaveTypeSummary).length > 0) {
+      const summary = Object.entries(apiLeaveTypeSummary)
+        .filter(([_, count]) => count > 0)
+        .sort((a, b) => b[1] - a[1])
+        .map(([type, count]) => ({
+          type,
+          count,
+          label: typeLabels[type] || type,
+          icon: typeIcons[type] || 'fa-calendar'
+        }));
+      setLeaveTypeSummary(summary);
+      return;
+    }
+
+    // When no year is selected, count from filtered records
+    if (!filteredLeaveRecords || filteredLeaveRecords.length === 0) {
+      setLeaveTypeSummary([]);
+      return;
+    }
+
+    const typeCounts = {};
+
+    // Count leave types from vacation_entries and sick_entries
+    filteredLeaveRecords.forEach(record => {
+      // Count vacation entries
+      if (record.vacation_entries) {
+        record.vacation_entries.forEach(entry => {
+          if (!entry.cancelled) {
+            const type = entry.type || 'vacation';
+            typeCounts[type] = (typeCounts[type] || 0) + 1;
+          }
+        });
+      }
+
+      // Count sick entries
+      if (record.sick_entries) {
+        record.sick_entries.forEach(entry => {
+          if (!entry.cancelled) {
+            const type = entry.type || 'sick';
+            typeCounts[type] = (typeCounts[type] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    // Convert to array for rendering
+    const summary = Object.entries(typeCounts)
+      .filter(([_, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => ({
+        type,
+        count,
+        label: typeLabels[type] || type,
+        icon: typeIcons[type] || 'fa-calendar'
+      }));
+
+    setLeaveTypeSummary(summary);
+  }, [filteredLeaveRecords, filters.year, apiLeaveTypeSummary]);
 
   // Helper function to get month name
   const getMonthName = (monthNumber) => {
@@ -376,12 +480,13 @@ const HRLeaveRecord = () => {
                     {/* Year Filter */}
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                      <select 
+                      <select
                         className="select select-bordered w-full text-sm"
                         value={filters.year}
                         onChange={(e) => setFilters(prev => ({...prev, year: e.target.value}))}
                       >
                         <option value="">All Years</option>
+                        <option value="2026">2026</option>
                         <option value="2025">2025</option>
                         <option value="2024">2024</option>
                         <option value="2023">2023</option>
@@ -410,6 +515,52 @@ const HRLeaveRecord = () => {
                 </div>
               </div>
             </div>
+
+            {/* Leave Type Summary */}
+            {Array.isArray(leaveTypeSummary) && (
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-5 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-gray-800">
+                    <i className="fas fa-chart-bar text-indigo-600 mr-2"></i>
+                    Leave Types Summary
+                  </h4>
+                  {filters.year && (
+                    <span className="badge badge-indigo badge-lg">
+                      <i className="fas fa-calendar mr-1"></i>
+                      {filters.year}
+                    </span>
+                  )}
+                </div>
+                {leaveTypeSummary.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                      {leaveTypeSummary.map((item, index) => (
+                        <div
+                          key={index}
+                          className="bg-white rounded-lg border border-indigo-100 p-3 text-center shadow-sm hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex items-center justify-center w-10 h-10 mx-auto mb-2 bg-indigo-100 rounded-full">
+                            <i className={`fas ${item.icon} text-indigo-600`}></i>
+                          </div>
+                          <p className="text-xs text-gray-600 truncate mb-1">{item.label}</p>
+                          <p className="text-2xl font-bold text-indigo-700">{item.count}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3 text-center">
+                      Total: {leaveTypeSummary.reduce((sum, item) => sum + item.count, 0)} leave(s) recorded
+                      {filters.month && ` for ${getMonthName(parseInt(filters.month))}`}
+                      {filters.year && ` ${filters.year}`}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No leave records found
+                    {filters.year ? ` for ${filters.year}` : ''}.
+                  </p>
+                )}
+              </div>
+            )}
 
             {filteredLeaveRecords && filteredLeaveRecords.length > 0 ? (
               filteredLeaveRecords.map((record, index) => (

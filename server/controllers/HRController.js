@@ -560,11 +560,194 @@ const getHRLeaveRecords = async (req, res) => {
   }
 };
 
+// @desc    Get HR reports data
+// @route   GET /api/hr/reports
+// @access  Private (HR only)
+const getHRReports = async (req, res) => {
+  try {
+    if (!req.user || req.user.user_type !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. HR access required.'
+      });
+    }
+
+    const { year, department } = req.query;
+
+    // ===== LEAVE TYPE SUMMARY =====
+    const leaveTypeLabels = {
+      vacation: 'Vacation Leave',
+      sick: 'Sick Leave',
+      mandatory_forced_leave: 'Mandatory/Forced Leave',
+      maternity_leave: 'Maternity Leave',
+      paternity_leave: 'Paternity Leave',
+      special_privilege_leave: 'Special Privilege Leave',
+      solo_parent_leave: 'Solo Parent Leave',
+      study_leave: 'Study Leave',
+      vawc_leave: 'VAWC Leave',
+      rehabilitation_privilege: 'Rehabilitation Privilege',
+      special_leave_benefits_women: 'Special Leave (Women)',
+      special_emergency: 'Special Emergency (Calamity)',
+      adoption_leave: 'Adoption Leave',
+      others_specify: 'Others (Specify)'
+    };
+
+    // Build query for leave requests
+    let leaveQuery = {};
+    if (year) {
+      const yearNum = parseInt(year);
+      const startDate = new Date(yearNum, 0, 1);
+      const endDate = new Date(yearNum, 11, 31, 23, 59, 59, 999);
+      leaveQuery.start_date = { $gte: startDate, $lte: endDate };
+    }
+    if (department && department !== 'all') {
+      const deptUsers = await User.find({ department_id: department }).select('user_id');
+      leaveQuery.user_id = { $in: deptUsers.map(u => u.user_id) };
+    }
+
+    const allLeaveRequests = await LeaveRequest.find(leaveQuery).populate('user_id', 'first_name last_name department_id');
+
+    // Count by leave type
+    const leaveTypeCounts = {};
+    const totalDaysByType = {};
+    allLeaveRequests.forEach(req => {
+      if (req.status === 'cancelled') return;
+      const type = req.leave_type;
+      leaveTypeCounts[type] = (leaveTypeCounts[type] || 0) + 1;
+      totalDaysByType[type] = (totalDaysByType[type] || 0) + parseFloat(req.number_of_days || 0);
+    });
+
+    const leaveTypeSummary = Object.entries(leaveTypeLabels).map(([type, label]) => ({
+      type,
+      label,
+      count: leaveTypeCounts[type] || 0,
+      totalDays: parseFloat((totalDaysByType[type] || 0).toFixed(3))
+    }));
+
+    // Overall stats
+    const totalRequests = allLeaveRequests.filter(r => r.status !== 'cancelled').length;
+    const approvedCount = allLeaveRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length;
+    const pendingCount = allLeaveRequests.filter(r => r.status === 'pending').length;
+    const disapprovedCount = allLeaveRequests.filter(r => r.status === 'disapproved').length;
+    const totalDays = allLeaveRequests.filter(r => r.status !== 'cancelled').reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0);
+
+    const overallStats = {
+      totalRequests,
+      approvedCount,
+      pendingCount,
+      disapprovedCount,
+      totalDays: parseFloat(totalDays.toFixed(3)),
+      approvalRate: totalRequests > 0 ? parseFloat(((approvedCount / totalRequests) * 100).toFixed(1)) : 0
+    };
+
+    // ===== EMPLOYEE LEAVE LEDGER =====
+    const allUsers = await User.find().populate('department_id');
+    const allLeaveRecords = await LeaveRecord.find();
+
+    const employeeLedger = allUsers.map(user => {
+      const userRecords = allLeaveRecords.filter(r => r.user_id === user.user_id);
+      const vacationEarned = userRecords.reduce((sum, r) => sum + (r.vacation_earned || 0), 0);
+      const vacationUsed = userRecords.reduce((sum, r) => sum + (r.vacation_used || 0), 0);
+      const vacationBalance = parseFloat((vacationEarned - vacationUsed).toFixed(3));
+      const sickEarned = userRecords.reduce((sum, r) => sum + (r.sick_earned || 0), 0);
+      const sickUsed = userRecords.reduce((sum, r) => sum + (r.sick_used || 0), 0);
+      const sickBalance = parseFloat((sickEarned - sickUsed).toFixed(3));
+
+      const userLeaveRequests = allLeaveRequests.filter(r => r.user_id === user.user_id && r.status !== 'cancelled');
+      const leavesFiled = userLeaveRequests.length;
+      const totalDaysFiled = parseFloat(userLeaveRequests.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3));
+
+      return {
+        user_id: user.user_id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        department: user.department_id?.name || 'No Department',
+        position: user.position || 'N/A',
+        vacationEarned: parseFloat(vacationEarned.toFixed(3)),
+        vacationUsed: parseFloat(vacationUsed.toFixed(3)),
+        vacationBalance,
+        sickEarned: parseFloat(sickEarned.toFixed(3)),
+        sickUsed: parseFloat(sickUsed.toFixed(3)),
+        sickBalance,
+        leavesFiled,
+        totalDaysFiled
+      };
+    });
+
+    // ===== MONTHLY TRENDS =====
+    const monthlyTrends = [];
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const targetYear = year ? parseInt(year) : new Date().getFullYear();
+
+    for (let month = 0; month < 12; month++) {
+      const monthStart = new Date(targetYear, month, 1);
+      const monthEnd = new Date(targetYear, month + 1, 0, 23, 59, 59, 999);
+
+      const monthRequests = allLeaveRequests.filter(req => {
+        const reqDate = new Date(req.start_date);
+        return reqDate >= monthStart && reqDate <= monthEnd;
+      });
+
+      const filed = monthRequests.filter(r => r.status !== 'cancelled').length;
+      const approved = monthRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length;
+      const daysUsed = parseFloat(monthRequests.filter(r => r.status !== 'cancelled').reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3));
+
+      // Count by type for this month
+      const typeBreakdown = {};
+      monthRequests.filter(r => r.status !== 'cancelled').forEach(req => {
+        typeBreakdown[req.leave_type] = (typeBreakdown[req.leave_type] || 0) + 1;
+      });
+
+      monthlyTrends.push({
+        month: months[month],
+        monthNum: month + 1,
+        year: targetYear,
+        filed,
+        approved,
+        daysUsed,
+        typeBreakdown
+      });
+    }
+
+    // ===== DEPARTMENT BREAKDOWN =====
+    const departments = await require('../models/Department').find();
+    const departmentBreakdown = departments.map(dept => {
+      const deptUsers = allUsers.filter(u => u.department_id && u.department_id._id.toString() === dept._id.toString());
+      const deptUserIds = deptUsers.map(u => u.user_id);
+      const deptRequests = allLeaveRequests.filter(r => deptUserIds.includes(r.user_id) && r.status !== 'cancelled');
+
+      return {
+        department: dept.name,
+        totalEmployees: deptUsers.length,
+        leavesFiled: deptRequests.length,
+        totalDays: parseFloat(deptRequests.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3)),
+        approved: deptRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length
+      };
+    });
+
+    res.json({
+      success: true,
+      overallStats,
+      leaveTypeSummary,
+      employeeLedger,
+      monthlyTrends,
+      departmentBreakdown
+    });
+  } catch (error) {
+    console.error('Error fetching HR reports:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching reports: ' + error.message
+    });
+  }
+};
+
 module.exports = {
   getHRDashboardStats,
   getHRDepartments,
   getHRLeaveRequests,
   getHRLeaveRequest,
   processHRLeaveApproval,
-  getHRLeaveRecords
+  getHRLeaveRecords,
+  getHRReports
 };
