@@ -106,23 +106,17 @@ exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
     if (leaveType === 'vacation' ||
         leaveType === 'special_privilege_leave' ||
         leaveType === 'study_leave' ||
-        leaveType === 'others_specify') {
+        leaveType === 'mandatory_forced_leave' ||
+        leaveType === 'monetization' ||
+        leaveType === 'terminal_leave') {
       availableCredits = vacationBalance;
     }
-    // Sick-type leaves use sick credits
-    else if (leaveType === 'sick' || 
-             (leaveType === 'others' && 
-              (leaveType === 'maternity_leave' || 
-               leaveType === 'paternity_leave' || 
-               leaveType === 'solo_parent_leave' || 
-               leaveType === 'vawc_leave' || 
-               leaveType === 'rehabilitation_privilege' || 
-               leaveType === 'special_leave_benefits_women' || 
-               leaveType === 'special_emergency' || 
-               leaveType === 'adoption_leave'))) {
+    // Sick leave uses sick credits
+    else if (leaveType === 'sick') {
       availableCredits = sickBalance;
     }
-    // Other leave types don't affect vacation and sick credits, return true to allow the request
+    // Statutory leaves and free-text "Others" types don't consume vacation/sick credits,
+    // so they are always considered to have sufficient credits.
     else {
       return true;
     }
@@ -150,7 +144,8 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
       return {
         hasSufficientCredits: false,
         availableCredits: 0,
-        maxAllowedDays: 0
+        maxAllowedDays: 0,
+        usesCredits: true
       };
     }
     
@@ -173,33 +168,29 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
         leaveType === 'terminal_leave') {
       availableCredits = vacationBalance;
     }
-    // Sick-type leaves use sick credits
-    else if (leaveType === 'sick' || 
-             leaveType === 'maternity_leave' || 
-             leaveType === 'paternity_leave' || 
-             leaveType === 'solo_parent_leave' || 
-             leaveType === 'vawc_leave' || 
-             leaveType === 'rehabilitation_privilege' || 
-             leaveType === 'special_leave_benefits_women' || 
-             leaveType === 'special_emergency' || 
-             leaveType === 'adoption_leave') {
+    // Sick leave uses sick credits
+    else if (leaveType === 'sick') {
       availableCredits = sickBalance;
     }
-    // For other leave types that don't affect vacation and sick credits,
-    // they don't need to be evaluated for credit sufficiency in the same way
+    // Statutory leaves (maternity, paternity, solo parent, VAWC, rehabilitation,
+    // special leave benefits for women, special emergency, adoption) are separate paid
+    // entitlements that never consume vacation/sick credits (CS Form 6's 7.A has no
+    // column for them), and free-text "Others" types are decided by the approver at 7.C.
+    // None of these need a credit-sufficiency evaluation.
     else {
-      // These types don't draw from vacation/sick credits, so they're always considered sufficient
       return {
         hasSufficientCredits: true,
-        availableCredits: 0, // These types don't use vacation/sick credits
-        maxAllowedDays: 0 // These types don't use vacation/sick credits
+        availableCredits: 0,
+        maxAllowedDays: 0,
+        usesCredits: false
       };
     }
     
     return {
       hasSufficientCredits: availableCredits >= 1, // Consider less than 1 as no credits
       availableCredits: availableCredits,
-      maxAllowedDays: Math.floor(availableCredits * 1000) / 1000 // Round to 3 decimal places
+      maxAllowedDays: Math.floor(availableCredits * 1000) / 1000, // Round to 3 decimal places
+      usesCredits: true
     };
   } catch (error) {
     console.error('Error checking leave credits:', error);
@@ -207,7 +198,8 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
     return {
       hasSufficientCredits: true,
       availableCredits: 0,
-      maxAllowedDays: 0
+      maxAllowedDays: 0,
+      usesCredits: true
     };
   }
 };
@@ -309,6 +301,7 @@ exports.show = async (req, res) => {
 
     const allLeaveRequests = await LeaveRequest.find({ user_id: employee.user_id }).sort({ start_date: 1 });
 
+    // Display placement: which column an entry appears under in the leave record view
     const VACATION_TYPES = [
       'vacation','special_privilege_leave','study_leave','mandatory_forced_leave',
       'maternity_leave','paternity_leave','solo_parent_leave','vawc_leave',
@@ -316,6 +309,12 @@ exports.show = async (req, res) => {
       'adoption_leave','others_specify','monetization','terminal_leave'
     ];
     const SICK_TYPES = ['sick'];
+
+    // Actual deduction: only types that recordLeave deducts on approval reduce balances.
+    // Statutory leaves (maternity, paternity, etc.), special privilege, study, mandatory
+    // and free-text "Others" are recorded without consuming vacation/sick credits.
+    const DEDUCT_VACATION_TYPES = ['vacation', 'monetization', 'terminal_leave'];
+    const DEDUCT_SICK_TYPES = ['sick'];
 
     // Phase 1: Chronological ledger — only APPROVED non-cancelled, non-without_pay leaves deduct credits
     let runningVac = 0;
@@ -335,6 +334,8 @@ exports.show = async (req, res) => {
       for (const req of monthRequests) {
         const isVacType       = VACATION_TYPES.includes(req.leave_type);
         const isSickType      = SICK_TYPES.includes(req.leave_type);
+        const deductsVacation = DEDUCT_VACATION_TYPES.includes(req.leave_type);
+        const deductsSick     = DEDUCT_SICK_TYPES.includes(req.leave_type);
         const isApproved      = req.status === 'approved';
         const withoutPay      = req.without_pay || false;
         const creditsDeducted = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
@@ -343,8 +344,8 @@ exports.show = async (req, res) => {
         const beforeSick = runningSick;
 
         if (creditsDeducted > 0) {
-          if (isVacType)  runningVac  = Math.max(0, runningVac  - creditsDeducted);
-          if (isSickType) runningSick = Math.max(0, runningSick - creditsDeducted);
+          if (deductsVacation) runningVac  = Math.max(0, runningVac  - creditsDeducted);
+          if (deductsSick)     runningSick = Math.max(0, runningSick - creditsDeducted);
         }
 
         leaveBalanceMap[req._id.toString()] = {
@@ -370,14 +371,16 @@ exports.show = async (req, res) => {
       if (leaveBalanceMap[req._id.toString()]) continue;
       const isVacType  = VACATION_TYPES.includes(req.leave_type);
       const isSickType = SICK_TYPES.includes(req.leave_type);
+      const deductsVacation = DEDUCT_VACATION_TYPES.includes(req.leave_type);
+      const deductsSick     = DEDUCT_SICK_TYPES.includes(req.leave_type);
       const isApproved = req.status === 'approved';
       const withoutPay = req.without_pay || false;
       const creditsDeducted = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
       const beforeVac  = runningVac;
       const beforeSick = runningSick;
       if (creditsDeducted > 0) {
-        if (isVacType)  runningVac  = Math.max(0, runningVac  - creditsDeducted);
-        if (isSickType) runningSick = Math.max(0, runningSick - creditsDeducted);
+        if (deductsVacation) runningVac  = Math.max(0, runningVac  - creditsDeducted);
+        if (deductsSick)     runningSick = Math.max(0, runningSick - creditsDeducted);
       }
       leaveBalanceMap[req._id.toString()] = {
         credits_deducted: creditsDeducted, credits_before_vac: beforeVac, credits_before_sick: beforeSick,
@@ -391,10 +394,10 @@ exports.show = async (req, res) => {
     const totalUndertimeVac = allLeaveRecords.reduce((s, r) => s + (r.vacation_used   || 0), 0);
 
     const approvedVacUsed = allLeaveRequests
-      .filter(r => r.status === 'approved' && !r.without_pay && VACATION_TYPES.includes(r.leave_type))
+      .filter(r => r.status === 'approved' && !r.without_pay && DEDUCT_VACATION_TYPES.includes(r.leave_type))
       .reduce((s, r) => s + (r.number_of_days || 0), 0);
     const approvedSickUsed = allLeaveRequests
-      .filter(r => r.status === 'approved' && !r.without_pay && SICK_TYPES.includes(r.leave_type))
+      .filter(r => r.status === 'approved' && !r.without_pay && DEDUCT_SICK_TYPES.includes(r.leave_type))
       .reduce((s, r) => s + (r.number_of_days || 0), 0);
 
     const vacationSummary = {

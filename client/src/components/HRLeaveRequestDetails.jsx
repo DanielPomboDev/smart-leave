@@ -6,7 +6,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 // Leave types that draw from vacation credits vs sick credits (mirrors server getLeaveCreditsInfo).
 // Used by the 7.A Certification of Leave Credits table to show this application's deduction.
 const VACATION_POOL_TYPES = ['vacation', 'special_privilege_leave', 'study_leave', 'mandatory_forced_leave', 'monetization', 'terminal_leave'];
-const SICK_POOL_TYPES = ['sick', 'maternity_leave', 'paternity_leave', 'solo_parent_leave', 'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 'special_emergency', 'adoption_leave'];
+// Statutory leaves (maternity, paternity, solo parent, VAWC, rehabilitation, SLBW,
+// special emergency, adoption) are separate paid entitlements — they never consume
+// vacation/sick credits, so only sick leave draws from the sick pool.
+const SICK_POOL_TYPES = ['sick'];
 
 const HRLeaveRequestDetails = () => {
   const [leaveRequest, setLeaveRequest] = useState(null);
@@ -665,6 +668,19 @@ const HRLeaveRequestDetails = () => {
                       <i className="fas fa-info-circle mr-1"></i>
                       The deduction and balance above are projections for this application. The deduction is applied to the employee's actual leave credits only after the leave is approved by the Mayor.
                     </p>
+
+                    {/* Estimated monetization value (CSC Rule XVI Sec. 22: MV = salary x days x 0.0481927) */}
+                    {leaveRequest.leave_type === 'monetization' && (
+                      <div className="mt-3 p-3 bg-lime-50 border border-lime-200 rounded-lg">
+                        <p className="text-sm text-lime-800">
+                          <i className="fas fa-coins mr-1"></i>
+                          <strong>Estimated monetization value:</strong> ₱{(((leaveRequest.user_id?.salary || 0) * (leaveRequest.number_of_days || 0) * 0.0481927)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-lime-700 mt-1">
+                          Computed as {leaveRequest.user_id?.salary ? `₱${Number(leaveRequest.user_id.salary).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '(no salary on file)'} × {leaveRequest.number_of_days} day(s) × 0.0481927 (CSC daily-rate factor per MC 2 s. 2016 / DBM Circular Letter 2021-4). Subject to funding availability and the agency head's recommendation.
+                        </p>
+                      </div>
+                    )}
 
                     <label className="flex items-start gap-2 mt-3 cursor-pointer">
                       <input

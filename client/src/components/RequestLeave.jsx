@@ -7,7 +7,10 @@ import ConfirmationModal from './ConfirmationModal';
 
 // Leave types that draw from vacation credits vs sick credits (mirrors server getLeaveCreditsInfo)
 const VACATION_POOL_TYPES = ['vacation', 'special_privilege_leave', 'study_leave', 'mandatory_forced_leave', 'monetization', 'terminal_leave'];
-const SICK_POOL_TYPES = ['sick', 'maternity_leave', 'paternity_leave', 'solo_parent_leave', 'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 'special_emergency', 'adoption_leave'];
+// Statutory leaves (maternity, paternity, solo parent, VAWC, rehabilitation, SLBW,
+// special emergency, adoption) are separate paid entitlements — they never consume
+// vacation/sick credits, so only sick leave draws from the sick pool.
+const SICK_POOL_TYPES = ['sick'];
 
 // Returns the available balance for a leave type, or Infinity for types that don't consume vacation/sick credits
 const getAvailableCredits = (leaveType, vacationBalance, sickBalance) => {
@@ -117,27 +120,49 @@ const RequestLeave = () => {
     });
   };
 
-  // Calculate number of days between start and end dates
+  // Calculate number of WORKING days (Mon–Fri, inclusive) between start and end dates.
+  // Matches CS Form 6 6.C "Number of Working Days Applied For".
   const calculateDays = (start, end) => {
     if (start && end) {
-      const startDate = new Date(start);
-      const endDate = new Date(end);
-      
-      if (startDate && endDate && !isNaN(startDate) && !isNaN(endDate)) {
-        const timeDiff = Math.abs(endDate.getTime() - startDate.getTime());
-        const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-        return daysDiff;
+      const partsS = String(start).split('-').map(Number);
+      const partsE = String(end).split('-').map(Number);
+      if (partsS.length === 3 && partsE.length === 3 && !partsS.some(isNaN) && !partsE.some(isNaN)) {
+        const s = new Date(partsS[0], partsS[1] - 1, partsS[2]);
+        const e = new Date(partsE[0], partsE[1] - 1, partsE[2]);
+        if (e < s) return 1;
+        
+        let workingDays = 0;
+        const current = new Date(s);
+        while (current <= e) {
+          const day = current.getDay();
+          if (day !== 0 && day !== 6) { // 0 = Sunday, 6 = Saturday
+            workingDays++;
+          }
+          current.setDate(current.getDate() + 1);
+        }
+        return workingDays > 0 ? workingDays : 1;
       }
     }
     return 1;
   };
 
-  // Calculate adjusted end date based on start date and number of days
+  // Calculate adjusted end date for a given number of WORKING days (skips weekends)
   const calculateAdjustedEndDate = (startDate, numberOfDays) => {
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(startDateObj);
-    endDateObj.setDate(startDateObj.getDate() + numberOfDays - 1);
-    return endDateObj.toISOString().split('T')[0];
+    const parts = String(startDate).split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return startDate;
+    const endDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+    let remaining = Math.max(1, Math.floor(numberOfDays));
+    while (remaining > 1) {
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const day = endDateObj.getDay();
+      if (day !== 0 && day !== 6) {
+        remaining--;
+      }
+    }
+    const y = endDateObj.getFullYear();
+    const m = String(endDateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(endDateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
   // Handle input changes
@@ -256,6 +281,21 @@ const RequestLeave = () => {
       if (!formData.commutation) {
         setError('Please select a commutation option');
         isValid = false;
+      }
+
+      // CSC Rule XVI, Sec. 22 (Omnibus Rules on Leave) — monetization of leave credits
+      if (formData.leavePurpose === 'monetization') {
+        const monetizationDays = parseFloat(formData.numberOfDays);
+        if (monetizationDays < 10 || monetizationDays > 30) {
+          setError('Per CSC rules (Sec. 22, Omnibus Rules on Leave), you may monetize a minimum of 10 days and a maximum of 30 days of vacation leave credits in a given year.');
+          isValid = false;
+        } else if (vacationBalance < 15) {
+          setError('Per CSC rules, you must have at least 15 days of accumulated vacation leave credits to avail of monetization. Your current vacation leave balance is insufficient.');
+          isValid = false;
+        } else if (vacationBalance - monetizationDays < 5) {
+          setError(`Per CSC rules, at least 5 days of vacation leave must remain after monetization. With your current balance of ${vacationBalance.toFixed(3)} days, you may monetize at most ${Math.max(0, Math.floor(vacationBalance - 5))} days.`);
+          isValid = false;
+        }
       }
     }
 
@@ -1304,7 +1344,14 @@ const RequestLeave = () => {
                                   The days are deducted from your vacation leave credits upon approval, and HR certifies
                                   your available credits before approving.
                                 </p>
-                                <p className="text-xs text-lime-700 mt-1">
+                                <ul className="text-xs text-lime-700 mt-2 space-y-1">
+                                  <li className="flex items-start gap-1.5"><i className="fas fa-check-circle mt-0.5 flex-shrink-0"></i><span>Must have at least 15 days of accumulated vacation leave credits</span></li>
+                                  <li className="flex items-start gap-1.5"><i className="fas fa-check-circle mt-0.5 flex-shrink-0"></i><span>Monetize a minimum of 10 days, up to a maximum of 30 days per year</span></li>
+                                  <li className="flex items-start gap-1.5"><i className="fas fa-check-circle mt-0.5 flex-shrink-0"></i><span>At least 5 days of vacation leave must remain after monetization</span></li>
+                                  <li className="flex items-start gap-1.5"><i className="fas fa-check-circle mt-0.5 flex-shrink-0"></i><span>May be availed only once a year</span></li>
+                                  <li className="flex items-start gap-1.5"><i className="fas fa-check-circle mt-0.5 flex-shrink-0"></i><span>Money value is exempt from income tax (CSC MC No. 31 s. 1991; NIRC Sec. 32(B)(7)(e))</span></li>
+                                </ul>
+                                <p className="text-xs text-lime-700 mt-2">
                                   Required documents: Application for monetization of leave credits, Certificate of available leave credits from HR.
                                 </p>
                               </>

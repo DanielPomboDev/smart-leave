@@ -407,7 +407,7 @@ const getHRLeaveRequest = async (req, res) => {
     // Get the leave request with user and department information
     const leaveRequest = await LeaveRequest.findById(id).populate({
       path: 'user_id',
-      select: 'first_name last_name middle_initial department_id position user_id profile_image',
+      select: 'first_name last_name middle_initial department_id position user_id profile_image salary',
       populate: {
         path: 'department_id',
         select: 'name'

@@ -8,7 +8,10 @@ import ConfirmationModal from './ConfirmationModal';
 
 // Leave types that draw from vacation credits vs sick credits (mirrors server getLeaveCreditsInfo)
 const VACATION_POOL_TYPES = ['vacation', 'special_privilege_leave', 'study_leave', 'mandatory_forced_leave', 'monetization', 'terminal_leave'];
-const SICK_POOL_TYPES = ['sick', 'maternity_leave', 'paternity_leave', 'solo_parent_leave', 'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 'special_emergency', 'adoption_leave'];
+// Statutory leaves (maternity, paternity, solo parent, VAWC, rehabilitation, SLBW,
+// special emergency, adoption) are separate paid entitlements — they never consume
+// vacation/sick credits, so only sick leave draws from the sick pool.
+const SICK_POOL_TYPES = ['sick'];
 
 // Returns the available balance for a leave type, or Infinity for types that don't consume vacation/sick credits
 const getAvailableCredits = (leaveType, vacationBalance, sickBalance) => {
@@ -154,12 +157,23 @@ const EmployeeDashboard = () => {
     }));
   }, []);
 
-  // Calculate adjusted end date based on start date and number of days
+  // Calculate adjusted end date for a given number of WORKING days (skips weekends)
   const calculateAdjustedEndDate = (startDate, numberOfDays) => {
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(startDateObj);
-    endDateObj.setDate(startDateObj.getDate() + numberOfDays - 1);
-    return endDateObj.toISOString().split('T')[0];
+    const parts = String(startDate).split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return startDate;
+    const endDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+    let remaining = Math.max(1, Math.floor(numberOfDays));
+    while (remaining > 1) {
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const day = endDateObj.getDay();
+      if (day !== 0 && day !== 6) {
+        remaining--;
+      }
+    }
+    const y = endDateObj.getFullYear();
+    const m = String(endDateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(endDateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
   // Handle input changes
@@ -297,19 +311,27 @@ const EmployeeDashboard = () => {
     }
   };
 
-  // Calculate number of days between start and end dates
+  // Calculate number of WORKING days (Mon–Fri, inclusive) between start and end dates.
+  // Matches CS Form 6 6.C "Number of Working Days Applied For".
   const calculateDays = (data) => {
-    const startDate = new Date(data.startDate);
-    const endDate = new Date(data.endDate);
+    const partsS = String(data.startDate || '').split('-').map(Number);
+    const partsE = String(data.endDate || '').split('-').map(Number);
     
-    if (startDate && endDate && !isNaN(startDate) && !isNaN(endDate)) {
-      // Reset time part to compare only dates
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(0, 0, 0, 0);
+    if (partsS.length === 3 && partsE.length === 3 && !partsS.some(isNaN) && !partsE.some(isNaN)) {
+      const startDate = new Date(partsS[0], partsS[1] - 1, partsS[2]);
+      const endDate = new Date(partsE[0], partsE[1] - 1, partsE[2]);
+      if (endDate < startDate) return 1;
       
-      const timeDiff = endDate.getTime() - startDate.getTime();
-      const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-      return daysDiff > 0 ? daysDiff : 1;
+      let workingDays = 0;
+      const current = new Date(startDate);
+      while (current <= endDate) {
+        const day = current.getDay();
+        if (day !== 0 && day !== 6) { // 0 = Sunday, 6 = Saturday
+          workingDays++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      return workingDays > 0 ? workingDays : 1;
     }
     return 1; // Default to 1 day if dates are invalid
   };

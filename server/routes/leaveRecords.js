@@ -4,11 +4,14 @@ const leaveRecordController = require('../controllers/LeaveRecordController');
 const { createLeaveRecordValidation, updateLeaveRecordValidation, addUndertimeValidation } = require('../middleware/leaveRecordValidation');
 const { protect } = require('../middleware/auth');
 
+// All routes need authentication (matches every other route group)
+router.use(protect);
+
 // GET /api/leave-records - Get all leave records with optional filtering
 router.get('/', leaveRecordController.index);
 
 // GET /api/leave-records/current - Get current leave credits for authenticated user
-router.get('/current', protect, leaveRecordController.getCurrentLeaveCredits);
+router.get('/current', leaveRecordController.getCurrentLeaveCredits);
 
 // GET /api/leave-records/:userId - Get leave records for a specific employee
 router.get('/:userId', leaveRecordController.show);

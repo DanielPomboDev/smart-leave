@@ -72,23 +72,18 @@ class MayorController {
         paid: !leaveRequest.without_pay // Add information about whether it was paid or not (opposite of without_pay)
       };
 
-      // Store the current used values to calculate the actual deduction
-      const previousVacationUsed = leaveRecord.vacation_used;
-      const previousSickUsed = leaveRecord.sick_used;
-
-      // Record the leave (deduct credits only if it's a leave with pay AND it's for the current or past month)
-      const currentDate = new Date();
-      const isCurrentOrPastMonth = (leaveYear < currentDate.getFullYear()) || 
-                                 (leaveYear == currentDate.getFullYear() && leaveMonth <= (currentDate.getMonth() + 1));
-      
-      // Only deduct leave credits if this is a leave with pay (not without_pay)
+      // Deduct credits when the Mayor approves, regardless of the leave month.
+      // This matches CS Form 6's 7.A certification, which is completed at approval time
+      // and shows the balance after "Less this application".
       const isLeaveWithPay = !leaveRequest.without_pay;
       
-      // For vacation leave - record and deduct from vacation credits
-      if (leaveRequest.leave_type === 'vacation') {
-        // For future months, just record the entry without deducting leave
-        // For current/past months, deduct only for leave with pay
-        if (isLeaveWithPay && isCurrentOrPastMonth) {
+      // For vacation leave - record and deduct from vacation credits.
+      // Monetization and terminal leave also draw from vacation credits (see getLeaveCreditsInfo).
+      if (leaveRequest.leave_type === 'vacation' ||
+          leaveRequest.leave_type === 'monetization' ||
+          leaveRequest.leave_type === 'terminal_leave') {
+        // Deduct at approval for leaves with pay
+        if (isLeaveWithPay) {
           leaveRecord.vacation_used += leaveRequest.number_of_days;
           leaveRecord.vacation_balance -= leaveRequest.number_of_days;
         }
@@ -102,9 +97,8 @@ class MayorController {
       }
       // For sick leave - record and deduct from sick credits
       else if (leaveRequest.leave_type === 'sick') {
-        // For future months, just record the entry without deducting leave
-        // For current/past months, deduct only for leave with pay
-        if (isLeaveWithPay && isCurrentOrPastMonth) {
+        // Deduct at approval for leaves with pay
+        if (isLeaveWithPay) {
           leaveRecord.sick_used += leaveRequest.number_of_days;
           leaveRecord.sick_balance -= leaveRequest.number_of_days;
         }

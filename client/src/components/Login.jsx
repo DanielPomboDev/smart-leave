@@ -44,9 +44,7 @@ const Login = () => {
     };
 
     try {
-      console.log('Sending login request with data:', loginData);
       const res = await axios.post('/api/auth/login', loginData);
-      console.log('Received response:', res.data);
       
       if (res.data.success) {
         // Store token in localStorage

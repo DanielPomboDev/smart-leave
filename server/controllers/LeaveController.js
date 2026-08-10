@@ -12,6 +12,31 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinary');
 
+// Count working days (Mon–Fri, inclusive) between two YYYY-MM-DD dates.
+// CS Form 6 6.C asks for "Number of Working Days Applied For", so weekends are excluded.
+const countWorkingDays = (startDate, endDate) => {
+  try {
+    const partsS = String(startDate).split('-').map(Number);
+    const partsE = String(endDate).split('-').map(Number);
+    if (partsS.length !== 3 || partsE.length !== 3 || partsS.some(isNaN) || partsE.some(isNaN)) return null;
+    const s = new Date(partsS[0], partsS[1] - 1, partsS[2]);
+    const e = new Date(partsE[0], partsE[1] - 1, partsE[2]);
+    if (e < s) return null;
+    let workingDays = 0;
+    const current = new Date(s);
+    while (current <= e) {
+      const day = current.getDay();
+      if (day !== 0 && day !== 6) { // 0 = Sunday, 6 = Saturday
+        workingDays++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return Math.max(1, workingDays);
+  } catch (error) {
+    return null;
+  }
+};
+
 // Check if the new leave request dates overlap with existing leave requests
 const hasOverlappingLeave = async (userId, startDate, endDate, excludeId = null) => {
   try {
@@ -25,7 +50,8 @@ const hasOverlappingLeave = async (userId, startDate, endDate, excludeId = null)
         // Case 1: New leave starts before existing leave ends and new leave ends after existing leave starts
         { start_date: { $lte: end }, end_date: { $gte: start } }
       ],
-      status: { $ne: 'cancelled' } // Don't consider cancelled requests
+      // Cancelled and disapproved requests free up the dates for a new application
+      status: { $nin: ['cancelled', 'disapproved'] }
     };
     
     // If we're updating an existing request, exclude it from the check
@@ -98,14 +124,68 @@ const createLeaveRequest = async (req, res) => {
       });
     }
 
+    // CS Form 6 6.C counts WORKING days (Mon–Fri, inclusive) — recompute authoritatively
+    // so the stored day count matches the form even if the client computes differently.
+    const computedDays = countWorkingDays(start_date, end_date);
+    const effectiveNumberOfDays = computedDays !== null ? computedDays : number_of_days;
+
     // Check employee's leave credits
-    const numberOfDaysFloat = parseFloat(number_of_days);
+    const numberOfDaysFloat = parseFloat(effectiveNumberOfDays);
     const leaveCreditsInfo = await getLeaveCreditsInfo(req.user.user_id, leave_type);
-    
+
+    // CSC Rule XVI, Sec. 22 (Omnibus Rules on Leave, CSC MC No. 41 s. 1998; Joint CSC-DBM Circular No. 2 s. 1997)
+    // Monetization of leave credits:
+    //   - eligible with at least 15 days accumulated vacation leave
+    //   - minimum of 10 days, maximum of 30 days monetized in a given year
+    //   - at least 5 days vacation leave must remain after monetization
+    //   - availed of only once a year
+    if (leave_type === 'monetization') {
+      if (numberOfDaysFloat < 10 || numberOfDaysFloat > 30) {
+        return res.status(400).json({
+          success: false,
+          message: 'Per CSC rules (Sec. 22, Omnibus Rules on Leave), you may monetize a minimum of 10 days and a maximum of 30 days of vacation leave credits in a given year.'
+        });
+      }
+
+      if (leaveCreditsInfo.availableCredits < 15) {
+        return res.status(400).json({
+          success: false,
+          message: 'Per CSC rules, you must have at least 15 days of accumulated vacation leave credits to avail of monetization. Your current vacation leave balance is insufficient.'
+        });
+      }
+
+      if (leaveCreditsInfo.availableCredits - numberOfDaysFloat < 5) {
+        return res.status(400).json({
+          success: false,
+          message: `Per CSC rules, at least 5 days of vacation leave must remain after monetization. With your current balance of ${leaveCreditsInfo.availableCredits.toFixed(3)} days, you may monetize at most ${Math.max(0, Math.floor(leaveCreditsInfo.availableCredits - 5))} days.`
+        });
+      }
+
+      // Availed only once a year (based on the year of the request's start date)
+      const monetizationYear = new Date(start_date).getFullYear();
+      const existingMonetization = await LeaveRequest.findOne({
+        user_id: req.user.user_id,
+        leave_type: 'monetization',
+        status: { $ne: 'cancelled' },
+        start_date: {
+          $gte: new Date(monetizationYear, 0, 1),
+          $lt: new Date(monetizationYear + 1, 0, 1)
+        }
+      });
+      if (existingMonetization) {
+        return res.status(400).json({
+          success: false,
+          message: 'Per CSC rules, monetization of leave credits may be availed of only once a year. You already have a monetization request this year.'
+        });
+      }
+    }
+
     let isWithoutPay = false;
     
-    // If employee doesn't have sufficient credits
-    if (numberOfDaysFloat > leaveCreditsInfo.maxAllowedDays) {
+    // Only auto-mark without pay for leave types that actually draw from vacation/sick
+    // credits. Statutory leaves (maternity, paternity, etc.) and free-text "Others" types
+    // are decided by the approver at 7.C of CS Form 6, so their pay status is not preset.
+    if (leaveCreditsInfo.usesCredits !== false && numberOfDaysFloat > leaveCreditsInfo.maxAllowedDays) {
       // If employee has less than 1 credit, consider as no credits
       if (leaveCreditsInfo.maxAllowedDays < 1) {
         isWithoutPay = true;
@@ -150,7 +230,7 @@ const createLeaveRequest = async (req, res) => {
       leave_type,
       start_date,
       end_date,
-      number_of_days: parseInt(number_of_days),
+      number_of_days: parseInt(effectiveNumberOfDays),
       where_spent: formattedWhereSpent,
       commutation: commutation === '1' || commutation === true,
       without_pay: isWithoutPay,
@@ -336,8 +416,10 @@ const returnLeaveCredits = async (leaveRequest) => {
       return;
     }
 
-    // For vacation leave - return credits from vacation credits
-    if (leaveRequest.leave_type === 'vacation') {
+    // For vacation-type leaves (incl. monetization / terminal leave) - return credits from vacation credits
+    if (leaveRequest.leave_type === 'vacation' ||
+        leaveRequest.leave_type === 'monetization' ||
+        leaveRequest.leave_type === 'terminal_leave') {
       // Return the deducted days back to vacation credits
       leaveRecord.vacation_used = Math.max(0, leaveRecord.vacation_used - leaveRequest.number_of_days);
       // Recalculate balance based on earned minus used
