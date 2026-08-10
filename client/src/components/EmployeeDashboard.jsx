@@ -6,6 +6,17 @@ import RequestLeave from './RequestLeave';
 import SuccessModal from './SuccessModal';
 import ConfirmationModal from './ConfirmationModal';
 
+// Leave types that draw from vacation credits vs sick credits (mirrors server getLeaveCreditsInfo)
+const VACATION_POOL_TYPES = ['vacation', 'special_privilege_leave', 'study_leave', 'mandatory_forced_leave', 'monetization', 'terminal_leave'];
+const SICK_POOL_TYPES = ['sick', 'maternity_leave', 'paternity_leave', 'solo_parent_leave', 'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 'special_emergency', 'adoption_leave'];
+
+// Returns the available balance for a leave type, or Infinity for types that don't consume vacation/sick credits
+const getAvailableCredits = (leaveType, vacationBalance, sickBalance) => {
+  if (VACATION_POOL_TYPES.includes(leaveType)) return vacationBalance;
+  if (SICK_POOL_TYPES.includes(leaveType)) return sickBalance;
+  return Infinity;
+};
+
 const EmployeeDashboard = () => {
   // State for leave credits
   const [vacationBalance, setVacationBalance] = useState(0);
@@ -60,7 +71,8 @@ const EmployeeDashboard = () => {
     numberOfDays: 1,
     locationType: '',
     locationSpecify: '',
-    commutation: false
+    commutation: false,
+    leavePurpose: '' // Purpose of request (monetization / terminal leave) — 6.B on CS Form No. 6
   });
 
   const [quickLeaveErrors, setQuickLeaveErrors] = useState({});
@@ -154,6 +166,12 @@ const EmployeeDashboard = () => {
   const handleQuickLeaveChange = (e) => {
     const { name, value, type, checked } = e.target;
     const newValue = type === 'checkbox' ? checked : value;
+
+    // Purpose-of-request checkboxes (Monetization / Terminal Leave) are mutually exclusive
+    if (name === 'quickPurpose') {
+      setQuickLeaveData(prev => ({ ...prev, leavePurpose: checked ? value : '' }));
+      return;
+    }
     
     // Special handling for certain fields
     if (name === 'leaveType') {
@@ -363,7 +381,9 @@ const EmployeeDashboard = () => {
         quickLeaveData.leaveType === 'special_emergency' || 
         quickLeaveData.leaveType === 'adoption_leave';
 
-      if (requiresLocationInfo) {
+      // Monetization / terminal leave don't require a location
+      const isPurposeLeave = quickLeaveData.leavePurpose === 'monetization' || quickLeaveData.leavePurpose === 'terminal_leave';
+      if (!isPurposeLeave && requiresLocationInfo) {
         if (!quickLeaveData.locationType) {
           errors.locationType = 'Please select where the leave will be spent';
         } else {
@@ -602,14 +622,6 @@ const EmployeeDashboard = () => {
     return minStartDate;
   };
 
-  // Handle leave request submission without credit check (for warning modal)
-  const submitLeaveRequestWithoutCreditCheck = () => {
-    // Close the warning modal
-    setShowWarningModal(false);
-    // Proceed with submission by calling the main submit function
-    submitLeaveRequest();
-  };
-
   // Handle leave request submission
   const submitLeaveRequest = async () => {
     // Close confirmation modal
@@ -617,16 +629,24 @@ const EmployeeDashboard = () => {
     setLoading(true);
     setErrorMessage('');
 
-    // Client-side validation for insufficient credits BEFORE submitting
+    // Client-side validation for insufficient credits BEFORE submitting.
+    // The credit pool mirrors the server's getLeaveCreditsInfo mapping.
     const numberOfDaysFloat = parseFloat(quickLeaveData.numberOfDays);
-    const availableCredits = quickLeaveData.leaveType === 'vacation' ? vacationBalance : sickBalance;
+    const isPurposeLeave = quickLeaveData.leavePurpose === 'monetization' || quickLeaveData.leavePurpose === 'terminal_leave';
+    const effectiveLeaveTypeForCredits = quickLeaveData.leavePurpose
+      ? quickLeaveData.leavePurpose
+      : (quickLeaveData.leaveType === 'others'
+        ? quickLeaveData.otherLeaveType
+        : quickLeaveData.leaveType);
+    const availableCredits = getAvailableCredits(effectiveLeaveTypeForCredits, vacationBalance, sickBalance);
     
-    // Check if user has insufficient credits
-    if (numberOfDaysFloat > availableCredits) {
+    // Check if user has insufficient credits (only for types that consume vacation/sick credits).
+    // Monetization / terminal leave are validated by HR during certification, so they skip the warning.
+    if (!isPurposeLeave && availableCredits !== Infinity && numberOfDaysFloat > availableCredits) {
+      const poolName = VACATION_POOL_TYPES.includes(effectiveLeaveTypeForCredits) ? 'vacation' : 'sick';
       // If employee has less than 1 credit, show without pay warning
       if (availableCredits < 1) {
-        const leaveType = quickLeaveData.leaveType === 'vacation' ? 'Vacation' : 'Sick';
-        const warningMsg = `You have no ${leaveType.toLowerCase()} leave credits available. This leave will be considered without pay. Do you want to proceed?`;
+        const warningMsg = `You have no ${poolName} leave credits available. This leave will be considered without pay. Do you want to proceed?`;
         setWarningMessage(warningMsg);
         setShowWarningModal(true);
         setLoading(false);
@@ -635,7 +655,7 @@ const EmployeeDashboard = () => {
         // Partial credits - show adjustment warning and calculate adjusted values
         const wholeDays = Math.floor(availableCredits);
         const adjustedEndDate = calculateAdjustedEndDate(quickLeaveData.startDate, wholeDays);
-        const warningMsg = `You only have ${availableCredits.toFixed(3)} ${quickLeaveData.leaveType} leave credits available. Your leave request will be adjusted to ${wholeDays} day${wholeDays === 1 ? '' : 's'} ending on ${adjustedEndDate}. Do you want to proceed?`;
+        const warningMsg = `You only have ${availableCredits.toFixed(3)} ${poolName} leave credits available. Your leave request will be adjusted to ${wholeDays} day${wholeDays === 1 ? '' : 's'} ending on ${adjustedEndDate}. Do you want to proceed?`;
         setWarningMessage(warningMsg);
         
         // Store the adjusted values for use when user confirms
@@ -664,10 +684,13 @@ const EmployeeDashboard = () => {
       const submitData = isAdjusted ? quickLeaveData._adjustedData : quickLeaveData;
       
       // Determine where_spent based on leave type requirements
-      // Handle both direct leave types and 'others' with otherLeaveType
-      const effectiveLeaveType = submitData.leaveType === 'others'
-        ? submitData.otherLeaveType
-        : submitData.leaveType;
+      // Handle both direct leave types and 'others' with otherLeaveType,
+      // plus the purpose-of-request checkboxes (monetization / terminal leave)
+      const effectiveLeaveType = submitData.leavePurpose
+        ? submitData.leavePurpose
+        : (submitData.leaveType === 'others'
+          ? submitData.otherLeaveType
+          : submitData.leaveType);
 
       let whereSpentValue = submitData.locationType;
       const requiresLocationInfo =
@@ -683,9 +706,13 @@ const EmployeeDashboard = () => {
       }
 
       // For the new structure, we will use leave_type directly with the correct value
-      const actualLeaveType = submitData.leaveType === 'others'
-        ? submitData.otherLeaveType
-        : submitData.leaveType;
+      // A selected purpose (monetization / terminal leave) takes precedence;
+      // for "Others (specify)" the typed purpose becomes the leave type.
+      const actualLeaveType = submitData.leavePurpose
+        ? submitData.leavePurpose
+        : (submitData.leaveType === 'others'
+          ? (submitData.otherLeaveType === 'others_specify' ? submitData.otherSpecify : submitData.otherLeaveType)
+          : submitData.leaveType);
         
       const requestData = {
         leave_type: actualLeaveType,
@@ -1195,6 +1222,52 @@ const EmployeeDashboard = () => {
                 </div>
               </div>
               
+              {/* Purpose of Request - Monetization / Terminal Leave (6.B on CS Form No. 6) */}
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text font-medium">Purpose of Request (if applicable)</span>
+                </label>
+                <div className="flex flex-col space-y-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="quickPurpose"
+                      value="monetization"
+                      className="checkbox checkbox-sm checkbox-primary"
+                      checked={quickLeaveData.leavePurpose === 'monetization'}
+                      onChange={handleQuickLeaveChange}
+                    />
+                    <span className="label-text">Monetization of Leave Credits</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="quickPurpose"
+                      value="terminal_leave"
+                      className="checkbox checkbox-sm checkbox-primary"
+                      checked={quickLeaveData.leavePurpose === 'terminal_leave'}
+                      onChange={handleQuickLeaveChange}
+                    />
+                    <span className="label-text">Terminal Leave</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Monetization / Terminal Leave info */}
+              {quickLeaveData.leavePurpose && (
+                <div className={`border-l-4 rounded-r-lg p-3 ${quickLeaveData.leavePurpose === 'monetization' ? 'border-lime-500 bg-lime-50' : 'border-slate-500 bg-slate-50'}`}>
+                  <p className="text-sm font-bold text-gray-800">
+                    <i className={`fas ${quickLeaveData.leavePurpose === 'monetization' ? 'fa-coins' : 'fa-flag-checkered'} mr-1`}></i>
+                    {quickLeaveData.leavePurpose === 'monetization' ? 'Monetization of Leave Credits' : 'Terminal Leave'}
+                  </p>
+                  <p className="text-xs mt-1">
+                    {quickLeaveData.leavePurpose === 'monetization'
+                      ? `This request monetizes ${quickLeaveData.numberOfDays} vacation leave day(s) into cash. The days are deducted from your vacation credits upon approval, and HR certifies your available credits before approving.`
+                      : `Terminal leave benefits — the cash equivalent of ${quickLeaveData.numberOfDays} vacation leave day(s) upon retirement or separation from service. A certificate of separation is required.`}
+                  </p>
+                </div>
+              )}
+
               {/* Commutation Request */}
               <div className="form-control">
                 <label className="label cursor-pointer justify-start gap-2 py-1">
@@ -1301,6 +1374,8 @@ const EmployeeDashboard = () => {
                          request.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                          request.leave_type === 'special_emergency' ? 'Special Emergency' :
                          request.leave_type === 'adoption_leave' ? 'Adoption' :
+                         request.leave_type === 'monetization' ? 'Monetization' :
+                         request.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                          request.leave_type === 'others_specify' ? 'Others' :
                          request.leave_type}
                       </td>
@@ -1337,7 +1412,15 @@ const EmployeeDashboard = () => {
       {/* Warning Modal */}
       <ConfirmationModal
         isOpen={showWarningModal}
-        onClose={() => setShowWarningModal(false)}
+        onClose={() => {
+          setShowWarningModal(false);
+          // Discard any pending adjusted values if the user cancels the warning,
+          // so a later submit never reuses stale adjusted dates/days.
+          setQuickLeaveData(prev => {
+            const { _adjustedData, ...rest } = prev;
+            return rest;
+          });
+        }}
         onConfirm={async () => {
           // Close the warning modal and submit the request
           setShowWarningModal(false);
@@ -1349,10 +1432,14 @@ const EmployeeDashboard = () => {
           const submitData = isAdjusted ? quickLeaveData._adjustedData : quickLeaveData;
           
           try {
-            // Determine where_spent based on leave type requirements
-            const effectiveLeaveType = submitData.leaveType === 'others'
-              ? submitData.otherLeaveType
-              : submitData.leaveType;
+            // Determine where_spent based on leave type requirements.
+            // A selected purpose (monetization / terminal leave) takes precedence;
+            // for "Others (specify)" the typed purpose becomes the leave type.
+            const effectiveLeaveType = submitData.leavePurpose
+              ? submitData.leavePurpose
+              : (submitData.leaveType === 'others'
+                ? submitData.otherLeaveType
+                : submitData.leaveType);
 
             let whereSpentValue = submitData.locationType;
             const requiresLocationInfo =
@@ -1369,9 +1456,11 @@ const EmployeeDashboard = () => {
 
             // For the new structure, we will use leave_type as the main field and subtype as the same
             // This maintains compatibility with the server which expects both fields
-            const actualLeaveType = submitData.leaveType === 'others'
-              ? submitData.otherLeaveType
-              : submitData.leaveType;
+            const actualLeaveType = submitData.leavePurpose
+              ? submitData.leavePurpose
+              : (submitData.leaveType === 'others'
+                ? (submitData.otherLeaveType === 'others_specify' ? submitData.otherSpecify : submitData.otherLeaveType)
+                : submitData.leaveType);
               
             const requestData = {
               leave_type: actualLeaveType,

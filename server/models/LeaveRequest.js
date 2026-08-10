@@ -13,7 +13,8 @@ const leaveRequestSchema = new mongoose.Schema({
       'mandatory_forced_leave', 'maternity_leave', 'paternity_leave', 
       'special_privilege_leave', 'solo_parent_leave', 'study_leave', 
       'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 
-      'special_emergency', 'adoption_leave', 'others_specify'
+      'special_emergency', 'adoption_leave', 'others_specify',
+      'monetization', 'terminal_leave'
     ],
     required: true
   },
@@ -32,6 +33,9 @@ const leaveRequestSchema = new mongoose.Schema({
   where_spent: {
     type: String,
     required: false  // Made optional since not all leave types require location info
+  },
+  location_specify: {
+    type: String
   },
   commutation: {
     type: Boolean,
@@ -65,7 +69,77 @@ const leaveRequestSchema = new mongoose.Schema({
   },
   hr_approved_at: {
     type: Date
-  }
+  },
+  mayor_approved_by: {
+    type: String,
+    ref: 'User'
+  },
+  mayor_approved_at: {
+    type: Date
+  },
+  // 7.A Certification of Leave Credits (performed by the HR manager during approval)
+  credits_certified: {
+    type: Boolean,
+    default: false
+  },
+  credits_certified_by: {
+    type: String,
+    ref: 'User'
+  },
+  credits_certified_at: {
+    type: Date
+  },
+  certified_balances: {
+    vacation: {
+      earned: { type: Number, default: 0 },
+      used: { type: Number, default: 0 },
+      balance: { type: Number, default: 0 }
+    },
+    sick: {
+      earned: { type: Number, default: 0 },
+      used: { type: Number, default: 0 },
+      balance: { type: Number, default: 0 }
+    }
+  },
+  applicant_signature: {
+    type: String
+  },
+  hr_signature: {
+    type: String
+  },
+  department_signature: {
+    type: String
+  },
+  mayor_signature: {
+    type: String
+  },
+  documents: [{
+    name: {
+      type: String,
+      required: true
+    },
+    url: {
+      type: String,
+      required: true
+    },
+    public_id: {
+      type: String
+    },
+    resource_type: {
+      type: String,
+      enum: ['image', 'raw']
+    },
+    mimetype: {
+      type: String
+    },
+    size: {
+      type: Number
+    },
+    uploaded_at: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 }, {
   timestamps: true
 });

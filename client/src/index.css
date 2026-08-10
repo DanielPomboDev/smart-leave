@@ -15,3 +15,84 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+@media print {
+  /* Hide page navigation, sidebars, headers, action bars, and non-form page content */
+  nav,
+  aside,
+  header,
+  .print\:hidden,
+  button,
+  .btn,
+  .drawer-side,
+  .navbar,
+  .card,
+  .alert {
+    display: none !important;
+  }
+
+  /* Reset layout structure for printing */
+  html, body, #root, .App, .flex, .flex-grow {
+    background: white !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Reset modal overlay positioning */
+  .cs-form-6-modal-backdrop {
+    position: static !important;
+    display: block !important;
+    background: white !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .cs-form-6-modal-card {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* CS Form No. 6 Printable Container */
+  .cs-form-6-printable-area {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 12px !important;
+    border: 2px solid black !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+    page-break-inside: avoid;
+  }
+
+  /* Checkboxes formatting on print */
+  .cs-form-6-printable-area input[type="checkbox"] {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    accent-color: black !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+}

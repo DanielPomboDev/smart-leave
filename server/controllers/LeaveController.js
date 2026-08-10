@@ -1,8 +1,16 @@
 const LeaveRequest = require('../models/LeaveRequest');
 const LeaveRecord = require('../models/LeaveRecord');
-const { sendNewLeaveRequestNotification } = require('../utils/notificationUtils');
+const {
+  sendNewLeaveRequestNotification,
+  sendRecommendedLeaveRequestNotification,
+  sendHrApprovedLeaveRequestNotification,
+  sendLeaveStatusUpdateToEmployee
+} = require('../utils/notificationUtils');
 const User = require('../models/User');
 const { getLeaveCreditsInfo } = require('./LeaveRecordController');
+const path = require('path');
+const fs = require('fs');
+const cloudinary = require('../config/cloudinary');
 
 // Check if the new leave request dates overlap with existing leave requests
 const hasOverlappingLeave = async (userId, startDate, endDate, excludeId = null) => {
@@ -443,9 +451,182 @@ const cancelLeaveRequest = async (req, res) => {
   }
 };
 
+// Helper to check if the authenticated user owns a leave request
+const isOwnerOfLeaveRequest = (leaveRequest, userId) => {
+  const requestUserId = leaveRequest.user_id && typeof leaveRequest.user_id === 'object'
+    ? leaveRequest.user_id.user_id
+    : leaveRequest.user_id;
+  return requestUserId === userId;
+};
+
+// @desc    Upload supporting documents to a leave request
+// @route   POST /api/leave-requests/:id/documents
+// @access  Private (owner or HR)
+const uploadLeaveDocuments = async (req, res) => {
+  try {
+    const leaveRequest = await LeaveRequest.findById(req.params.id);
+
+    if (!leaveRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave request not found'
+      });
+    }
+
+    // Only the owner (employee) or HR can attach documents
+    const isOwner = isOwnerOfLeaveRequest(leaveRequest, req.user.user_id);
+    const isHr = req.user.user_type === 'hr';
+    if (!isOwner && !isHr) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to upload documents to this leave request'
+      });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No files uploaded'
+      });
+    }
+
+    const newDocuments = req.files.map(file => ({
+      name: file.originalname,
+      url: file.path,
+      public_id: file.filename || null,
+      resource_type: file.mimetype.startsWith('image/') ? 'image' : 'raw',
+      mimetype: file.mimetype,
+      size: file.size,
+      uploaded_at: new Date()
+    }));
+
+    leaveRequest.documents = [...(leaveRequest.documents || []), ...newDocuments];
+    await leaveRequest.save();
+
+    res.status(201).json({
+      success: true,
+      message: `${newDocuments.length} document(s) uploaded successfully`,
+      documents: leaveRequest.documents
+    });
+  } catch (error) {
+    console.error('Error uploading leave documents:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while uploading documents: ' + (error.message || '')
+    });
+  }
+};
+
+// @desc    Delete a document from a leave request
+// @route   DELETE /api/leave-requests/:id/documents/:docId
+// @access  Private (owner or HR)
+const deleteLeaveDocument = async (req, res) => {
+  try {
+    const leaveRequest = await LeaveRequest.findById(req.params.id);
+
+    if (!leaveRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave request not found'
+      });
+    }
+
+    const isOwner = isOwnerOfLeaveRequest(leaveRequest, req.user.user_id);
+    const isHr = req.user.user_type === 'hr';
+    if (!isOwner && !isHr) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete documents from this leave request'
+      });
+    }
+
+    const documents = leaveRequest.documents || [];
+    const docIndex = documents.findIndex(doc => doc._id.toString() === req.params.docId);
+
+    if (docIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+
+    const deletedDoc = documents[docIndex];
+    documents.splice(docIndex, 1);
+    leaveRequest.documents = documents;
+    await leaveRequest.save();
+
+    // Best-effort cleanup of the file (Cloudinary first, local disk fallback for legacy files)
+    if (deletedDoc) {
+      if (deletedDoc.public_id) {
+        try {
+          await cloudinary.uploader.destroy(deletedDoc.public_id, {
+            resource_type: deletedDoc.resource_type || 'raw'
+          });
+        } catch (cloudErr) {
+          console.error('Error deleting file from Cloudinary:', cloudErr);
+        }
+      } else if (deletedDoc.url && deletedDoc.url.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, '..', deletedDoc.url);
+        fs.unlink(filePath, () => {});
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Document deleted successfully',
+      documents: leaveRequest.documents
+    });
+  } catch (error) {
+    console.error('Error deleting leave document:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deleting document'
+    });
+  }
+};
+
+// @desc    Update digital signatures on a leave request
+// @route   POST /api/leave-requests/:id/signatures
+// @access  Private
+const updateSignatures = async (req, res) => {
+  try {
+    const { applicant_signature, hr_signature, department_signature, mayor_signature } = req.body;
+    const leaveRequest = await LeaveRequest.findById(req.params.id);
+
+    if (!leaveRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave request not found'
+      });
+    }
+
+    if (applicant_signature !== undefined) leaveRequest.applicant_signature = applicant_signature;
+    if (hr_signature !== undefined) leaveRequest.hr_signature = hr_signature;
+    if (department_signature !== undefined) leaveRequest.department_signature = department_signature;
+    if (mayor_signature !== undefined) leaveRequest.mayor_signature = mayor_signature;
+
+    await leaveRequest.save();
+
+    res.json({
+      success: true,
+      message: 'Signatures updated successfully',
+      leaveRequest
+    });
+  } catch (error) {
+    console.error('Error updating signatures:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating signatures'
+    });
+  }
+};
+
 module.exports = {
   createLeaveRequest,
   getLeaveRequests,
   getLeaveRequest,
-  cancelLeaveRequest
+  cancelLeaveRequest,
+  updateSignatures,
+  uploadLeaveDocuments,
+  deleteLeaveDocument
 };

@@ -471,6 +471,8 @@ const HRDashboard = () => {
                          leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                          leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency' :
                          leaveRequest.leave_type === 'adoption_leave' ? 'Adoption' :
+                         leaveRequest.leave_type === 'monetization' ? 'Monetization' :
+                         leaveRequest.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                          leaveRequest.leave_type === 'others_specify' ? 'Others' :
                          leaveRequest.leave_type}
                       </td>

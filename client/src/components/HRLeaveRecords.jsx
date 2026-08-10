@@ -296,48 +296,64 @@ const HRLeaveRecords = () => {
           
           {/* Leave Records Table */}
           {!loading && (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="table table-zebra w-full">
                 <thead>
-                  <tr className="bg-gray-100">
-                    <th className="text-gray-600">Employee</th>
-                    <th className="text-gray-600">Position</th>
-                    <th className="text-gray-600">Department</th>
-                    <th className="text-gray-600">Action</th>
+                  <tr className="bg-slate-100 text-slate-700 text-sm">
+                    <th className="py-3.5 px-4 font-semibold">Employee</th>
+                    <th className="py-3.5 px-4 font-semibold">Position</th>
+                    <th className="py-3.5 px-4 font-semibold">Department</th>
+                    <th className="py-3.5 px-4 font-semibold">Role</th>
+                    <th className="py-3.5 px-4 font-semibold text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-200 text-sm">
                   {users && users.length > 0 ? (
                     users.map((user) => (
-                      <tr key={user._id}>
-                        <td className="flex items-center space-x-3">
-                          <div className="avatar">
-                            <div className="mask mask-squircle w-8 h-8">
-                              <span className="bg-blue-500 text-white text-xs font-bold flex items-center justify-center w-full h-full">
+                      <tr key={user._id} className="hover:bg-blue-50/40 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="avatar">
+                              <div className="mask mask-squircle w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold flex items-center justify-center text-sm shadow-sm">
                                 {user.first_name?.charAt(0)?.toUpperCase()}{user.last_name?.charAt(0)?.toUpperCase() || 'N/A'}
-                              </span>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-900">{user.first_name} {user.last_name}</div>
+                              <div className="text-xs text-gray-500 font-mono">ID: {user.user_id}</div>
                             </div>
                           </div>
-                          <div>
-                            <div className="font-bold">{user.first_name || 'No First Name'} {user.last_name || 'No Last Name'}</div>
-                            <div className="text-xs text-gray-500">{user.user_id || 'No ID'}</div>
-                          </div>
                         </td>
-                        <td>{user.position || 'No Position'}</td>
-                        <td>{user.department_id?.name || 'No Department'}</td>
-                        <td>
+                        <td className="py-3 px-4 font-medium text-gray-700">{user.position || 'No Position'}</td>
+                        <td className="py-3 px-4 text-gray-600">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                            {user.department_id?.name || 'No Department'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
+                            user.user_type === 'hr' ? 'bg-purple-100 text-purple-800' :
+                            user.user_type === 'mayor' ? 'bg-amber-100 text-amber-800' :
+                            user.user_type === 'department_admin' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {user.user_type?.replace('_', ' ') || 'employee'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
                           <button 
-                            className="btn btn-sm btn-primary" 
+                            className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white border-none space-x-1 shadow-sm" 
                             onClick={() => viewRecord(user.user_id)}
                           >
-                            View Record
+                            <i className="fas fa-folder-open text-xs"></i>
+                            <span>View Leave Record</span>
                           </button>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="4" className="text-center py-4">
+                      <td colSpan="5" className="text-center py-8 text-gray-500">
+                        <i className="fas fa-folder-open text-3xl mb-2 text-gray-300 block"></i>
                         No leave records found
                       </td>
                     </tr>

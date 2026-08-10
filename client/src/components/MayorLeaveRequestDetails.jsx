@@ -222,6 +222,8 @@ const MayorLeaveRequestDetails = () => {
                      leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                      leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency Leave' :
                      leaveRequest.leave_type === 'adoption_leave' ? 'Adoption Leave' :
+                     leaveRequest.leave_type === 'monetization' ? 'Monetization of Leave Credits' :
+                     leaveRequest.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                      leaveRequest.leave_type === 'others_specify' ? 'Others (Specify)' :
                      leaveRequest.leave_type}
                   </p>
@@ -260,6 +262,41 @@ const MayorLeaveRequestDetails = () => {
                     {leaveRequest.commutation ? 'Requested' : 'Not Requested'}
                   </p>
                 </div>
+              </div>
+
+              {/* Supporting Documents */}
+              <div className="p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-semibold text-blue-600">
+                    <i className="fas fa-paperclip mr-2"></i>
+                    Supporting Documents
+                  </h5>
+                  <span className="text-xs text-gray-500">{(leaveRequest.documents || []).length} attached</span>
+                </div>
+                {(!leaveRequest.documents || leaveRequest.documents.length === 0) ? (
+                  <p className="text-sm text-gray-500">No supporting documents attached to this leave request.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {leaveRequest.documents.map(doc => (
+                      <li key={doc._id || doc.url} className="flex items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center min-w-0 group"
+                        >
+                          <i className={`fas ${doc.mimetype?.startsWith('image/') ? 'fa-file-image' : doc.mimetype === 'application/pdf' ? 'fa-file-pdf' : doc.mimetype?.includes('word') ? 'fa-file-word' : doc.mimetype?.includes('sheet') || doc.mimetype?.includes('excel') ? 'fa-file-excel' : 'fa-file-alt'} ${doc.mimetype?.startsWith('image/') ? 'text-purple-500' : doc.mimetype === 'application/pdf' ? 'text-red-500' : doc.mimetype?.includes('word') ? 'text-blue-500' : doc.mimetype?.includes('sheet') || doc.mimetype?.includes('excel') ? 'text-green-500' : 'text-gray-500'} mr-3 text-lg`}></i>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-blue-600 group-hover:underline truncate">{doc.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {doc.uploaded_at ? `Uploaded ${new Date(doc.uploaded_at).toLocaleDateString()}` : ''}
+                            </p>
+                          </div>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
 

@@ -370,6 +370,12 @@ class MayorController {
       // Update status based on mayor's decision
       leaveRequest.status = decision === 'approve' ? 'approved' : 'disapproved';
 
+      // Record who approved (mayor) for the digital form
+      if (decision === 'approve') {
+        leaveRequest.mayor_approved_by = req.user?.user_id;
+        leaveRequest.mayor_approved_at = new Date();
+      }
+
       // De-populate user_id before saving to avoid validation errors
       leaveRequest.user_id = userId;
       

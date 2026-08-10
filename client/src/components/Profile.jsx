@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
+import SignatureModal from './SignatureModal';
 // import { requestForToken } from '../firebase'; // Commented out for alpha testing
 
 const Profile = () => {
@@ -11,6 +12,10 @@ const Profile = () => {
   const [uploadError, setUploadError] = useState('');
   const [previewImage, setPreviewImage] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('Your profile picture has been updated successfully.');
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
   // const [notificationPermission, setNotificationPermission] = useState(Notification.permission); // Commented out for alpha testing
   // const [savingToken, setSavingToken] = useState(false); // Commented out for alpha testing
   // const [tokenSaveError, setTokenSaveError] = useState(''); // Commented out for alpha testing
@@ -269,6 +274,69 @@ const Profile = () => {
     }
   };
 
+  // Handle saving the digital signature (from draw or upload)
+  const handleSaveSignature = async (signatureDataUrl) => {
+    try {
+      setSignatureSaving(true);
+      setSignatureError('');
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/auth/profile/signature', { signature: signatureDataUrl }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.success) {
+        // Update user state with new signature
+        setUser(prevUser => ({
+          ...prevUser,
+          signature: response.data.signature
+        }));
+        setShowSignatureModal(false);
+        setSuccessMessage('Your digital signature has been saved successfully.');
+        setShowSuccessModal(true);
+      } else {
+        setSignatureError(response.data.message || 'Failed to save signature');
+      }
+    } catch (error) {
+      console.error('Error saving signature:', error);
+      setSignatureError(error.response?.data?.message || 'Failed to save signature');
+    } finally {
+      setSignatureSaving(false);
+    }
+  };
+
+  // Remove the digital signature
+  const handleRemoveSignature = async () => {
+    if (!window.confirm('Remove your digital signature? Your leave forms will show a blank signature.')) return;
+
+    try {
+      setSignatureSaving(true);
+      setSignatureError('');
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/auth/profile/signature', { signature: '' }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.success) {
+        setUser(prevUser => ({ ...prevUser, signature: '' }));
+        setSuccessMessage('Your digital signature has been removed.');
+        setShowSuccessModal(true);
+      } else {
+        setSignatureError(response.data.message || 'Failed to remove signature');
+      }
+    } catch (error) {
+      console.error('Error removing signature:', error);
+      setSignatureError(error.response?.data?.message || 'Failed to remove signature');
+    } finally {
+      setSignatureSaving(false);
+    }
+  };
+
   return (
     <Layout>
       <header className="bg-white shadow">
@@ -419,6 +487,53 @@ const Profile = () => {
               </div>
             </div>
             
+            {/* Digital Signature Card */}
+            <div className="card bg-white shadow-md lg:col-span-3">
+              <div className="card-body">
+                <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
+                  <i className="fas fa-file-signature text-blue-500 mr-2"></i>
+                  Digital Signature
+                </h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  Your signature is automatically embedded on your leave application form (CS Form 6) when it is viewed and printed. Draw it or upload an image of your official signature.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  <div className="w-full sm:w-64 h-28 border-2 border-dashed border-gray-300 rounded-xl bg-slate-50 flex items-center justify-center overflow-hidden">
+                    {user?.signature ? (
+                      <img src={user.signature} alt="Digital Signature" className="max-h-24 object-contain" />
+                    ) : (
+                      <span className="text-gray-400 text-sm">No signature yet</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-center sm:items-start gap-3">
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => setShowSignatureModal(true)}
+                      disabled={signatureSaving}
+                    >
+                      <i className="fas fa-pen mr-2"></i>
+                      {user?.signature ? 'Update Signature' : 'Add Signature'}
+                    </button>
+                    {user?.signature && (
+                      <button
+                        className="btn btn-ghost btn-sm text-red-600 hover:text-red-800"
+                        onClick={handleRemoveSignature}
+                        disabled={signatureSaving}
+                      >
+                        <i className="fas fa-trash-alt mr-1"></i>
+                        Remove Signature
+                      </button>
+                    )}
+                    {signatureError && (
+                      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm">
+                        {signatureError}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Notification Settings Card - Commented out for alpha testing
             <div className="card bg-white shadow-md">
               <div className="card-body">
@@ -506,7 +621,7 @@ const Profile = () => {
                 <h3 className="text-lg font-bold text-gray-900 mb-2">Success!</h3>
                 
                 <p className="text-sm text-gray-500 mb-6">
-                  Your profile picture has been updated successfully.
+                  {successMessage}
                 </p>
                 
                 <div className="flex justify-center">
@@ -522,6 +637,13 @@ const Profile = () => {
             </div>
           </div>
         )}
+      {/* Signature Modal */}
+      <SignatureModal
+        isOpen={showSignatureModal}
+        onClose={() => setShowSignatureModal(false)}
+        onSave={handleSaveSignature}
+        title="Add Your Digital Signature"
+      />
       </main>
     </Layout>
   );

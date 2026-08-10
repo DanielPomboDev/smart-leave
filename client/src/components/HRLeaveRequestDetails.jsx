@@ -11,7 +11,8 @@ const HRLeaveRequestDetails = () => {
     approval: 'approve',
     approved_for: 'with_pay',
     approved_for_other: '',
-    disapproved_due_to: ''
+    disapproved_due_to: '',
+    credits_certified: false
   });
   const [errors, setErrors] = useState({});
   const [currentStep, setCurrentStep] = useState(1);
@@ -20,6 +21,85 @@ const HRLeaveRequestDetails = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [user, setUser] = useState(null);
+  const [uploadingDocs, setUploadingDocs] = useState(false);
+  const [documentsError, setDocumentsError] = useState('');
+  const [documentsSuccess, setDocumentsSuccess] = useState('');
+
+  const formatFileSize = (bytes) => {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Upload supporting documents (HR can attach on behalf of the employee)
+  const handleDocumentSelect = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    setDocumentsError('');
+    setDocumentsSuccess('');
+
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    files.forEach(f => formData.append('documents', f));
+    setUploadingDocs(true);
+    try {
+      const response = await axios.post(`/api/leave-requests/${id}/documents`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      if (response.data.success) {
+        setLeaveRequest(prev => ({ ...prev, documents: response.data.documents }));
+        setDocumentsSuccess(response.data.message);
+      } else {
+        setDocumentsError(response.data.message || 'Failed to upload documents');
+      }
+    } catch (err) {
+      setDocumentsError(err.response?.data?.message || 'Failed to upload documents');
+    } finally {
+      setUploadingDocs(false);
+    }
+  };
+
+  // Delete a supporting document
+  const handleDeleteDocument = async (docId) => {
+    setDocumentsError('');
+    setDocumentsSuccess('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.delete(`/api/leave-requests/${id}/documents/${docId}`, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.data.success) {
+        setLeaveRequest(prev => ({ ...prev, documents: response.data.documents }));
+        setDocumentsSuccess(response.data.message);
+      } else {
+        setDocumentsError(response.data.message || 'Failed to delete document');
+      }
+    } catch (err) {
+      setDocumentsError(err.response?.data?.message || 'Failed to delete document');
+    }
+  };
+
+  const getDocumentIcon = (mimetype) => {
+    if (mimetype?.startsWith('image/')) return 'fa-file-image';
+    if (mimetype === 'application/pdf') return 'fa-file-pdf';
+    if (mimetype?.includes('word')) return 'fa-file-word';
+    if (mimetype?.includes('sheet') || mimetype?.includes('excel')) return 'fa-file-excel';
+    return 'fa-file-alt';
+  };
+
+  const getDocumentColor = (mimetype) => {
+    if (mimetype?.startsWith('image/')) return 'text-purple-500';
+    if (mimetype === 'application/pdf') return 'text-red-500';
+    if (mimetype?.includes('word')) return 'text-blue-500';
+    if (mimetype?.includes('sheet') || mimetype?.includes('excel')) return 'text-green-500';
+    return 'text-gray-500';
+  };
   
   const navigate = useNavigate();
   const { id } = useParams();
@@ -129,6 +209,11 @@ const HRLeaveRequestDetails = () => {
       
       // If approving, check approval type selections
       if (approvalData.approval === 'approve') {
+        // 7.A Certification of Leave Credits is required for with-pay approvals
+        if ((approvalData.approved_for === 'with_pay' || approvalData.approved_for === 'others') && !approvalData.credits_certified) {
+          newErrors.credits_certified = "Please certify the employee's leave credits before approving";
+        }
+
         // If "others" is selected, require specification
         if (approvalData.approved_for === 'others' && (!approvalData.approved_for_other || approvalData.approved_for_other.trim() === '')) {
           newErrors.approved_for_other = 'Please specify the approval type when selecting "Others"';
@@ -355,6 +440,8 @@ const HRLeaveRequestDetails = () => {
                          leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                          leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency Leave' :
                          leaveRequest.leave_type === 'adoption_leave' ? 'Adoption Leave' :
+                         leaveRequest.leave_type === 'monetization' ? 'Monetization of Leave Credits' :
+                         leaveRequest.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                          leaveRequest.leave_type === 'others_specify' ? 'Others (Specify)' :
                          leaveRequest.leave_type}
                       </p>
@@ -419,6 +506,88 @@ const HRLeaveRequestDetails = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Supporting Documents */}
+                  <div className="p-4 bg-white rounded-lg border border-gray-100 shadow-sm mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-blue-600">
+                        <i className="fas fa-paperclip mr-2"></i>
+                        Supporting Documents
+                      </h4>
+                      <span className="text-xs text-gray-500">{(leaveRequest.documents || []).length} attached</span>
+                    </div>
+
+                    {documentsError && (
+                      <div className="alert alert-error shadow-lg mb-3">
+                        <div>
+                          <i className="fas fa-exclamation-circle text-error"></i>
+                          <span>{documentsError}</span>
+                        </div>
+                      </div>
+                    )}
+                    {documentsSuccess && (
+                      <div className="alert alert-success shadow-lg mb-3">
+                        <div>
+                          <i className="fas fa-check-circle text-success"></i>
+                          <span>{documentsSuccess}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {(!leaveRequest.documents || leaveRequest.documents.length === 0) ? (
+                      <p className="text-sm text-gray-500">No supporting documents attached to this leave request.</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {leaveRequest.documents.map(doc => (
+                          <li key={doc._id || doc.url} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center min-w-0 group"
+                            >
+                              <i className={`fas ${getDocumentIcon(doc.mimetype)} ${getDocumentColor(doc.mimetype)} mr-3 text-lg`}></i>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-blue-600 group-hover:underline truncate">{doc.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {doc.uploaded_at ? `Uploaded ${new Date(doc.uploaded_at).toLocaleDateString()}` : ''}{doc.size ? ` • ${formatFileSize(doc.size)}` : ''}
+                                </p>
+                              </div>
+                            </a>
+                            <button
+                              onClick={() => handleDeleteDocument(doc._id)}
+                              className="btn btn-ghost btn-xs text-red-500 ml-2"
+                              title="Delete document"
+                            >
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    <label className="btn btn-outline border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white w-full mt-4 cursor-pointer">
+                      {uploadingDocs ? (
+                        <>
+                          <span className="loading loading-spinner loading-sm"></span>
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-upload mr-2"></i>
+                          Attach Documents (Image, PDF, Word, Excel)
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        className="hidden"
+                        onChange={handleDocumentSelect}
+                        disabled={uploadingDocs}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex justify-end mt-6">
@@ -449,6 +618,59 @@ const HRLeaveRequestDetails = () => {
 
                 <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
                   <h4 className="font-medium mb-4">Recommendation/Approval</h4>
+
+                  {/* 7.A Certification of Leave Credits */}
+                  <div className="mb-6 p-4 bg-white rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-semibold text-blue-600">
+                        <i className="fas fa-clipboard-check mr-2"></i>
+                        7.A Certification of Leave Credits
+                      </h5>
+                      <span className="badge badge-outline text-[10px]">Required for with-pay approval</span>
+                    </div>
+
+                    <table className="table table-sm w-full text-center border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="text-left">Particulars</th>
+                          <th>Vacation Leave</th>
+                          <th>Sick Leave</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="text-left font-medium">Total Earned</td>
+                          <td>{(leaveRequest.user_id?.vacation_earned_total ?? 0).toFixed(3)}</td>
+                          <td>{(leaveRequest.user_id?.sick_earned_total ?? 0).toFixed(3)}</td>
+                        </tr>
+                        <tr>
+                          <td className="text-left font-medium">Less: Used</td>
+                          <td>{(leaveRequest.user_id?.vacation_used_total ?? 0).toFixed(3)}</td>
+                          <td>{(leaveRequest.user_id?.sick_used_total ?? 0).toFixed(3)}</td>
+                        </tr>
+                        <tr>
+                          <td className="text-left font-bold">Balance</td>
+                          <td className="font-bold text-blue-700">{(leaveRequest.user_id?.vacation_balance ?? 0).toFixed(3)}</td>
+                          <td className="font-bold text-emerald-700">{(leaveRequest.user_id?.sick_balance ?? 0).toFixed(3)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <label className="flex items-start gap-2 mt-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary mt-0.5"
+                        checked={approvalData.credits_certified}
+                        onChange={(e) => handleApprovalChange('credits_certified', e.target.checked)}
+                      />
+                      <span className="text-sm">
+                        I certify that the above leave credits are correct and that the employee has sufficient available leave credits for this application.
+                      </span>
+                    </label>
+                    {errors.credits_certified && (
+                      <div className="text-red-500 text-sm mt-1">{errors.credits_certified}</div>
+                    )}
+                  </div>
 
                   <div className="form-control mb-4">
                     <label className="label">

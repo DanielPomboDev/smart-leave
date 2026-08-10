@@ -167,7 +167,10 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
     // Vacation-type leaves use vacation credits
     if (leaveType === 'vacation' || 
         leaveType === 'special_privilege_leave' || 
-        leaveType === 'study_leave') {
+        leaveType === 'study_leave' || 
+        leaveType === 'mandatory_forced_leave' || 
+        leaveType === 'monetization' || 
+        leaveType === 'terminal_leave') {
       availableCredits = vacationBalance;
     }
     // Sick-type leaves use sick credits
@@ -298,136 +301,193 @@ exports.show = async (req, res) => {
     const { userId } = req.params;
     const { year: filterYear } = req.query;
 
-    // Find the employee by user_id field (not MongoDB _id)
     const employee = await User.findOne({ user_id: userId }).populate('department_id');
+    if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
-    if (!employee) {
-      return res.status(404).json({ message: 'Employee not found' });
-    }
-
-    // Get leave records for this employee, ordered by year/month ascending
     const allLeaveRecords = await LeaveRecord.find({ user_id: employee.user_id })
-      .sort({ year: 1, month: 1 })
-      .exec();
+      .sort({ year: 1, month: 1 }).exec();
 
-    // Get all leave requests for this employee to populate entries
     const allLeaveRequests = await LeaveRequest.find({ user_id: employee.user_id }).sort({ start_date: 1 });
 
-    let vacationBalance = 0;
-    let sickBalance = 0;
+    const VACATION_TYPES = [
+      'vacation','special_privilege_leave','study_leave','mandatory_forced_leave',
+      'maternity_leave','paternity_leave','solo_parent_leave','vawc_leave',
+      'rehabilitation_privilege','special_leave_benefits_women','special_emergency',
+      'adoption_leave','others_specify','monetization','terminal_leave'
+    ];
+    const SICK_TYPES = ['sick'];
+
+    // Phase 1: Chronological ledger — only APPROVED non-cancelled, non-without_pay leaves deduct credits
+    let runningVac = 0;
+    let runningSick = 0;
+    const leaveBalanceMap = {};     // leaveId -> balance snapshot around this request
+    const monthEndBalanceMap = {};  // "year-month" -> end-of-month balance
+
+    for (const record of allLeaveRecords) {
+      runningVac  += (record.vacation_earned || 0);
+      runningSick += (record.sick_earned     || 0);
+
+      const monthRequests = allLeaveRequests.filter(req => {
+        const d = new Date(req.start_date);
+        return d.getFullYear() === record.year && (d.getMonth() + 1) === record.month;
+      });
+
+      for (const req of monthRequests) {
+        const isVacType       = VACATION_TYPES.includes(req.leave_type);
+        const isSickType      = SICK_TYPES.includes(req.leave_type);
+        const isApproved      = req.status === 'approved';
+        const withoutPay      = req.without_pay || false;
+        const creditsDeducted = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
+
+        const beforeVac  = runningVac;
+        const beforeSick = runningSick;
+
+        if (creditsDeducted > 0) {
+          if (isVacType)  runningVac  = Math.max(0, runningVac  - creditsDeducted);
+          if (isSickType) runningSick = Math.max(0, runningSick - creditsDeducted);
+        }
+
+        leaveBalanceMap[req._id.toString()] = {
+          credits_deducted: creditsDeducted,
+          credits_before_vac:  beforeVac,
+          credits_before_sick: beforeSick,
+          running_vacation_balance: runningVac,
+          running_sick_balance:     runningSick,
+        };
+      }
+
+      // Undertime is stored in vacation_used of the monthly record
+      runningVac = Math.max(0, runningVac - (record.vacation_used || 0));
+
+      monthEndBalanceMap[`${record.year}-${record.month}`] = {
+        vacation_balance: runningVac,
+        sick_balance:     runningSick,
+      };
+    }
+
+    // Edge-case: requests with no matching monthly record
+    for (const req of allLeaveRequests) {
+      if (leaveBalanceMap[req._id.toString()]) continue;
+      const isVacType  = VACATION_TYPES.includes(req.leave_type);
+      const isSickType = SICK_TYPES.includes(req.leave_type);
+      const isApproved = req.status === 'approved';
+      const withoutPay = req.without_pay || false;
+      const creditsDeducted = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
+      const beforeVac  = runningVac;
+      const beforeSick = runningSick;
+      if (creditsDeducted > 0) {
+        if (isVacType)  runningVac  = Math.max(0, runningVac  - creditsDeducted);
+        if (isSickType) runningSick = Math.max(0, runningSick - creditsDeducted);
+      }
+      leaveBalanceMap[req._id.toString()] = {
+        credits_deducted: creditsDeducted, credits_before_vac: beforeVac, credits_before_sick: beforeSick,
+        running_vacation_balance: runningVac, running_sick_balance: runningSick,
+      };
+    }
+
+    // Phase 2: Summary totals
+    const totalVacEarned    = allLeaveRecords.reduce((s, r) => s + (r.vacation_earned || 0), 0);
+    const totalSickEarned   = allLeaveRecords.reduce((s, r) => s + (r.sick_earned     || 0), 0);
+    const totalUndertimeVac = allLeaveRecords.reduce((s, r) => s + (r.vacation_used   || 0), 0);
+
+    const approvedVacUsed = allLeaveRequests
+      .filter(r => r.status === 'approved' && !r.without_pay && VACATION_TYPES.includes(r.leave_type))
+      .reduce((s, r) => s + (r.number_of_days || 0), 0);
+    const approvedSickUsed = allLeaveRequests
+      .filter(r => r.status === 'approved' && !r.without_pay && SICK_TYPES.includes(r.leave_type))
+      .reduce((s, r) => s + (r.number_of_days || 0), 0);
+
+    const vacationSummary = {
+      earned:  totalVacEarned,
+      used:    totalUndertimeVac + approvedVacUsed,
+      balance: totalVacEarned - totalUndertimeVac - approvedVacUsed,
+    };
+    const sickSummary = {
+      earned:  totalSickEarned,
+      used:    approvedSickUsed,
+      balance: totalSickEarned - approvedSickUsed,
+    };
+
+    // Resolve approver names (who recommended/approved) so the digital form shows real names
+    const approverIds = new Set();
+    allLeaveRequests.forEach(r => {
+      if (r.department_approved_by) approverIds.add(r.department_approved_by);
+      if (r.hr_approved_by)        approverIds.add(r.hr_approved_by);
+      if (r.mayor_approved_by)     approverIds.add(r.mayor_approved_by);
+      if (r.credits_certified_by)  approverIds.add(r.credits_certified_by);
+    });
+    const approverUsers = approverIds.size > 0
+      ? await User.find({ user_id: { $in: [...approverIds] } }).select('user_id first_name middle_initial last_name').exec()
+      : [];
+    const approverNameMap = {};
+    approverUsers.forEach(u => {
+      approverNameMap[u.user_id] = `${u.first_name}${u.middle_initial ? ' ' + u.middle_initial + '.' : ''} ${u.last_name}`.toUpperCase();
+    });
+
+    // Phase 3: Build processed records
+    const buildEntry = (req, isVacType) => {
+      const bal = leaveBalanceMap[req._id.toString()] || {};
+      return {
+        leave_id: req._id, type: req.leave_type, days: req.number_of_days,
+        credits_deducted:         bal.credits_deducted ?? 0,
+        credits_before_deduction: isVacType ? (bal.credits_before_vac ?? 0) : (bal.credits_before_sick ?? 0),
+        running_vacation_balance: bal.running_vacation_balance ?? 0,
+        running_sick_balance:     bal.running_sick_balance     ?? 0,
+        start_date: new Date(req.start_date).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }),
+        end_date:   new Date(req.end_date).toLocaleDateString('en-US',   { year:'numeric', month:'short', day:'numeric' }),
+        raw_start_date: req.start_date, raw_end_date: req.end_date,
+        where_spent: req.where_spent, location_specify: req.location_specify,
+        commutation: req.commutation, paid: !req.without_pay, status: req.status,
+        cancelled: req.status === 'cancelled',
+        applicant_signature: req.applicant_signature, hr_signature: req.hr_signature,
+        department_signature: req.department_signature, mayor_signature: req.mayor_signature,
+        department_approved_by_name: approverNameMap[req.department_approved_by] || '',
+        hr_approved_by_name:         approverNameMap[req.hr_approved_by]        || '',
+        mayor_approved_by_name:      approverNameMap[req.mayor_approved_by]     || '',
+        credits_certified: req.credits_certified || false,
+        credits_certified_by_name: approverNameMap[req.credits_certified_by] || '',
+        credits_certified_at: req.credits_certified_at || null,
+        certified_balances: req.certified_balances || null,
+        created_at: req.createdAt,
+      };
+    };
 
     const processedRecords = allLeaveRecords.map(record => {
-      vacationBalance += record.vacation_earned - record.vacation_used;
-      sickBalance += record.sick_earned - record.sick_used;
-
-      // Build vacation_entries from leave requests for this month/year
-      const vacationEntries = allLeaveRequests
-        .filter(req => {
-          const reqDate = new Date(req.start_date);
-          return reqDate.getFullYear() === record.year &&
-                 (reqDate.getMonth() + 1) === record.month &&
-                 (req.leave_type === 'vacation' ||
-                  req.leave_type === 'special_privilege_leave' ||
-                  req.leave_type === 'study_leave' ||
-                  req.leave_type === 'mandatory_forced_leave' ||
-                  req.leave_type === 'maternity_leave' ||
-                  req.leave_type === 'paternity_leave' ||
-                  req.leave_type === 'solo_parent_leave' ||
-                  req.leave_type === 'vawc_leave' ||
-                  req.leave_type === 'rehabilitation_privilege' ||
-                  req.leave_type === 'special_leave_benefits_women' ||
-                  req.leave_type === 'special_emergency' ||
-                  req.leave_type === 'adoption_leave' ||
-                  req.leave_type === 'others_specify');
-        })
-        .map(req => ({
-          type: req.leave_type,
-          days: req.number_of_days,
-          start_date: new Date(req.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-          end_date: new Date(req.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-          paid: !req.without_pay,
-          status: req.status,
-          cancelled: req.status === 'cancelled'
-        }));
-
-      // Build sick_entries from leave requests for this month/year
-      const sickEntries = allLeaveRequests
-        .filter(req => {
-          const reqDate = new Date(req.start_date);
-          return reqDate.getFullYear() === record.year &&
-                 (reqDate.getMonth() + 1) === record.month &&
-                 (req.leave_type === 'sick');
-        })
-        .map(req => ({
-          type: req.leave_type,
-          days: req.number_of_days,
-          start_date: new Date(req.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-          end_date: new Date(req.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-          paid: !req.without_pay,
-          status: req.status,
-          cancelled: req.status === 'cancelled'
-        }));
-
+      const monthRequests = allLeaveRequests.filter(req => {
+        const d = new Date(req.start_date);
+        return d.getFullYear() === record.year && (d.getMonth() + 1) === record.month;
+      });
+      const vacationEntries = monthRequests.filter(r => VACATION_TYPES.includes(r.leave_type)).map(r => buildEntry(r, true));
+      const sickEntries     = monthRequests.filter(r => SICK_TYPES.includes(r.leave_type)).map(r => buildEntry(r, false));
+      const endBal = monthEndBalanceMap[`${record.year}-${record.month}`] || {};
       return {
         ...record.toObject(),
-        vacation_balance: vacationBalance,
-        sick_balance: sickBalance,
+        vacation_balance: endBal.vacation_balance ?? record.vacation_balance,
+        sick_balance:     endBal.sick_balance     ?? record.sick_balance,
         vacation_entries: vacationEntries,
-        sick_entries: sickEntries
+        sick_entries:     sickEntries,
       };
     });
 
-    // Group by year, sorted descending
     const leaveRecords = {};
     processedRecords.reverse().forEach(record => {
-      if (!leaveRecords[record.year]) {
-        leaveRecords[record.year] = [];
-      }
+      if (!leaveRecords[record.year]) leaveRecords[record.year] = [];
       leaveRecords[record.year].push(record);
     });
 
-    // Calculate summary totals
-    const vacationSummary = {
-      earned: allLeaveRecords.reduce((sum, record) => sum + record.vacation_earned, 0),
-      used: allLeaveRecords.reduce((sum, record) => sum + record.vacation_used, 0),
-      balance: vacationBalance
-    };
-
-    const sickSummary = {
-      earned: allLeaveRecords.reduce((sum, record) => sum + record.sick_earned, 0),
-      used: allLeaveRecords.reduce((sum, record) => sum + record.sick_used, 0),
-      balance: sickBalance
-    };
-
-    // Calculate leave type summary (count of each leave type filed)
-    // Filter by year if provided, otherwise use all requests
     let leaveRequestsForSummary = allLeaveRequests;
     if (filterYear) {
-      leaveRequestsForSummary = allLeaveRequests.filter(req => {
-        const reqDate = new Date(req.start_date);
-        return reqDate.getFullYear() === parseInt(filterYear);
-      });
+      leaveRequestsForSummary = allLeaveRequests.filter(req =>
+        new Date(req.start_date).getFullYear() === parseInt(filterYear)
+      );
     }
-
     const leaveTypeCounts = {};
     leaveRequestsForSummary.forEach(req => {
-      // Skip cancelled requests
       if (req.status === 'cancelled') return;
-
-      const type = req.leave_type;
-      if (!leaveTypeCounts[type]) {
-        leaveTypeCounts[type] = 0;
-      }
-      leaveTypeCounts[type]++;
+      leaveTypeCounts[req.leave_type] = (leaveTypeCounts[req.leave_type] || 0) + 1;
     });
 
-    res.json({
-      employee,
-      leaveRecords,
-      vacationSummary,
-      sickSummary,
-      leaveTypeSummary: leaveTypeCounts
-    });
+    res.json({ employee, leaveRecords, vacationSummary, sickSummary, leaveTypeSummary: leaveTypeCounts });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching leave records', error: error.message });
   }

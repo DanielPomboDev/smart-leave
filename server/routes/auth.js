@@ -1,5 +1,5 @@
 const express = require('express');
-const { showLogin, login, getProfile, logout, updateProfileImage } = require('../controllers/AuthController');
+const { showLogin, login, getProfile, logout, updateProfileImage, updateSignature } = require('../controllers/AuthController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
@@ -16,6 +16,9 @@ router.get('/profile', protect, getProfile);
 
 // Update profile image (protected route)
 router.post('/profile/image', protect, upload.single('profileImage'), updateProfileImage);
+
+// Update digital signature (protected route)
+router.post('/profile/signature', protect, updateSignature);
 
 // Logout user
 router.post('/logout', logout);

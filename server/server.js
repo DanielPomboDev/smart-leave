@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
@@ -19,8 +20,14 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     // List of allowed origins
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    
     const allowedOrigins = [
       'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174',
       'https://smart-leave-mern.vercel.app'
     ];
     
@@ -42,6 +49,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Serve uploaded files (leave supporting documents, etc.)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/smartleave')

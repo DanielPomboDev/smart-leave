@@ -141,7 +141,8 @@ const getProfile = async (req, res) => {
         salary: req.user.salary,
         start_date: req.user.start_date,
         user_type: req.user.user_type,
-        profile_image: req.user.profile_image
+        profile_image: req.user.profile_image,
+        signature: req.user.signature
       }
     });
   } catch (error) {
@@ -202,6 +203,57 @@ const updateProfileImage = async (req, res) => {
   }
 };
 
+// @desc    Update user digital signature
+// @route   POST /api/auth/profile/signature
+// @access  Private
+const updateSignature = async (req, res) => {
+  try {
+    // req.user is set by the auth middleware
+    if (!req.user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const { signature } = req.body;
+
+    // Validate that a signature value was provided (empty string is allowed to clear)
+    if (signature === undefined || typeof signature !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'No signature provided'
+      });
+    }
+
+    // Update user with new signature (data URL or empty string to remove)
+    const user = await User.findOneAndUpdate(
+      { user_id: req.user.user_id },
+      { signature },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Signature updated successfully',
+      signature: user.signature
+    });
+  } catch (error) {
+    console.error('Error updating signature:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating signature'
+    });
+  }
+};
+
 // @desc    Logout user
 // @route   POST /api/auth/logout
 // @access  Private
@@ -217,5 +269,6 @@ module.exports = {
   login,
   getProfile,
   updateProfileImage,
+  updateSignature,
   logout
 };

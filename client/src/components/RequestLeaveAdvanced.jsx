@@ -5,6 +5,17 @@ import axios from '../services/api';
 import SuccessModal from './SuccessModal';
 import ConfirmationModal from './ConfirmationModal';
 
+// Leave types that draw from vacation credits vs sick credits (mirrors server getLeaveCreditsInfo)
+const VACATION_POOL_TYPES = ['vacation', 'special_privilege_leave', 'study_leave', 'mandatory_forced_leave', 'monetization', 'terminal_leave'];
+const SICK_POOL_TYPES = ['sick', 'maternity_leave', 'paternity_leave', 'solo_parent_leave', 'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 'special_emergency', 'adoption_leave'];
+
+// Returns the available balance for a leave type, or Infinity for types that don't consume vacation/sick credits
+const getAvailableCredits = (leaveType, vacationBalance, sickBalance) => {
+  if (VACATION_POOL_TYPES.includes(leaveType)) return vacationBalance;
+  if (SICK_POOL_TYPES.includes(leaveType)) return sickBalance;
+  return Infinity;
+};
+
 const RequestLeaveAdvanced = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
@@ -62,8 +73,6 @@ const RequestLeaveAdvanced = () => {
       // Get user info from the profile endpoint
       const response = await axios.get('/api/auth/profile');
       
-      console.log('Profile response:', response.data); // Debug log
-      
       if (response.data && response.data.success && response.data.user) {
         setUserRole(response.data.user.user_type || 'employee');
       } else {
@@ -97,19 +106,22 @@ const RequestLeaveAdvanced = () => {
   // Handle start date changes
   const handleStartDateChange = (e) => {
     const newStartDate = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      startDate: newStartDate
-    }));
-    
-    // Update end date if it's before the new start date
-    if (formData.endDate && newStartDate > formData.endDate) {
-      setFormData(prev => ({
+    setFormData(prev => {
+      const updatedData = {
         ...prev,
-        startDate: newStartDate,
-        endDate: newStartDate
-      }));
-    }
+        startDate: newStartDate
+      };
+      
+      // Update end date if it's before the new start date
+      if (prev.endDate && newStartDate > prev.endDate) {
+        updatedData.endDate = newStartDate;
+      }
+      
+      // Recalculate the number of days whenever the start date changes
+      updatedData.numberOfDays = calculateDays(updatedData.startDate, updatedData.endDate);
+      
+      return updatedData;
+    });
   };
 
   // Calculate number of days between start and end dates
@@ -228,15 +240,23 @@ const RequestLeaveAdvanced = () => {
         formData.leaveType === 'sick';
 
       if (requiresLocationInfo) {
-        if (!formData.locationType) {
-          setError('Please select where the leave will be spent');
-          isValid = false;
-        }
-        
-        if ((formData.locationType === 'abroad' || formData.locationType === 'outpatient' || 
-             formData.locationType === 'hospital') && !formData.locationSpecify.trim()) {
-          setError('Please specify the location');
-          isValid = false;
+        // Special Leave Benefits for Women collects the illness as the location (no radio options)
+        if (formData.leaveType === 'special_leave_benefits_women') {
+          if (!formData.locationSpecify.trim()) {
+            setError('Please specify the illness / medical condition');
+            isValid = false;
+          }
+        } else {
+          if (!formData.locationType) {
+            setError('Please select where the leave will be spent');
+            isValid = false;
+          }
+          
+          if ((formData.locationType === 'abroad' || formData.locationType === 'outpatient' || 
+               formData.locationType === 'hospital') && !formData.locationSpecify.trim()) {
+            setError('Please specify the location');
+            isValid = false;
+          }
         }
       }
       
@@ -306,7 +326,9 @@ const RequestLeaveAdvanced = () => {
     }
     
     let locationText = '';
-    if (formData.locationType === 'abroad' && formData.locationSpecify) {
+    if (formData.leaveType === 'special_leave_benefits_women') {
+      locationText = formData.locationSpecify || 'Not specified';
+    } else if (formData.locationType === 'abroad' && formData.locationSpecify) {
       locationText = `Abroad: ${formData.locationSpecify}`;
     } else if (formData.locationType === 'outpatient' && formData.locationSpecify) {
       locationText = `Outpatient: ${formData.locationSpecify}`;
@@ -339,16 +361,18 @@ const RequestLeaveAdvanced = () => {
     setError('');
     
     try {
-      // Client-side validation for insufficient credits BEFORE submitting
+      // Client-side validation for insufficient credits BEFORE submitting.
+      // The credit pool mirrors the server's getLeaveCreditsInfo mapping.
       const numberOfDaysFloat = parseFloat(formData.numberOfDays);
-      const availableCredits = formData.leaveType === 'vacation' ? vacationBalance : sickBalance;
+      const effectiveLeaveType = formData.leaveType === 'others_specify' ? formData.otherSpecify : formData.leaveType;
+      const availableCredits = getAvailableCredits(effectiveLeaveType, vacationBalance, sickBalance);
       
-      // Check if user has insufficient credits
-      if (numberOfDaysFloat > availableCredits) {
+      // Check if user has insufficient credits (only for types that consume vacation/sick credits)
+      if (availableCredits !== Infinity && numberOfDaysFloat > availableCredits) {
+        const poolName = VACATION_POOL_TYPES.includes(effectiveLeaveType) ? 'vacation' : 'sick';
         // If employee has less than 1 credit, show without pay warning
         if (availableCredits < 1) {
-          const leaveType = formData.leaveType === 'vacation' ? 'Vacation' : 'Sick';
-          const warningMsg = `You have no ${leaveType.toLowerCase()} leave credits available. This leave will be considered without pay. Do you want to proceed?`;
+          const warningMsg = `You have no ${poolName} leave credits available. This leave will be considered without pay. Do you want to proceed?`;
           setWarningMessage(warningMsg);
           setShowWarningModal(true);
           setLoading(false);
@@ -357,7 +381,7 @@ const RequestLeaveAdvanced = () => {
           // Partial credits - show adjustment warning and calculate adjusted values
           const wholeDays = Math.floor(availableCredits);
           const adjustedEndDate = calculateAdjustedEndDate(formData.startDate, wholeDays);
-          const warningMsg = `You only have ${availableCredits.toFixed(3)} ${formData.leaveType} leave credits available. Your leave request will be adjusted to ${wholeDays} day${wholeDays === 1 ? '' : 's'} ending on ${adjustedEndDate}. Do you want to proceed?`;
+          const warningMsg = `You only have ${availableCredits.toFixed(3)} ${poolName} leave credits available. Your leave request will be adjusted to ${wholeDays} day${wholeDays === 1 ? '' : 's'} ending on ${adjustedEndDate}. Do you want to proceed?`;
           setWarningMessage(warningMsg);
           
           // Store the adjusted values for use when user confirms
@@ -393,7 +417,10 @@ const RequestLeaveAdvanced = () => {
         submitData.leaveType === 'sick' ||
         submitData.leaveType === 'special_leave_benefits_women';
 
-      if (!requiresLocationInfo) {
+      if (submitData.leaveType === 'special_leave_benefits_women') {
+        // This leave type has no location radio — the illness text is the location
+        whereSpentValue = submitData.locationSpecify;
+      } else if (!requiresLocationInfo) {
         whereSpentValue = 'not_applicable'; // Use a default value for leave types that don't require location
       }
 
@@ -1353,7 +1380,15 @@ const RequestLeaveAdvanced = () => {
       {/* Warning Modal */}
       <ConfirmationModal
         isOpen={showWarningModal}
-        onClose={() => setShowWarningModal(false)}
+        onClose={() => {
+          setShowWarningModal(false);
+          // Discard any pending adjusted values if the user cancels the warning,
+          // so a later submit never reuses stale adjusted dates/days.
+          setFormData(prev => {
+            const { _adjustedData, ...rest } = prev;
+            return rest;
+          });
+        }}
         onConfirm={async () => {
           // Close the warning modal and submit the request
           setShowWarningModal(false);
@@ -1376,7 +1411,10 @@ const RequestLeaveAdvanced = () => {
               submitData.leaveType === 'special_leave_benefits_women' ||
               submitData.leaveType === 'sick';
 
-            if (!requiresLocationInfo) {
+            if (submitData.leaveType === 'special_leave_benefits_women') {
+              // This leave type has no location radio — the illness text is the location
+              whereSpentValue = submitData.locationSpecify;
+            } else if (!requiresLocationInfo) {
               whereSpentValue = 'not_applicable'; // Use a default value for leave types that don't require location
             }
 

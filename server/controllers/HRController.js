@@ -457,10 +457,20 @@ const getHRLeaveRequest = async (req, res) => {
       
       leaveRequestWithRecommendations.user_id.vacation_balance = vacationBalance;
       leaveRequestWithRecommendations.user_id.sick_balance = sickBalance;
+
+      // Totals used for the 7.A Certification of Leave Credits table
+      leaveRequestWithRecommendations.user_id.vacation_earned_total = allLeaveRecords.reduce((sum, record) => sum + (record.vacation_earned || 0), 0);
+      leaveRequestWithRecommendations.user_id.vacation_used_total   = allLeaveRecords.reduce((sum, record) => sum + (record.vacation_used   || 0), 0);
+      leaveRequestWithRecommendations.user_id.sick_earned_total     = allLeaveRecords.reduce((sum, record) => sum + (record.sick_earned     || 0), 0);
+      leaveRequestWithRecommendations.user_id.sick_used_total       = allLeaveRecords.reduce((sum, record) => sum + (record.sick_used       || 0), 0);
     } else {
       // Default balances if no record exists
       leaveRequestWithRecommendations.user_id.vacation_balance = 0;
       leaveRequestWithRecommendations.user_id.sick_balance = 0;
+      leaveRequestWithRecommendations.user_id.vacation_earned_total = 0;
+      leaveRequestWithRecommendations.user_id.vacation_used_total = 0;
+      leaveRequestWithRecommendations.user_id.sick_earned_total = 0;
+      leaveRequestWithRecommendations.user_id.sick_used_total = 0;
     }
 
     res.json({
@@ -491,7 +501,7 @@ const processHRLeaveApproval = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { approval, approved_for, approved_for_other, disapproved_due_to } = req.body;
+    const { approval, approved_for, approved_for_other, disapproved_due_to, credits_certified } = req.body;
 
     const leaveRequest = await LeaveRequest.findById(id).populate('user_id');
 
@@ -547,6 +557,16 @@ const processHRLeaveApproval = async (req, res) => {
         });
       }
       
+      // 7.A Certification of Leave Credits is part of the HR approval process
+      if (approved_for === 'with_pay' || approved_for === 'others') {
+        if (!credits_certified) {
+          return res.status(400).json({
+            success: false,
+            message: 'Please certify the employee\'s leave credits before approving'
+          });
+        }
+      }
+      
       // Additional validation for insufficient credits
       if (approved_for === 'with_pay' || approved_for === 'others') {
         const { getLeaveCreditsInfo } = require('./LeaveRecordController');
@@ -599,6 +619,30 @@ const processHRLeaveApproval = async (req, res) => {
     
     leaveRequest.hr_approved_by = req.user.user_id;
     leaveRequest.hr_approved_at = new Date();
+
+    // Record the 7.A Certification of Leave Credits when the HR manager certifies
+    if (approval === 'approve' && credits_certified) {
+      leaveRequest.credits_certified = true;
+      leaveRequest.credits_certified_by = req.user.user_id;
+      leaveRequest.credits_certified_at = new Date();
+
+      // Snapshot the balances as certified
+      try {
+        const allLeaveRecords = await LeaveRecord
+          .find({ user_id: leaveRequest.user_id.user_id })
+          .exec();
+        const vacationEarned = allLeaveRecords.reduce((s, r) => s + (r.vacation_earned || 0), 0);
+        const vacationUsed   = allLeaveRecords.reduce((s, r) => s + (r.vacation_used   || 0), 0);
+        const sickEarned     = allLeaveRecords.reduce((s, r) => s + (r.sick_earned     || 0), 0);
+        const sickUsed       = allLeaveRecords.reduce((s, r) => s + (r.sick_used       || 0), 0);
+        leaveRequest.certified_balances = {
+          vacation: { earned: vacationEarned, used: vacationUsed, balance: vacationEarned - vacationUsed },
+          sick:     { earned: sickEarned,     used: sickUsed,     balance: sickEarned     - sickUsed }
+        };
+      } catch (balanceError) {
+        console.error('Error snapshotting certified balances:', balanceError);
+      }
+    }
 
     await leaveRequest.save();
     
@@ -740,6 +784,7 @@ const getHRReports = async (req, res) => {
     }
 
     const { year, department } = req.query;
+    const targetYear = year ? parseInt(year) : new Date().getFullYear();
 
     // ===== LEAVE TYPE SUMMARY =====
     const leaveTypeLabels = {
@@ -759,14 +804,12 @@ const getHRReports = async (req, res) => {
       others_specify: 'Others (Specify)'
     };
 
+    // Year-filtered date range
+    const yearStart = new Date(targetYear, 0, 1);
+    const yearEnd = new Date(targetYear, 11, 31, 23, 59, 59, 999);
+
     // Build query for leave requests
-    let leaveQuery = {};
-    if (year) {
-      const yearNum = parseInt(year);
-      const startDate = new Date(yearNum, 0, 1);
-      const endDate = new Date(yearNum, 11, 31, 23, 59, 59, 999);
-      leaveQuery.start_date = { $gte: startDate, $lte: endDate };
-    }
+    let leaveQuery = { start_date: { $gte: yearStart, $lte: yearEnd } };
     if (department && department !== 'all') {
       const deptUsers = await User.find({ department_id: department }).select('user_id');
       leaveQuery.user_id = { $in: deptUsers.map(u => u.user_id) };
@@ -792,11 +835,12 @@ const getHRReports = async (req, res) => {
     }));
 
     // Overall stats
-    const totalRequests = allLeaveRequests.filter(r => r.status !== 'cancelled').length;
-    const approvedCount = allLeaveRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length;
-    const pendingCount = allLeaveRequests.filter(r => r.status === 'pending').length;
-    const disapprovedCount = allLeaveRequests.filter(r => r.status === 'disapproved').length;
-    const totalDays = allLeaveRequests.filter(r => r.status !== 'cancelled').reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0);
+    const activeRequests = allLeaveRequests.filter(r => r.status !== 'cancelled');
+    const totalRequests = activeRequests.length;
+    const approvedCount = activeRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length;
+    const pendingCount = activeRequests.filter(r => r.status === 'pending').length;
+    const disapprovedCount = activeRequests.filter(r => r.status === 'disapproved').length;
+    const totalDays = activeRequests.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0);
 
     const overallStats = {
       totalRequests,
@@ -807,22 +851,22 @@ const getHRReports = async (req, res) => {
       approvalRate: totalRequests > 0 ? parseFloat(((approvedCount / totalRequests) * 100).toFixed(1)) : 0
     };
 
-    // ===== EMPLOYEE LEAVE LEDGER =====
+    // ===== EMPLOYEE LEAVE LEDGER (year-filtered) =====
     const allUsers = await User.find().populate('department_id');
-    const allLeaveRecords = await LeaveRecord.find();
+    const userLeaveRequests = {};
+    activeRequests.forEach(req => {
+      const reqUserId = typeof req.user_id === 'object' ? req.user_id.user_id : req.user_id;
+      if (!userLeaveRequests[reqUserId]) {
+        userLeaveRequests[reqUserId] = [];
+      }
+      userLeaveRequests[reqUserId].push(req);
+    });
 
     const employeeLedger = allUsers.map(user => {
-      const userRecords = allLeaveRecords.filter(r => r.user_id === user.user_id);
-      const vacationEarned = userRecords.reduce((sum, r) => sum + (r.vacation_earned || 0), 0);
-      const vacationUsed = userRecords.reduce((sum, r) => sum + (r.vacation_used || 0), 0);
-      const vacationBalance = parseFloat((vacationEarned - vacationUsed).toFixed(3));
-      const sickEarned = userRecords.reduce((sum, r) => sum + (r.sick_earned || 0), 0);
-      const sickUsed = userRecords.reduce((sum, r) => sum + (r.sick_used || 0), 0);
-      const sickBalance = parseFloat((sickEarned - sickUsed).toFixed(3));
-
-      const userLeaveRequests = allLeaveRequests.filter(r => r.user_id === user.user_id && r.status !== 'cancelled');
-      const leavesFiled = userLeaveRequests.length;
-      const totalDaysFiled = parseFloat(userLeaveRequests.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3));
+      const userReqs = userLeaveRequests[user.user_id] || [];
+      const leavesFiled = userReqs.length;
+      const totalDaysFiled = parseFloat(userReqs.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3));
+      const approvedLeaves = userReqs.filter(r => ['approved', 'hr_approved'].includes(r.status)).length;
 
       return {
         user_id: user.user_id,
@@ -830,21 +874,16 @@ const getHRReports = async (req, res) => {
         last_name: user.last_name,
         department: user.department_id?.name || 'No Department',
         position: user.position || 'N/A',
-        vacationEarned: parseFloat(vacationEarned.toFixed(3)),
-        vacationUsed: parseFloat(vacationUsed.toFixed(3)),
-        vacationBalance,
-        sickEarned: parseFloat(sickEarned.toFixed(3)),
-        sickUsed: parseFloat(sickUsed.toFixed(3)),
-        sickBalance,
         leavesFiled,
-        totalDaysFiled
+        approvedLeaves,
+        totalDaysFiled,
+        pendingLeaves: userReqs.filter(r => r.status === 'pending').length
       };
-    });
+    }).filter(emp => emp.leavesFiled > 0); // Only show employees who filed leave this year
 
     // ===== MONTHLY TRENDS =====
     const monthlyTrends = [];
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const targetYear = year ? parseInt(year) : new Date().getFullYear();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     for (let month = 0; month < 12; month++) {
       const monthStart = new Date(targetYear, month, 1);
@@ -857,6 +896,7 @@ const getHRReports = async (req, res) => {
 
       const filed = monthRequests.filter(r => r.status !== 'cancelled').length;
       const approved = monthRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length;
+      const pending = monthRequests.filter(r => r.status === 'pending').length;
       const daysUsed = parseFloat(monthRequests.filter(r => r.status !== 'cancelled').reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3));
 
       // Count by type for this month
@@ -871,26 +911,31 @@ const getHRReports = async (req, res) => {
         year: targetYear,
         filed,
         approved,
+        pending,
         daysUsed,
         typeBreakdown
       });
     }
 
-    // ===== DEPARTMENT BREAKDOWN =====
-    const departments = await require('../models/Department').find();
+    // ===== DEPARTMENT BREAKDOWN (year-filtered) =====
+    const departments = await Department.find();
     const departmentBreakdown = departments.map(dept => {
       const deptUsers = allUsers.filter(u => u.department_id && u.department_id._id.toString() === dept._id.toString());
       const deptUserIds = deptUsers.map(u => u.user_id);
-      const deptRequests = allLeaveRequests.filter(r => deptUserIds.includes(r.user_id) && r.status !== 'cancelled');
+      const deptRequests = activeRequests.filter(r => {
+        const reqUserId = typeof r.user_id === 'object' ? r.user_id.user_id : r.user_id;
+        return deptUserIds.includes(reqUserId);
+      });
 
       return {
         department: dept.name,
         totalEmployees: deptUsers.length,
         leavesFiled: deptRequests.length,
         totalDays: parseFloat(deptRequests.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3)),
-        approved: deptRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length
+        approved: deptRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length,
+        pending: deptRequests.filter(r => r.status === 'pending').length
       };
-    });
+    }).filter(d => d.leavesFiled > 0); // Only show departments with activity
 
     res.json({
       success: true,

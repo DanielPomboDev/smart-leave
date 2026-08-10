@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import axios from '../services/api';
+import CSForm6Modal from './CSForm6Modal';
 
 const HRLeaveRecord = () => {
   const { id } = useParams();
@@ -19,6 +20,8 @@ const HRLeaveRecord = () => {
   const [leaveRecords, setLeaveRecords] = useState([]);
   const [filteredLeaveRecords, setFilteredLeaveRecords] = useState([]);
   const [showAddUndertimeModal, setShowAddUndertimeModal] = useState(false);
+  const [selectedFormRecord, setSelectedFormRecord] = useState(null);
+  const [showCSForm6Modal, setShowCSForm6Modal] = useState(false);
   const [undertimeForm, setUndertimeForm] = useState({
     month: '',
     year: '',
@@ -34,8 +37,6 @@ const HRLeaveRecord = () => {
     month: '',
     year: ''
   });
-  const [leaveTypeSummary, setLeaveTypeSummary] = useState({});
-  const [apiLeaveTypeSummary, setApiLeaveTypeSummary] = useState({});
 
   // Leave record data entry state — manual leave request entry
   const [showAddRecordModal, setShowAddRecordModal] = useState(false);
@@ -68,6 +69,8 @@ const HRLeaveRecord = () => {
     { value: 'special_leave_benefits_women', label: 'Special Leave Benefits for Women' },
     { value: 'special_emergency', label: 'Special Emergency (Calamity)' },
     { value: 'adoption_leave', label: 'Adoption Leave' },
+    { value: 'monetization', label: 'Monetization of Leave Credits' },
+    { value: 'terminal_leave', label: 'Terminal Leave' },
     { value: 'others_specify', label: 'Others (Specify)' }
   ];
 
@@ -112,7 +115,6 @@ const HRLeaveRecord = () => {
           setEmployee(response.data.employee);
           setVacationSummary(response.data.vacationSummary);
           setSickSummary(response.data.sickSummary);
-          setApiLeaveTypeSummary(response.data.leaveTypeSummary || {});
           // Convert leave records to the format expected by the UI
           const formattedRecords = Object.values(response.data.leaveRecords).flat().map(record => ({
             ...record,
@@ -157,101 +159,6 @@ const HRLeaveRecord = () => {
 
     setFilteredLeaveRecords(filtered);
   }, [filters, leaveRecords]);
-
-  // Compute leave type summary based on API data (when year is selected) or filtered records
-  useEffect(() => {
-    const typeLabels = {
-      vacation: 'Vacation Leave',
-      sick: 'Sick Leave',
-      mandatory_forced_leave: 'Mandatory/Forced Leave',
-      maternity_leave: 'Maternity Leave',
-      paternity_leave: 'Paternity Leave',
-      special_privilege_leave: 'Special Privilege Leave',
-      solo_parent_leave: 'Solo Parent Leave',
-      study_leave: 'Study Leave',
-      vawc_leave: 'VAWC Leave',
-      rehabilitation_privilege: 'Rehabilitation Privilege',
-      special_leave_benefits_women: 'Special Leave (Women)',
-      special_emergency: 'Special Emergency (Calamity)',
-      adoption_leave: 'Adoption Leave',
-      others_specify: 'Others (Specify)'
-    };
-    const typeIcons = {
-      vacation: 'fa-umbrella-beach',
-      sick: 'fa-hospital',
-      mandatory_forced_leave: 'fa-gavel',
-      maternity_leave: 'fa-baby',
-      paternity_leave: 'fa-person-breastfeeding',
-      special_privilege_leave: 'fa-star',
-      solo_parent_leave: 'fa-person',
-      study_leave: 'fa-graduation-cap',
-      vawc_leave: 'fa-shield-heart',
-      rehabilitation_privilege: 'fa-hand-holding-medical',
-      special_leave_benefits_women: 'fa-venus',
-      special_emergency: 'fa-house-crack',
-      adoption_leave: 'fa-hands-holding-child',
-      others_specify: 'fa-pen'
-    };
-
-    // When year is selected, use API data
-    if (filters.year && Object.keys(apiLeaveTypeSummary).length > 0) {
-      const summary = Object.entries(apiLeaveTypeSummary)
-        .filter(([_, count]) => count > 0)
-        .sort((a, b) => b[1] - a[1])
-        .map(([type, count]) => ({
-          type,
-          count,
-          label: typeLabels[type] || type,
-          icon: typeIcons[type] || 'fa-calendar'
-        }));
-      setLeaveTypeSummary(summary);
-      return;
-    }
-
-    // When no year is selected, count from filtered records
-    if (!filteredLeaveRecords || filteredLeaveRecords.length === 0) {
-      setLeaveTypeSummary([]);
-      return;
-    }
-
-    const typeCounts = {};
-
-    // Count leave types from vacation_entries and sick_entries
-    filteredLeaveRecords.forEach(record => {
-      // Count vacation entries
-      if (record.vacation_entries) {
-        record.vacation_entries.forEach(entry => {
-          if (!entry.cancelled) {
-            const type = entry.type || 'vacation';
-            typeCounts[type] = (typeCounts[type] || 0) + 1;
-          }
-        });
-      }
-
-      // Count sick entries
-      if (record.sick_entries) {
-        record.sick_entries.forEach(entry => {
-          if (!entry.cancelled) {
-            const type = entry.type || 'sick';
-            typeCounts[type] = (typeCounts[type] || 0) + 1;
-          }
-        });
-      }
-    });
-
-    // Convert to array for rendering
-    const summary = Object.entries(typeCounts)
-      .filter(([_, count]) => count > 0)
-      .sort((a, b) => b[1] - a[1])
-      .map(([type, count]) => ({
-        type,
-        count,
-        label: typeLabels[type] || type,
-        icon: typeIcons[type] || 'fa-calendar'
-      }));
-
-    setLeaveTypeSummary(summary);
-  }, [filteredLeaveRecords, filters.year, apiLeaveTypeSummary]);
 
   // Helper function to get month name
   const getMonthName = (monthNumber) => {
@@ -356,7 +263,6 @@ const HRLeaveRecord = () => {
           setEmployee(res.data.employee);
           setVacationSummary(res.data.vacationSummary);
           setSickSummary(res.data.sickSummary);
-          setApiLeaveTypeSummary(res.data.leaveTypeSummary || {});
           const formattedRecords = Object.values(res.data.leaveRecords).flat().map(r => ({
             ...r,
             month_year: `${getMonthName(r.month)} ${r.year}`,
@@ -668,52 +574,6 @@ const HRLeaveRecord = () => {
               </div>
             </div>
 
-            {/* Leave Type Summary */}
-            {Array.isArray(leaveTypeSummary) && (
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-5 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-semibold text-gray-800">
-                    <i className="fas fa-chart-bar text-indigo-600 mr-2"></i>
-                    Leave Types Summary
-                  </h4>
-                  {filters.year && (
-                    <span className="badge badge-indigo badge-lg">
-                      <i className="fas fa-calendar mr-1"></i>
-                      {filters.year}
-                    </span>
-                  )}
-                </div>
-                {leaveTypeSummary.length > 0 ? (
-                  <>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                      {leaveTypeSummary.map((item, index) => (
-                        <div
-                          key={index}
-                          className="bg-white rounded-lg border border-indigo-100 p-3 text-center shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          <div className="flex items-center justify-center w-10 h-10 mx-auto mb-2 bg-indigo-100 rounded-full">
-                            <i className={`fas ${item.icon} text-indigo-600`}></i>
-                          </div>
-                          <p className="text-xs text-gray-600 truncate mb-1">{item.label}</p>
-                          <p className="text-2xl font-bold text-indigo-700">{item.count}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-3 text-center">
-                      Total: {leaveTypeSummary.reduce((sum, item) => sum + item.count, 0)} leave(s) recorded
-                      {filters.month && ` for ${getMonthName(parseInt(filters.month))}`}
-                      {filters.year && ` ${filters.year}`}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">
-                    No leave records found
-                    {filters.year ? ` for ${filters.year}` : ''}.
-                  </p>
-                )}
-              </div>
-            )}
-
             {filteredLeaveRecords && filteredLeaveRecords.length > 0 ? (
               filteredLeaveRecords.map((record, index) => (
                 <div key={index} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -723,145 +583,173 @@ const HRLeaveRecord = () => {
                   <div className="p-6 space-y-4">
                     {/* Leave Entries */}
                     {record.vacation_entries && record.vacation_entries.map((vacation, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                            {vacation.type === 'vacation' ? (
-                              <i className="fas fa-umbrella-beach text-gray-600"></i>
-                            ) : vacation.type === 'study_leave' ? (
-                              <i className="fas fa-graduation-cap text-gray-600"></i>
-                            ) : vacation.type === 'special_privilege_leave' ? (
-                              <i className="fas fa-star text-gray-600"></i>
-                            ) : vacation.type === 'mandatory_forced_leave' ? (
-                              <i className="fas fa-exclamation-circle text-gray-600"></i>
-                            ) : vacation.type === 'maternity_leave' ? (
-                              <i className="fas fa-baby text-gray-600"></i>
-                            ) : vacation.type === 'paternity_leave' ? (
-                              <i className="fas fa-child text-gray-600"></i>
-                            ) : vacation.type === 'solo_parent_leave' ? (
-                              <i className="fas fa-user-friends text-gray-600"></i>
-                            ) : vacation.type === 'vawc_leave' ? (
-                              <i className="fas fa-heart text-gray-600"></i>
-                            ) : vacation.type === 'rehabilitation_privilege' ? (
-                              <i className="fas fa-heartbeat text-gray-600"></i>
-                            ) : vacation.type === 'special_leave_benefits_women' ? (
-                              <i className="fas fa-female text-gray-600"></i>
-                            ) : vacation.type === 'special_emergency' ? (
-                              <i className="fas fa-bolt text-gray-600"></i>
-                            ) : vacation.type === 'adoption_leave' ? (
-                              <i className="fas fa-home text-gray-600"></i>
-                            ) : vacation.type === 'others_specify' ? (
-                              <i className="fas fa-question-circle text-gray-600"></i>
-                            ) : (
-                              <i className="fas fa-calendar text-gray-600"></i>
-                            )}
+                      <div key={idx} className="p-4 bg-slate-50 hover:bg-slate-100/80 transition-colors rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-start space-x-3.5">
+                          <div className="w-11 h-11 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                            <i className="fas fa-umbrella-beach text-lg"></i>
                           </div>
                           <div>
-                            <p className="font-medium text-gray-800">
-                              {vacation.type === 'vacation' ? 'Vacation Leave' : 
-                               vacation.type === 'special_privilege_leave' ? 'Special Privilege Leave' :
-                               vacation.type === 'study_leave' ? 'Study Leave' :
-                               vacation.type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
-                               vacation.type === 'maternity_leave' ? 'Maternity Leave' :
-                               vacation.type === 'paternity_leave' ? 'Paternity Leave' :
-                               vacation.type === 'solo_parent_leave' ? 'Solo Parent Leave' :
-                               vacation.type === 'vawc_leave' ? 'VAWC Leave' :
-                               vacation.type === 'rehabilitation_privilege' ? 'Rehabilitation Privilege' :
-                               vacation.type === 'special_leave_benefits_women' ? 'Special Leave Benefits for Women' :
-                               vacation.type === 'special_emergency' ? 'Special Emergency Leave' :
-                               vacation.type === 'adoption_leave' ? 'Adoption Leave' :
-                               vacation.type === 'others_specify' ? 'Others (Specify)' :
-                               vacation.type}
-                              {vacation.cancelled && (
-                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                  Cancelled
-                                </span>
+                            <div className="flex items-center space-x-2 flex-wrap">
+                              <span className="font-bold text-gray-900 text-base">
+                                {vacation.type === 'vacation' ? 'Vacation Leave' : 
+                                 vacation.type === 'special_privilege_leave' ? 'Special Privilege Leave' :
+                                 vacation.type === 'study_leave' ? 'Study Leave' :
+                                 vacation.type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
+                                 vacation.type === 'maternity_leave' ? 'Maternity Leave' :
+                                 vacation.type === 'paternity_leave' ? 'Paternity Leave' :
+                                 vacation.type === 'solo_parent_leave' ? 'Solo Parent Leave' :
+                                 vacation.type === 'vawc_leave' ? 'VAWC Leave' :
+                                 vacation.type === 'rehabilitation_privilege' ? 'Rehabilitation Privilege' :
+                                 vacation.type === 'special_leave_benefits_women' ? 'Special Leave Benefits for Women' :
+                                 vacation.type === 'special_emergency' ? 'Special Emergency Leave' :
+                                 vacation.type === 'adoption_leave' ? 'Adoption Leave' :
+                                 vacation.type === 'monetization' ? 'Monetization of Leave Credits' :
+                                 vacation.type === 'terminal_leave' ? 'Terminal Leave' :
+                                 vacation.type === 'others_specify' ? 'Others (Specify)' :
+                                 vacation.type}
+                              </span>
+                              {vacation.cancelled ? (
+                                <span className="badge badge-error badge-sm text-white font-semibold">Cancelled</span>
+                              ) : vacation.status === 'approved' ? (
+                                <span className="badge badge-success badge-sm text-white font-semibold">Approved</span>
+                              ) : (
+                                <span className="badge badge-warning badge-sm font-semibold capitalize">{vacation.status}</span>
                               )}
+                            </div>
+
+                            <p className="text-xs text-gray-600 mt-1 flex items-center space-x-1">
+                              <i className="far fa-calendar-alt text-gray-400"></i>
+                              <span>For: <strong className="text-gray-800">{vacation.start_date} - {vacation.end_date}</strong> ({vacation.days} working day/s)</span>
                             </p>
-                            <p className="text-sm text-gray-600">
-                              {vacation.days} days
-                              {vacation.paid === false && (
-                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                  Without Pay
-                                </span>
+
+                            {/* Credits Deducted & Balance Info */}
+                            <div className="mt-2.5 flex items-center space-x-3 flex-wrap text-xs">
+                              <div className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200 font-semibold flex items-center space-x-1">
+                                <i className="fas fa-history text-indigo-500"></i>
+                                <span>Credits Before Deduction: <strong>{vacation.credits_before_deduction !== undefined ? vacation.credits_before_deduction.toFixed(3) : '0.000'} VL</strong></span>
+                              </div>
+                              {vacation.cancelled ? (
+                                <div className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 font-semibold flex items-center space-x-1">
+                                  <i className="fas fa-undo-alt text-emerald-500"></i>
+                                  <span>Credits Returned</span>
+                                </div>
+                              ) : vacation.status === 'approved' ? (
+                                <div className="bg-red-50 text-red-700 px-2.5 py-1 rounded-lg border border-red-200 font-semibold flex items-center space-x-1">
+                                  <i className="fas fa-minus-circle text-red-500"></i>
+                                  <span>Credits Deducted: <strong>{vacation.credits_deducted !== undefined ? vacation.credits_deducted.toFixed(3) : vacation.days.toFixed(3)} VL</strong></span>
+                                </div>
+                              ) : (
+                                <div className="bg-gray-50 text-gray-600 px-2.5 py-1 rounded-lg border border-gray-200 font-semibold flex items-center space-x-1">
+                                  <i className="fas fa-hourglass-half text-gray-400"></i>
+                                  <span>No Deduction (Pending)</span>
+                                </div>
                               )}
-                            </p>
+                              <div className="bg-blue-50 text-blue-800 px-2.5 py-1 rounded-lg border border-blue-200 font-semibold flex items-center space-x-1">
+                                <i className="fas fa-wallet text-blue-500"></i>
+                                <span>VL Balance Now: <strong>{vacation.running_vacation_balance !== undefined ? vacation.running_vacation_balance.toFixed(3) : (vacationSummary.balance?.toFixed(3) || '0.000')} days</strong></span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right sm:text-left">
-                          <p className="text-sm text-gray-500">For: {vacation.start_date} - {vacation.end_date}</p>
+
+                        {/* Action Button */}
+                        <div className="flex items-center space-x-2 self-end md:self-center shrink-0">
+                          <button
+                            onClick={() => {
+                              setSelectedFormRecord(vacation);
+                              setShowCSForm6Modal(true);
+                            }}
+                            className="btn btn-sm bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white border-none shadow-sm space-x-1.5"
+                          >
+                            <i className="fas fa-file-pdf text-xs"></i>
+                            <span>View CS Form 6</span>
+                          </button>
                         </div>
                       </div>
                     ))}
 
                     {record.sick_entries && record.sick_entries.map((sick, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                            {sick.type === 'sick' ? (
-                              <i className="fas fa-thermometer-half text-gray-600"></i>
-                            ) : sick.type === 'study_leave' ? (
-                              <i className="fas fa-graduation-cap text-gray-600"></i>
-                            ) : sick.type === 'special_privilege_leave' ? (
-                              <i className="fas fa-star text-gray-600"></i>
-                            ) : sick.type === 'mandatory_forced_leave' ? (
-                              <i className="fas fa-exclamation-circle text-gray-600"></i>
-                            ) : sick.type === 'maternity_leave' ? (
-                              <i className="fas fa-baby text-gray-600"></i>
-                            ) : sick.type === 'paternity_leave' ? (
-                              <i className="fas fa-child text-gray-600"></i>
-                            ) : sick.type === 'solo_parent_leave' ? (
-                              <i className="fas fa-user-friends text-gray-600"></i>
-                            ) : sick.type === 'vawc_leave' ? (
-                              <i className="fas fa-heart text-gray-600"></i>
-                            ) : sick.type === 'rehabilitation_privilege' ? (
-                              <i className="fas fa-heartbeat text-gray-600"></i>
-                            ) : sick.type === 'special_leave_benefits_women' ? (
-                              <i className="fas fa-female text-gray-600"></i>
-                            ) : sick.type === 'special_emergency' ? (
-                              <i className="fas fa-bolt text-gray-600"></i>
-                            ) : sick.type === 'adoption_leave' ? (
-                              <i className="fas fa-home text-gray-600"></i>
-                            ) : sick.type === 'others_specify' ? (
-                              <i className="fas fa-question-circle text-gray-600"></i>
-                            ) : (
-                              <i className="fas fa-calendar text-gray-600"></i>
-                            )}
+                      <div key={idx} className="p-4 bg-slate-50 hover:bg-slate-100/80 transition-colors rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-start space-x-3.5">
+                          <div className="w-11 h-11 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                            <i className="fas fa-stethoscope text-lg"></i>
                           </div>
                           <div>
-                            <p className="font-medium text-gray-800">
-                              {sick.type === 'sick' ? 'Sick Leave' : 
-                               sick.type === 'maternity_leave' ? 'Maternity Leave' :
-                               sick.type === 'paternity_leave' ? 'Paternity Leave' :
-                               sick.type === 'solo_parent_leave' ? 'Solo Parent Leave' :
-                               sick.type === 'vawc_leave' ? 'VAWC Leave' :
-                               sick.type === 'rehabilitation_privilege' ? 'Rehabilitation Privilege' :
-                               sick.type === 'special_leave_benefits_women' ? 'Special Leave Benefits for Women' :
-                               sick.type === 'special_emergency' ? 'Special Emergency Leave' :
-                               sick.type === 'adoption_leave' ? 'Adoption Leave' :
-                               sick.type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
-                               sick.type === 'special_privilege_leave' ? 'Special Privilege Leave' :
-                               sick.type === 'study_leave' ? 'Study Leave' :
-                               sick.type === 'others_specify' ? 'Others (Specify)' :
-                               sick.type}
-                              {sick.cancelled && (
-                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                  Cancelled
-                                </span>
+                            <div className="flex items-center space-x-2 flex-wrap">
+                              <span className="font-bold text-gray-900 text-base">
+                                {sick.type === 'sick' ? 'Sick Leave' : 
+                                 sick.type === 'maternity_leave' ? 'Maternity Leave' :
+                                 sick.type === 'paternity_leave' ? 'Paternity Leave' :
+                                 sick.type === 'solo_parent_leave' ? 'Solo Parent Leave' :
+                                 sick.type === 'vawc_leave' ? 'VAWC Leave' :
+                                 sick.type === 'rehabilitation_privilege' ? 'Rehabilitation Privilege' :
+                                 sick.type === 'special_leave_benefits_women' ? 'Special Leave Benefits for Women' :
+                                 sick.type === 'special_emergency' ? 'Special Emergency Leave' :
+                                 sick.type === 'adoption_leave' ? 'Adoption Leave' :
+                                 sick.type === 'monetization' ? 'Monetization of Leave Credits' :
+                                 sick.type === 'terminal_leave' ? 'Terminal Leave' :
+                                 sick.type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
+                                 sick.type === 'special_privilege_leave' ? 'Special Privilege Leave' :
+                                 sick.type === 'study_leave' ? 'Study Leave' :
+                                 sick.type === 'others_specify' ? 'Others (Specify)' :
+                                 sick.type}
+                              </span>
+                              {sick.cancelled ? (
+                                <span className="badge badge-error badge-sm text-white font-semibold">Cancelled</span>
+                              ) : sick.status === 'approved' ? (
+                                <span className="badge badge-success badge-sm text-white font-semibold">Approved</span>
+                              ) : (
+                                <span className="badge badge-warning badge-sm font-semibold capitalize">{sick.status}</span>
                               )}
+                            </div>
+
+                            <p className="text-xs text-gray-600 mt-1 flex items-center space-x-1">
+                              <i className="far fa-calendar-alt text-gray-400"></i>
+                              <span>For: <strong className="text-gray-800">{sick.start_date} - {sick.end_date}</strong> ({sick.days} working day/s)</span>
                             </p>
-                            <p className="text-sm text-gray-600">
-                              {sick.days} days
-                              {sick.paid === false && (
-                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                  Without Pay
-                                </span>
+
+                            {/* Credits Deducted & Balance Info */}
+                            <div className="mt-2.5 flex items-center space-x-3 flex-wrap text-xs">
+                              <div className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200 font-semibold flex items-center space-x-1">
+                                <i className="fas fa-history text-indigo-500"></i>
+                                <span>Credits Before Deduction: <strong>{sick.credits_before_deduction !== undefined ? sick.credits_before_deduction.toFixed(3) : '0.000'} SL</strong></span>
+                              </div>
+                              {sick.cancelled ? (
+                                <div className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 font-semibold flex items-center space-x-1">
+                                  <i className="fas fa-undo-alt text-emerald-500"></i>
+                                  <span>Credits Returned</span>
+                                </div>
+                              ) : sick.status === 'approved' ? (
+                                <div className="bg-red-50 text-red-700 px-2.5 py-1 rounded-lg border border-red-200 font-semibold flex items-center space-x-1">
+                                  <i className="fas fa-minus-circle text-red-500"></i>
+                                  <span>Credits Deducted: <strong>{sick.credits_deducted !== undefined ? sick.credits_deducted.toFixed(3) : sick.days.toFixed(3)} SL</strong></span>
+                                </div>
+                              ) : (
+                                <div className="bg-gray-50 text-gray-600 px-2.5 py-1 rounded-lg border border-gray-200 font-semibold flex items-center space-x-1">
+                                  <i className="fas fa-hourglass-half text-gray-400"></i>
+                                  <span>No Deduction (Pending)</span>
+                                </div>
                               )}
-                            </p>
+                              <div className="bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-200 font-semibold flex items-center space-x-1">
+                                <i className="fas fa-wallet text-emerald-500"></i>
+                                <span>SL Balance Now: <strong>{sick.running_sick_balance !== undefined ? sick.running_sick_balance.toFixed(3) : (sickSummary.balance?.toFixed(3) || '0.000')} days</strong></span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right sm:text-left">
-                          <p className="text-sm text-gray-500">For: {sick.start_date} - {sick.end_date}</p>
+
+                        {/* Action Button */}
+                        <div className="flex items-center space-x-2 self-end md:self-center shrink-0">
+                          <button
+                            onClick={() => {
+                              setSelectedFormRecord(sick);
+                              setShowCSForm6Modal(true);
+                            }}
+                            className="btn btn-sm bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white border-none shadow-sm space-x-1.5"
+                          >
+                            <i className="fas fa-file-pdf text-xs"></i>
+                            <span>View CS Form 6</span>
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -894,7 +782,7 @@ const HRLeaveRecord = () => {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Used:</span>
-                            <span className="font-medium text-gray-800">{record.vacation_used?.toFixed(3) || '0.000'} days</span>
+                            <span className="font-medium text-gray-800">{((record.vacation_used || 0) + (record.vacation_entries || []).reduce((sum, e) => sum + (e.credits_deducted || 0), 0)).toFixed(3)} days</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Balance:</span>
@@ -911,7 +799,7 @@ const HRLeaveRecord = () => {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Used:</span>
-                            <span className="font-medium text-gray-800">{record.sick_used?.toFixed(3) || '0.000'} days</span>
+                            <span className="font-medium text-gray-800">{((record.sick_used || 0) + (record.sick_entries || []).reduce((sum, e) => sum + (e.credits_deducted || 0), 0)).toFixed(3)} days</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Balance:</span>
@@ -1311,6 +1199,12 @@ const HRLeaveRecord = () => {
           </div>
         </div>
       )}
+      <CSForm6Modal
+        isOpen={showCSForm6Modal}
+        onClose={() => setShowCSForm6Modal(false)}
+        leaveRecord={selectedFormRecord}
+        employee={employee}
+      />
     </Layout>
   );
 };

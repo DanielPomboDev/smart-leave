@@ -12,6 +12,85 @@ const LeaveRequestDetails = () => {
   const [error, setError] = useState('');
   const [userRole, setUserRole] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [uploadingDocs, setUploadingDocs] = useState(false);
+  const [documentsError, setDocumentsError] = useState('');
+  const [documentsSuccess, setDocumentsSuccess] = useState('');
+
+  const formatFileSize = (bytes) => {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Upload supporting documents (owner or HR only)
+  const handleDocumentSelect = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // allow re-selecting the same file
+    if (!files.length) return;
+    setDocumentsError('');
+    setDocumentsSuccess('');
+
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    files.forEach(f => formData.append('documents', f));
+    setUploadingDocs(true);
+    try {
+      const response = await axios.post(`/api/leave-requests/${id}/documents`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      if (response.data.success) {
+        setLeaveRequest(prev => ({ ...prev, documents: response.data.documents }));
+        setDocumentsSuccess(response.data.message);
+      } else {
+        setDocumentsError(response.data.message || 'Failed to upload documents');
+      }
+    } catch (err) {
+      setDocumentsError(err.response?.data?.message || 'Failed to upload documents');
+    } finally {
+      setUploadingDocs(false);
+    }
+  };
+
+  // Delete a supporting document (owner or HR only)
+  const handleDeleteDocument = async (docId) => {
+    setDocumentsError('');
+    setDocumentsSuccess('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.delete(`/api/leave-requests/${id}/documents/${docId}`, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.data.success) {
+        setLeaveRequest(prev => ({ ...prev, documents: response.data.documents }));
+        setDocumentsSuccess(response.data.message);
+      } else {
+        setDocumentsError(response.data.message || 'Failed to delete document');
+      }
+    } catch (err) {
+      setDocumentsError(err.response?.data?.message || 'Failed to delete document');
+    }
+  };
+
+  const getDocumentIcon = (mimetype) => {
+    if (mimetype?.startsWith('image/')) return 'fa-file-image';
+    if (mimetype === 'application/pdf') return 'fa-file-pdf';
+    if (mimetype?.includes('word')) return 'fa-file-word';
+    if (mimetype?.includes('sheet') || mimetype?.includes('excel')) return 'fa-file-excel';
+    return 'fa-file-alt';
+  };
+
+  const getDocumentColor = (mimetype) => {
+    if (mimetype?.startsWith('image/')) return 'text-purple-500';
+    if (mimetype === 'application/pdf') return 'text-red-500';
+    if (mimetype?.includes('word')) return 'text-blue-500';
+    if (mimetype?.includes('sheet') || mimetype?.includes('excel')) return 'text-green-500';
+    return 'text-gray-500';
+  };
 
   // Determine user role from the current route
   useEffect(() => {
@@ -102,6 +181,10 @@ const LeaveRequestDetails = () => {
         return 'Vacation Leave';
       case 'sick':
         return 'Sick Leave';
+      case 'monetization':
+        return 'Monetization of Leave Credits';
+      case 'terminal_leave':
+        return 'Terminal Leave';
       default:
         return type;
     }
@@ -300,6 +383,92 @@ const LeaveRequestDetails = () => {
                   Cancel Leave Request
                 </button>
               </div>
+            )}
+          </div>
+
+          {/* Supporting Documents */}
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h5 className="font-semibold text-blue-600">
+                <i className="fas fa-paperclip mr-2"></i>
+                Supporting Documents
+              </h5>
+              <span className="text-xs text-gray-500">{(leaveRequest.documents || []).length} attached</span>
+            </div>
+
+            {documentsError && (
+              <div className="alert alert-error shadow-lg mb-4">
+                <div>
+                  <i className="fas fa-exclamation-circle text-error"></i>
+                  <span>{documentsError}</span>
+                </div>
+              </div>
+            )}
+            {documentsSuccess && (
+              <div className="alert alert-success shadow-lg mb-4">
+                <div>
+                  <i className="fas fa-check-circle text-success"></i>
+                  <span>{documentsSuccess}</span>
+                </div>
+              </div>
+            )}
+
+            {(!leaveRequest.documents || leaveRequest.documents.length === 0) ? (
+              <p className="text-sm text-gray-500">No supporting documents attached to this leave request.</p>
+            ) : (
+              <ul className="space-y-2">
+                {leaveRequest.documents.map(doc => (
+                  <li key={doc._id || doc.url} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center min-w-0 group"
+                    >
+                      <i className={`fas ${getDocumentIcon(doc.mimetype)} ${getDocumentColor(doc.mimetype)} mr-3 text-lg`}></i>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-blue-600 group-hover:underline truncate">{doc.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {doc.uploaded_at ? `Uploaded ${formatDate(doc.uploaded_at)}` : ''}{doc.size ? ` • ${formatFileSize(doc.size)}` : ''}
+                        </p>
+                      </div>
+                    </a>
+                    {userRole === 'employee' && (
+                      <button
+                        onClick={() => handleDeleteDocument(doc._id)}
+                        className="btn btn-ghost btn-xs text-red-500 ml-2"
+                        title="Delete document"
+                      >
+                        <i className="fas fa-trash"></i>
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {userRole === 'employee' && (
+              <label className="btn btn-outline border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white w-full mt-4 cursor-pointer">
+                {uploadingDocs ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm"></span>
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-upload mr-2"></i>
+                    Attach Documents (Image, PDF, Word, Excel)
+                  </>
+                )}
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  className="hidden"
+                  onChange={handleDocumentSelect}
+                  disabled={uploadingDocs}
+                />
+              </label>
             )}
           </div>
         </div>
