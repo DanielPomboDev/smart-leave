@@ -67,6 +67,12 @@ const SignatureModal = ({ isOpen, onClose, onSave, title = "Digital Signature" }
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Reject oversized images early with a clear message (base64 inflates the size ~33%)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('That image is too large. Please upload a PNG or JPG under 5MB.');
+        e.target.value = '';
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setUploadedImage(reader.result);

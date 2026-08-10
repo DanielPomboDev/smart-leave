@@ -246,7 +246,6 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
           .border-t   { border-top: 1px solid black; }
           .border-t-2 { border-top: 2px solid black; }
           .border-x   { border-left: 1px solid black; border-right: 1px solid black; }
-          .border-dashed { border-style: dashed; }
           .border-gray-300 { border-color: #d1d5db; }
           .border-gray-400 { border-color: #9ca3af; }
           .flex { display: flex; }
@@ -666,7 +665,7 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
                   )}
 
                   {/* HR Officer Signature */}
-                  <div className="mt-2 text-center pt-3 relative border-t border-dashed border-gray-400">
+                  <div className="mt-2 text-center pt-3 relative">
                     {signatures.hr ? (
                       <img src={signatures.hr} alt="HR Signature" className="h-10 mx-auto object-contain absolute -top-6 left-1/2 -translate-x-1/2" />
                     ) : (
@@ -694,7 +693,7 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
                   </div>
 
                   {/* Dept Head Signature */}
-                  <div className="text-center pt-3 relative border-t border-dashed border-gray-400">
+                  <div className="text-center pt-3 relative">
                     {signatures.department ? (
                       <img src={signatures.department} alt="Dept Head Signature" className="h-10 mx-auto object-contain absolute -top-6 left-1/2 -translate-x-1/2" />
                     ) : (
@@ -735,7 +734,7 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
 
               {/* Mayor Signature */}
               <div className="border-t border-black pt-3 pb-2">
-                <div className="mt-2 text-center pt-3 relative max-w-xs mx-auto border-t border-dashed border-gray-400">
+                <div className="mt-2 text-center pt-3 relative max-w-xs mx-auto">
                   {signatures.mayor ? (
                     <img src={signatures.mayor} alt="Mayor Signature" className="h-12 mx-auto object-contain absolute -top-8 left-1/2 -translate-x-1/2" />
                   ) : (

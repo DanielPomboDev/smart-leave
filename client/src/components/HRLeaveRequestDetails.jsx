@@ -211,8 +211,9 @@ const HRLeaveRequestDetails = () => {
   };
 
   const nextStep = (step) => {
-    // Validation for step 2 before proceeding to step 3
-    if (step === 2) {
+    // Validation for step 2 before proceeding to step 3 — only when the request
+    // is still actionable. Already-processed requests are view-only navigation.
+    if (leaveRequest?.status === 'recommended' && step === 2) {
       const newErrors = {};
       
       // If approving, check approval type selections
@@ -563,6 +564,7 @@ const HRLeaveRequestDetails = () => {
                               </div>
                             </a>
                             <button
+                              type="button"
                               onClick={() => handleDeleteDocument(doc._id)}
                               className="btn btn-ghost btn-xs text-red-500 ml-2"
                               title="Delete document"
@@ -599,22 +601,15 @@ const HRLeaveRequestDetails = () => {
                 </div>
 
                 <div className="flex justify-end mt-6">
-                  {leaveRequest.status === 'recommended' ? (
-                    <button 
-                      type="button" 
-                      className="btn bg-blue-500 hover:bg-blue-600 text-white"
-                      onClick={() => nextStep(1)}
-                    >
-                      Next
-                    </button>
-                  ) : (
-                    <button type="button" className="btn" disabled>
-                      {leaveRequest.status === 'cancelled' ? 'Cancelled' : 'Next'}
-                      {leaveRequest.status === 'cancelled' ? 
-                        <i className="fas fa-ban ml-2"></i> : 
-                        <i className="fas fa-lock ml-2"></i>}
-                    </button>
-                  )}
+                  {/* Navigation is always allowed so processed requests can be reviewed;
+                      the final submit remains locked to the 'recommended' status below. */}
+                  <button 
+                    type="button" 
+                    className="btn bg-blue-500 hover:bg-blue-600 text-white"
+                    onClick={() => nextStep(1)}
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
             )}
@@ -827,22 +822,13 @@ const HRLeaveRequestDetails = () => {
                   >
                     Previous
                   </button>
-                  {leaveRequest.status === 'recommended' ? (
-                    <button 
-                      type="button" 
-                      className="btn bg-blue-500 hover:bg-blue-600 text-white"
-                      onClick={() => nextStep(2)}
-                    >
-                      Next
-                    </button>
-                  ) : (
-                    <button type="button" className="btn" disabled>
-                      {leaveRequest.status === 'cancelled' ? 'Cancelled' : 'Next'}
-                      {leaveRequest.status === 'cancelled' ? 
-                        <i className="fas fa-ban ml-2"></i> : 
-                        <i className="fas fa-lock ml-2"></i>}
-                    </button>
-                  )}
+                  <button 
+                    type="button" 
+                    className="btn bg-blue-500 hover:bg-blue-600 text-white"
+                    onClick={() => nextStep(2)}
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
             )}

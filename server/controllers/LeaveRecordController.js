@@ -316,6 +316,13 @@ exports.show = async (req, res) => {
     const DEDUCT_VACATION_TYPES = ['vacation', 'monetization', 'terminal_leave'];
     const DEDUCT_SICK_TYPES = ['sick'];
 
+    // Only leaves approved by the Mayor are recorded in the leave record.
+    // A leave that was approved but later cancelled stays visible with a "cancelled"
+    // marker (mayor_approved_by is kept when the request is cancelled).
+    const isRecordedLeave = (req) =>
+      req.status === 'approved' ||
+      (req.status === 'cancelled' && !!req.mayor_approved_by);
+
     // Phase 1: Chronological ledger — only APPROVED non-cancelled, non-without_pay leaves deduct credits
     let runningVac = 0;
     let runningSick = 0;
@@ -329,7 +336,7 @@ exports.show = async (req, res) => {
       const monthRequests = allLeaveRequests.filter(req => {
         const d = new Date(req.start_date);
         return d.getFullYear() === record.year && (d.getMonth() + 1) === record.month;
-      });
+      }).filter(isRecordedLeave);
 
       for (const req of monthRequests) {
         const isVacType       = VACATION_TYPES.includes(req.leave_type);
@@ -357,8 +364,10 @@ exports.show = async (req, res) => {
         };
       }
 
-      // Undertime is stored in vacation_used of the monthly record
-      runningVac = Math.max(0, runningVac - (record.vacation_used || 0));
+      // Undertime is stored in undertime_hours of the monthly record (in days).
+      // Note: vacation_used ALSO carries approved-leave days written by recordLeave,
+      // so it cannot be used here or the approved days would be subtracted twice.
+      runningVac = Math.max(0, runningVac - (record.undertime_hours || 0));
 
       monthEndBalanceMap[`${record.year}-${record.month}`] = {
         vacation_balance: runningVac,
@@ -369,6 +378,7 @@ exports.show = async (req, res) => {
     // Edge-case: requests with no matching monthly record
     for (const req of allLeaveRequests) {
       if (leaveBalanceMap[req._id.toString()]) continue;
+      if (!isRecordedLeave(req)) continue;
       const isVacType  = VACATION_TYPES.includes(req.leave_type);
       const isSickType = SICK_TYPES.includes(req.leave_type);
       const deductsVacation = DEDUCT_VACATION_TYPES.includes(req.leave_type);
@@ -391,7 +401,9 @@ exports.show = async (req, res) => {
     // Phase 2: Summary totals
     const totalVacEarned    = allLeaveRecords.reduce((s, r) => s + (r.vacation_earned || 0), 0);
     const totalSickEarned   = allLeaveRecords.reduce((s, r) => s + (r.sick_earned     || 0), 0);
-    const totalUndertimeVac = allLeaveRecords.reduce((s, r) => s + (r.vacation_used   || 0), 0);
+    // Undertime only — vacation_used also includes approved-leave days written by
+    // recordLeave, so summing it here would double-count those days.
+    const totalUndertimeVac = allLeaveRecords.reduce((s, r) => s + (r.undertime_hours || 0), 0);
 
     const approvedVacUsed = allLeaveRequests
       .filter(r => r.status === 'approved' && !r.without_pay && DEDUCT_VACATION_TYPES.includes(r.leave_type))
@@ -459,7 +471,7 @@ exports.show = async (req, res) => {
       const monthRequests = allLeaveRequests.filter(req => {
         const d = new Date(req.start_date);
         return d.getFullYear() === record.year && (d.getMonth() + 1) === record.month;
-      });
+      }).filter(isRecordedLeave);
       const vacationEntries = monthRequests.filter(r => VACATION_TYPES.includes(r.leave_type)).map(r => buildEntry(r, true));
       const sickEntries     = monthRequests.filter(r => SICK_TYPES.includes(r.leave_type)).map(r => buildEntry(r, false));
       const endBal = monthEndBalanceMap[`${record.year}-${record.month}`] || {};
@@ -681,6 +693,72 @@ exports.addUndertime = async (req, res) => {
       success: false,
       message: 'Error adding undertime: ' + error.message
     });
+  }
+};
+
+// Manually add/update earned leave credits (vacation/sick) for a user's month record
+// @route   POST /api/leave-records/add-credits
+// @access  Private (HR only via UI)
+exports.addCredits = async (req, res) => {
+  try {
+    const { user_id, month, year, vacation_earned, sick_earned } = req.body;
+
+    if (!user_id || !month || !year) {
+      return res.status(400).json({ success: false, message: 'User ID, month, and year are required' });
+    }
+
+    if (vacation_earned === undefined && sick_earned === undefined) {
+      return res.status(400).json({ success: false, message: 'Provide at least one credit value (vacation or sick earned)' });
+    }
+
+    // Validation: prevent adding credits for future months
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    if (year > currentYear || (year == currentYear && month > currentMonth)) {
+      return res.status(400).json({ success: false, message: 'Cannot add leave credits for a future month.' });
+    }
+
+    // Find the month record; create it if it doesn't exist yet
+    let leaveRecord = await LeaveRecord.findOne({ user_id, month, year });
+
+    if (!leaveRecord) {
+      leaveRecord = new LeaveRecord({
+        user_id,
+        month,
+        year,
+        vacation_earned: 0,
+        vacation_used: 0,
+        vacation_balance: 0,
+        sick_earned: 0,
+        sick_used: 0,
+        sick_balance: 0,
+        undertime_hours: 0,
+        lwop_days: 0,
+        vacation_entries: [],
+        sick_entries: []
+      });
+    }
+
+    // Update only the fields provided, rounded to 3 decimal places
+    if (vacation_earned !== undefined) leaveRecord.vacation_earned = Math.round(vacation_earned * 1000) / 1000;
+    if (sick_earned !== undefined) leaveRecord.sick_earned = Math.round(sick_earned * 1000) / 1000;
+
+    // Recalculate balances
+    leaveRecord.vacation_balance = Math.round((leaveRecord.vacation_earned - leaveRecord.vacation_used) * 1000) / 1000;
+    leaveRecord.sick_balance = Math.round((leaveRecord.sick_earned - leaveRecord.sick_used) * 1000) / 1000;
+
+    await leaveRecord.save();
+
+    res.json({
+      success: true,
+      message: 'Leave credits saved successfully',
+      record: leaveRecord
+    });
+  } catch (error) {
+    console.error('Error adding leave credits:', error);
+    res.status(500).json({ success: false, message: 'Error adding leave credits: ' + error.message });
   }
 };
 

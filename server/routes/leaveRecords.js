@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const leaveRecordController = require('../controllers/LeaveRecordController');
-const { createLeaveRecordValidation, updateLeaveRecordValidation, addUndertimeValidation } = require('../middleware/leaveRecordValidation');
+const { createLeaveRecordValidation, updateLeaveRecordValidation, addUndertimeValidation, addLeaveCreditsValidation } = require('../middleware/leaveRecordValidation');
 const { protect } = require('../middleware/auth');
 
 // All routes need authentication (matches every other route group)
@@ -27,6 +27,9 @@ router.put('/:id', updateLeaveRecordValidation, leaveRecordController.update);
 
 // POST /api/leave-records/add-undertime - Add undertime to a leave record
 router.post('/add-undertime', addUndertimeValidation, leaveRecordController.addUndertime);
+
+// POST /api/leave-records/add-credits - Manually add/update earned leave credits
+router.post('/add-credits', addLeaveCreditsValidation, leaveRecordController.addCredits);
 
 // POST /api/leave-records/calculate-credits - Calculate and award monthly leave credits
 router.post('/calculate-credits', leaveRecordController.calculateCredits);

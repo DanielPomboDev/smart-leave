@@ -38,6 +38,29 @@ const HRLeaveRecord = () => {
     year: ''
   });
 
+  // Manual leave credits entry state
+  const [showAddCreditsModal, setShowAddCreditsModal] = useState(false);
+  const [creditsFormError, setCreditsFormError] = useState('');
+  const [creditsFormLoading, setCreditsFormLoading] = useState(false);
+  const [creditsForm, setCreditsForm] = useState({
+    month: '',
+    year: '',
+    vacation_earned: '',
+    sick_earned: ''
+  });
+  const [isCreditsFutureDate, setIsCreditsFutureDate] = useState(false);
+  const [showCreditsWarning, setShowCreditsWarning] = useState(false);
+
+  // Years available for month selectors (current year back a few years)
+  const yearOptions = (() => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let y = currentYear; y >= currentYear - 4; y--) {
+      years.push(y);
+    }
+    return years;
+  })();
+
   // Leave record data entry state — manual leave request entry
   const [showAddRecordModal, setShowAddRecordModal] = useState(false);
   const [recordFormError, setRecordFormError] = useState('');
@@ -333,6 +356,113 @@ const HRLeaveRecord = () => {
     });
   };
 
+  // Check if the selected credits month is in the future
+  useEffect(() => {
+    const { month, year } = creditsForm;
+    if (month && year) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      const selectedYear = parseInt(year);
+      const selectedMonth = parseInt(month);
+
+      if (selectedYear > currentYear || (selectedYear === currentYear && selectedMonth > currentMonth)) {
+        setIsCreditsFutureDate(true);
+        setShowCreditsWarning(true);
+      } else {
+        setIsCreditsFutureDate(false);
+        setShowCreditsWarning(false);
+      }
+    }
+  }, [creditsForm.month, creditsForm.year]);
+
+  const handleCreditsInputChange = (e) => {
+    const { name, value } = e.target;
+    setCreditsForm({
+      ...creditsForm,
+      [name]: value
+    });
+  };
+
+  const openAddCreditsModal = () => {
+    const now = new Date();
+    setCreditsForm({
+      month: String(now.getMonth() + 1),
+      year: String(now.getFullYear()),
+      vacation_earned: '',
+      sick_earned: ''
+    });
+    setCreditsFormError('');
+    setShowCreditsWarning(false);
+    setIsCreditsFutureDate(false);
+    setShowAddCreditsModal(true);
+  };
+
+  const closeAddCreditsModal = () => {
+    setShowAddCreditsModal(false);
+    setCreditsForm({
+      month: '',
+      year: '',
+      vacation_earned: '',
+      sick_earned: ''
+    });
+    setCreditsFormError('');
+    setShowCreditsWarning(false);
+    setIsCreditsFutureDate(false);
+  };
+
+  const handleAddCreditsSubmit = async (e) => {
+    e.preventDefault();
+    setCreditsFormError('');
+    setCreditsFormLoading(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.post('/api/leave-records/add-credits', {
+        user_id: employee.user_id,
+        month: parseInt(creditsForm.month),
+        year: parseInt(creditsForm.year),
+        vacation_earned: creditsForm.vacation_earned === '' ? undefined : parseFloat(creditsForm.vacation_earned),
+        sick_earned: creditsForm.sick_earned === '' ? undefined : parseFloat(creditsForm.sick_earned)
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.success) {
+        setShowAddCreditsModal(false);
+        // Refresh the data
+        const params = {};
+        if (filters.year) params.year = filters.year;
+        const res = await axios.get(`/api/leave-records/${employee.user_id}`, { params });
+        if (res.data.employee) {
+          setEmployee(res.data.employee);
+          setVacationSummary(res.data.vacationSummary);
+          setSickSummary(res.data.sickSummary);
+          const formattedRecords = Object.values(res.data.leaveRecords).flat().map(r => ({
+            ...r,
+            month_year: `${getMonthName(r.month)} ${r.year}`,
+            formatted_undertime: r.undertime_hours > 0 ? r.undertime_hours.toFixed(3) : '0.000'
+          }));
+          setLeaveRecords(formattedRecords);
+        }
+      } else {
+        setCreditsFormError(response.data.message || 'Failed to save leave credits');
+      }
+    } catch (error) {
+      console.error('Error saving leave credits:', error);
+      setCreditsFormError(error.response?.data?.message || 'Failed to save leave credits');
+    } finally {
+      setCreditsFormLoading(false);
+    }
+  };
+
   const openAddUndertimeModal = () => {
     setShowAddUndertimeModal(true);
   };
@@ -454,6 +584,10 @@ const HRLeaveRecord = () => {
               <button onClick={openAddUndertimeModal} className="btn btn-primary btn-sm sm:btn-md whitespace-nowrap">
                 <i className="fas fa-plus mr-2"></i>
                 Add Undertime
+              </button>
+              <button onClick={openAddCreditsModal} className="btn btn-success btn-sm sm:btn-md whitespace-nowrap">
+                <i className="fas fa-coins mr-2"></i>
+                Add Credits
               </button>
             </div>
           </div>
@@ -782,7 +916,7 @@ const HRLeaveRecord = () => {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Used:</span>
-                            <span className="font-medium text-gray-800">{((record.vacation_used || 0) + (record.vacation_entries || []).reduce((sum, e) => sum + (e.credits_deducted || 0), 0)).toFixed(3)} days</span>
+                            <span className="font-medium text-gray-800">{((record.undertime_hours || 0) + (record.vacation_entries || []).reduce((sum, e) => sum + (e.credits_deducted || 0), 0)).toFixed(3)} days</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Balance:</span>
@@ -799,7 +933,7 @@ const HRLeaveRecord = () => {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Used:</span>
-                            <span className="font-medium text-gray-800">{((record.sick_used || 0) + (record.sick_entries || []).reduce((sum, e) => sum + (e.credits_deducted || 0), 0)).toFixed(3)} days</span>
+                            <span className="font-medium text-gray-800">{(record.sick_entries || []).reduce((sum, e) => sum + (e.credits_deducted || 0), 0).toFixed(3)} days</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Balance:</span>
@@ -1138,9 +1272,9 @@ const HRLeaveRecord = () => {
                   required
                 >
                   <option value="">Select Year</option>
-                  <option value="2023">2023</option>
-                  <option value="2024">2024</option>
-                  <option value="2025">2025</option>
+                  {yearOptions.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
                 </select>
               </div>
               {showUndertimeWarning && (
@@ -1199,6 +1333,124 @@ const HRLeaveRecord = () => {
           </div>
         </div>
       )}
+      {/* Add Leave Credits Modal */}
+      {showAddCreditsModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-4">Add Monthly Leave Credits</h3>
+            <form onSubmit={handleAddCreditsSubmit} className="space-y-4">
+              {creditsFormError && (
+                <div className="alert alert-error text-sm">
+                  <i className="fas fa-exclamation-circle mr-1"></i>
+                  {creditsFormError}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Month</span>
+                  </label>
+                  <select 
+                    className="select select-bordered w-full" 
+                    name="month" 
+                    value={creditsForm.month}
+                    onChange={handleCreditsInputChange}
+                    required
+                  >
+                    <option value="">Select Month</option>
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </select>
+                </div>
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Year</span>
+                  </label>
+                  <select 
+                    className="select select-bordered w-full" 
+                    name="year" 
+                    value={creditsForm.year}
+                    onChange={handleCreditsInputChange}
+                    required
+                  >
+                    <option value="">Select Year</option>
+                    {yearOptions.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {showCreditsWarning && (
+                <div className="alert alert-warning">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>Cannot add leave credits for a future month.</span>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Vacation Leave Earned</span>
+                  </label>
+                  <input 
+                    type="number" 
+                    name="vacation_earned" 
+                    min="0" 
+                    max="31" 
+                    step="0.001" 
+                    className="input input-bordered w-full" 
+                    placeholder="e.g. 1.250" 
+                    value={creditsForm.vacation_earned}
+                    onChange={handleCreditsInputChange}
+                  />
+                </div>
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Sick Leave Earned</span>
+                  </label>
+                  <input 
+                    type="number" 
+                    name="sick_earned" 
+                    min="0" 
+                    max="31" 
+                    step="0.001" 
+                    className="input input-bordered w-full" 
+                    placeholder="e.g. 1.250" 
+                    value={creditsForm.sick_earned}
+                    onChange={handleCreditsInputChange}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                Leave the fields blank to keep the current values. Credits are awarded for the selected month and reflected in the earned totals and balances.
+              </p>
+              <div className="modal-action">
+                <button type="button" className="btn btn-ghost" onClick={closeAddCreditsModal}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={creditsFormLoading || isCreditsFutureDate}>
+                  {creditsFormLoading ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs"></span>
+                      Saving...
+                    </>
+                  ) : 'Save Credits'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <CSForm6Modal
         isOpen={showCSForm6Modal}
         onClose={() => setShowCSForm6Modal(false)}

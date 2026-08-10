@@ -51,8 +51,9 @@ const DepartmentLeaveRequestDetails = () => {
 
   const nextStep = (step) => {
     if (step === 2) {
-      // Validate step 2 before proceeding
-      if (recommendation === 'disapprove' && !disapprovalReason.trim()) {
+      // Validate step 2 before proceeding — only when the request is still
+      // actionable. Already-processed requests are view-only navigation.
+      if (!isProcessed && recommendation === 'disapprove' && !disapprovalReason.trim()) {
         setError('Please provide a reason for disapproval');
         return;
       }
@@ -365,19 +366,15 @@ const DepartmentLeaveRequestDetails = () => {
             </div>
 
             <div className="flex justify-end mt-6">
-              {isProcessed ? (
-                <button type="button" className="btn" disabled>
-                  Next
-                </button>
-              ) : (
-                <button 
-                  type="button" 
-                  className="btn bg-blue-500 hover:bg-blue-600 text-white"
-                  onClick={() => nextStep(1)}
-                >
-                  Next
-                </button>
-              )}
+              {/* Navigation is always allowed so processed requests can be reviewed;
+                  the final submit remains locked when isProcessed. */}
+              <button 
+                type="button" 
+                className="btn bg-blue-500 hover:bg-blue-600 text-white"
+                onClick={() => nextStep(1)}
+              >
+                Next
+              </button>
             </div>
           </div>
 
@@ -460,19 +457,13 @@ const DepartmentLeaveRequestDetails = () => {
               >
                 Previous
               </button>
-              {isProcessed ? (
-                <button type="button" className="btn" disabled>
-                  Next
-                </button>
-              ) : (
-                <button 
-                  type="button" 
-                  className="btn bg-blue-500 hover:bg-blue-600 text-white"
-                  onClick={() => nextStep(2)}
-                >
-                  Next
-                </button>
-              )}
+              <button 
+                type="button" 
+                className="btn bg-blue-500 hover:bg-blue-600 text-white"
+                onClick={() => nextStep(2)}
+              >
+                Next
+              </button>
             </div>
           </div>
 

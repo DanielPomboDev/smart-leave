@@ -47,6 +47,28 @@ exports.updateLeaveRecordValidation = [
   }
 ];
 
+// Validation rules for manually adding/updating earned leave credits
+exports.addLeaveCreditsValidation = [
+  body('user_id').notEmpty().withMessage('User ID is required'),
+  body('month').isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
+  body('year').isInt({ min: 2020, max: 2030 }).withMessage('Year must be between 2020 and 2030'),
+  body('vacation_earned').optional().isFloat({ min: 0, max: 31 }).withMessage('Vacation earned must be a number between 0 and 31'),
+  body('sick_earned').optional().isFloat({ min: 0, max: 31 }).withMessage('Sick earned must be a number between 0 and 31'),
+
+  // Custom validation to check for errors
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed', 
+        errors: errors.array() 
+      });
+    }
+    next();
+  }
+];
+
 // Validation rules for adding undertime
 exports.addUndertimeValidation = [
   body('user_id').notEmpty().withMessage('User ID is required'),

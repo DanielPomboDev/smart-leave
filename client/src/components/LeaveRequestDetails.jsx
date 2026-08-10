@@ -435,6 +435,7 @@ const LeaveRequestDetails = () => {
                     </a>
                     {userRole === 'employee' && (
                       <button
+                        type="button"
                         onClick={() => handleDeleteDocument(doc._id)}
                         className="btn btn-ghost btn-xs text-red-500 ml-2"
                         title="Delete document"
