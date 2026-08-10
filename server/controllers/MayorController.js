@@ -368,6 +368,11 @@ class MayorController {
       if (decision === 'approve') {
         leaveRequest.mayor_approved_by = req.user?.user_id;
         leaveRequest.mayor_approved_at = new Date();
+
+        // Embed the mayor's digital signature onto the form at the moment of approval
+        if (!leaveRequest.mayor_signature && req.user?.signature) {
+          leaveRequest.mayor_signature = req.user.signature;
+        }
       }
 
       // De-populate user_id before saving to avoid validation errors

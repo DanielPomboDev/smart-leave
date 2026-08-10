@@ -620,6 +620,11 @@ const processHRLeaveApproval = async (req, res) => {
     leaveRequest.hr_approved_by = req.user.user_id;
     leaveRequest.hr_approved_at = new Date();
 
+    // Embed the HR officer's digital signature onto the form at the moment of approval
+    if (approval === 'approve' && !leaveRequest.hr_signature && req.user?.signature) {
+      leaveRequest.hr_signature = req.user.signature;
+    }
+
     // Record the 7.A Certification of Leave Credits when the HR manager certifies
     if (approval === 'approve' && credits_certified) {
       leaveRequest.credits_certified = true;
@@ -801,6 +806,8 @@ const getHRReports = async (req, res) => {
       special_leave_benefits_women: 'Special Leave (Women)',
       special_emergency: 'Special Emergency (Calamity)',
       adoption_leave: 'Adoption Leave',
+      monetization: 'Monetization of Leave Credits',
+      terminal_leave: 'Terminal Leave',
       others_specify: 'Others (Specify)'
     };
 
@@ -834,21 +841,29 @@ const getHRReports = async (req, res) => {
       totalDays: parseFloat((totalDaysByType[type] || 0).toFixed(3))
     }));
 
-    // Overall stats
+    // Overall stats — pipeline view: pending -> recommended (HR queue) -> hr_approved (Mayor queue) -> approved
     const activeRequests = allLeaveRequests.filter(r => r.status !== 'cancelled');
     const totalRequests = activeRequests.length;
-    const approvedCount = activeRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length;
-    const pendingCount = activeRequests.filter(r => r.status === 'pending').length;
+    const approvedCount    = activeRequests.filter(r => r.status === 'approved').length;
+    const recommendedCount = activeRequests.filter(r => r.status === 'recommended').length;
+    const hrApprovedCount  = activeRequests.filter(r => r.status === 'hr_approved').length;
+    const pendingCount     = activeRequests.filter(r => r.status === 'pending').length;
     const disapprovedCount = activeRequests.filter(r => r.status === 'disapproved').length;
+    const withoutPayCount  = activeRequests.filter(r => r.without_pay).length;
     const totalDays = activeRequests.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0);
+    const decidedCount = approvedCount + disapprovedCount;
 
     const overallStats = {
       totalRequests,
       approvedCount,
+      recommendedCount,
+      hrApprovedCount,
       pendingCount,
       disapprovedCount,
+      withoutPayCount,
       totalDays: parseFloat(totalDays.toFixed(3)),
-      approvalRate: totalRequests > 0 ? parseFloat(((approvedCount / totalRequests) * 100).toFixed(1)) : 0
+      // Share of decided requests that were finally approved
+      approvalRate: decidedCount > 0 ? parseFloat(((approvedCount / decidedCount) * 100).toFixed(1)) : 0
     };
 
     // ===== EMPLOYEE LEAVE LEDGER (year-filtered) =====
@@ -862,11 +877,26 @@ const getHRReports = async (req, res) => {
       userLeaveRequests[reqUserId].push(req);
     });
 
+    // Cumulative vacation/sick balances per employee (matches the credits shown on dashboards)
+    const allLeaveRecords = await LeaveRecord.find({}).exec();
+    const balanceByUser = {};
+    allLeaveRecords.forEach(rec => {
+      const b = balanceByUser[rec.user_id] || { vE: 0, vU: 0, sE: 0, sU: 0 };
+      b.vE += rec.vacation_earned || 0;
+      b.vU += rec.vacation_used || 0;
+      b.sE += rec.sick_earned || 0;
+      b.sU += rec.sick_used || 0;
+      balanceByUser[rec.user_id] = b;
+    });
+
     const employeeLedger = allUsers.map(user => {
       const userReqs = userLeaveRequests[user.user_id] || [];
       const leavesFiled = userReqs.length;
       const totalDaysFiled = parseFloat(userReqs.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3));
-      const approvedLeaves = userReqs.filter(r => ['approved', 'hr_approved'].includes(r.status)).length;
+      const approvedLeaves   = userReqs.filter(r => r.status === 'approved').length;
+      const inProgressLeaves = userReqs.filter(r => ['pending', 'recommended', 'hr_approved'].includes(r.status)).length;
+      const disapprovedLeaves = userReqs.filter(r => r.status === 'disapproved').length;
+      const bal = balanceByUser[user.user_id] || { vE: 0, vU: 0, sE: 0, sU: 0 };
 
       return {
         user_id: user.user_id,
@@ -876,8 +906,11 @@ const getHRReports = async (req, res) => {
         position: user.position || 'N/A',
         leavesFiled,
         approvedLeaves,
+        inProgressLeaves,
+        disapprovedLeaves,
         totalDaysFiled,
-        pendingLeaves: userReqs.filter(r => r.status === 'pending').length
+        vacationBalance: parseFloat((bal.vE - bal.vU).toFixed(3)),
+        sickBalance: parseFloat((bal.sE - bal.sU).toFixed(3))
       };
     }).filter(emp => emp.leavesFiled > 0); // Only show employees who filed leave this year
 
@@ -932,8 +965,9 @@ const getHRReports = async (req, res) => {
         totalEmployees: deptUsers.length,
         leavesFiled: deptRequests.length,
         totalDays: parseFloat(deptRequests.reduce((sum, r) => sum + parseFloat(r.number_of_days || 0), 0).toFixed(3)),
-        approved: deptRequests.filter(r => ['approved', 'hr_approved'].includes(r.status)).length,
-        pending: deptRequests.filter(r => r.status === 'pending').length
+        approved: deptRequests.filter(r => r.status === 'approved').length,
+        inProgress: deptRequests.filter(r => ['pending', 'recommended', 'hr_approved'].includes(r.status)).length,
+        disapproved: deptRequests.filter(r => r.status === 'disapproved').length
       };
     }).filter(d => d.leavesFiled > 0); // Only show departments with activity
 

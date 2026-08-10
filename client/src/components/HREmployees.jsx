@@ -454,7 +454,7 @@ const HREmployees = () => {
                         <td className="flex items-center space-x-3">
                           <div className="avatar">
                             <div className="mask mask-squircle w-8 h-8">
-                              <span className="bg-blue-500 text-white text-xs font-bold flex items-center justify-center w-full h-full">
+                              <span className="bg-blue-500 text-white text-xs font-bold flex items-center justify-center w-full h-full leading-none">
                                 {employee.first_name?.charAt(0)?.toUpperCase()}{employee.last_name?.charAt(0)?.toUpperCase()}
                               </span>
                             </div>

@@ -336,6 +336,11 @@ const recommendLeaveRequest = async (req, res) => {
     leaveRequest.department_comments = recommendation === 'approve' ? approval_reason : disapproval_reason;
     leaveRequest.department_approved_by = req.user.user_id;
     leaveRequest.department_approved_at = new Date();
+
+    // Embed the department head's digital signature onto the form at the moment of recommendation
+    if (recommendation === 'approve' && !leaveRequest.department_signature && req.user?.signature) {
+      leaveRequest.department_signature = req.user.signature;
+    }
     
     await leaveRequest.save();
     

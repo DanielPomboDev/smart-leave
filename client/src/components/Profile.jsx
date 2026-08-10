@@ -371,7 +371,7 @@ const Profile = () => {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-4xl font-bold text-white flex items-center justify-center w-full h-full">
+                      <span className="text-4xl font-bold text-white flex items-center justify-center w-full h-full leading-none">
                         {getUserInitials()}
                       </span>
                     )}

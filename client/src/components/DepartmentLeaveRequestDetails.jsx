@@ -255,7 +255,7 @@ const DepartmentLeaveRequestDetails = () => {
                     </div>
                   ) : (
                     <div className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                      <span className="text-white font-bold text-lg flex items-center justify-center w-full h-full">
+                      <span className="text-white font-bold text-lg flex items-center justify-center w-full h-full leading-none">
                         {leaveRequest.user_id?.first_name?.charAt(0)}{leaveRequest.user_id?.last_name?.charAt(0)}
                       </span>
                     </div>

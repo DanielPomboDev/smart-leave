@@ -279,7 +279,7 @@ const HRLeaveRequests = () => {
                         <div className="flex items-center space-x-3">
                           <div className="avatar">
                             <div className="mask mask-squircle w-8 h-8">
-                              <span className="bg-blue-500 text-white text-xs font-bold flex items-center justify-center w-full h-full">
+                              <span className="bg-blue-500 text-white text-xs font-bold flex items-center justify-center w-full h-full leading-none">
                                 {leaveRequest.user_id?.first_name ? 
                                   `${leaveRequest.user_id.first_name.charAt(0)}${leaveRequest.user_id.last_name.charAt(0)}`.toUpperCase() : 
                                   'N/A'}

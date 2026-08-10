@@ -668,7 +668,7 @@ const RequestLeave = () => {
     },
     paternity_leave: {
       title: 'Paternity Leave',
-      icon: 'fa-person-breastfeeding',
+      icon: 'fa-child',
       color: 'teal',
       requirements: [
         'Available to married male employees (RA 8187)',
@@ -713,7 +713,7 @@ const RequestLeave = () => {
     },
     vawc_leave: {
       title: '10-Day VAWC Leave',
-      icon: 'fa-shield-heart',
+      icon: 'fa-shield',
       color: 'rose',
       requirements: [
         'For victims of Violence Against Women and Children (RA 9262)',
@@ -758,7 +758,7 @@ const RequestLeave = () => {
     },
     adoption_leave: {
       title: 'Adoption Leave',
-      icon: 'fa-hands-holding-child',
+      icon: 'fa-hand-holding-heart',
       color: 'emerald',
       requirements: [
         '60 days with pay for adoptive parents (RA 8552)',

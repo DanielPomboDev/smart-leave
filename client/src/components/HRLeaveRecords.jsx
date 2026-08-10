@@ -313,8 +313,8 @@ const HRLeaveRecords = () => {
                       <tr key={user._id} className="hover:bg-blue-50/40 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-3">
-                            <div className="avatar">
-                              <div className="mask mask-squircle w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+                            <div className="avatar placeholder">
+                              <div className="mask mask-squircle w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold flex items-center justify-center text-sm leading-none shadow-sm">
                                 {user.first_name?.charAt(0)?.toUpperCase()}{user.last_name?.charAt(0)?.toUpperCase() || 'N/A'}
                               </div>
                             </div>

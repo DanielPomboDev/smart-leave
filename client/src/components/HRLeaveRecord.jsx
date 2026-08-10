@@ -431,7 +431,7 @@ const HRLeaveRecord = () => {
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="avatar">
                 <div className="mask mask-squircle w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600">
-                  <span className="text-white text-2xl font-bold flex items-center justify-center w-full h-full">
+                  <span className="text-white text-2xl font-bold flex items-center justify-center w-full h-full leading-none">
                     {employee.first_name?.charAt(0)?.toUpperCase()}{employee.last_name?.charAt(0)?.toUpperCase() || 'N/A'}
                   </span>
                 </div>
