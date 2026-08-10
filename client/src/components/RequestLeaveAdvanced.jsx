@@ -26,6 +26,11 @@ const RequestLeaveAdvanced = () => {
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
 
+  // State for supporting documents
+  const [documents, setDocuments] = useState([]);
+  const [documentsError, setDocumentsError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('Your leave request has been submitted successfully.');
+
   const [formData, setFormData] = useState({
     leaveType: '',
     otherSpecify: '',
@@ -34,7 +39,9 @@ const RequestLeaveAdvanced = () => {
     numberOfDays: 1,
     locationType: '',
     locationSpecify: '',
-    commutation: ''
+    commutation: '',
+    // Purpose of request (monetization / terminal leave) — mirrors 6.B on CS Form No. 6
+    leavePurpose: ''
   });
 
   const [reviewData, setReviewData] = useState({
@@ -305,10 +312,16 @@ const RequestLeaveAdvanced = () => {
       'special_leave_benefits_women': 'Special Leave Benefits for Women',
       'special_emergency': 'Special Emergency (Calamity)',
       'adoption_leave': 'Adoption Leave',
+      'monetization': 'Monetization of Leave Credits',
+      'terminal_leave': 'Terminal Leave',
       'others_specify': 'Others (Specify)'
     };
     
-    if (formData.leaveType === 'others_specify') {
+    if (formData.leavePurpose === 'monetization') {
+      leaveTypeText = 'Monetization of Leave Credits';
+    } else if (formData.leavePurpose === 'terminal_leave') {
+      leaveTypeText = 'Terminal Leave';
+    } else if (formData.leaveType === 'others_specify') {
       leaveTypeText = 'Others (Specify)';
       // We'll show the specific text in the subtype field below
     } else {
@@ -364,11 +377,15 @@ const RequestLeaveAdvanced = () => {
       // Client-side validation for insufficient credits BEFORE submitting.
       // The credit pool mirrors the server's getLeaveCreditsInfo mapping.
       const numberOfDaysFloat = parseFloat(formData.numberOfDays);
-      const effectiveLeaveType = formData.leaveType === 'others_specify' ? formData.otherSpecify : formData.leaveType;
+      const isPurposeLeave = formData.leavePurpose === 'monetization' || formData.leavePurpose === 'terminal_leave';
+      const effectiveLeaveType = formData.leavePurpose
+        ? formData.leavePurpose
+        : (formData.leaveType === 'others_specify' ? formData.otherSpecify : formData.leaveType);
       const availableCredits = getAvailableCredits(effectiveLeaveType, vacationBalance, sickBalance);
       
-      // Check if user has insufficient credits (only for types that consume vacation/sick credits)
-      if (availableCredits !== Infinity && numberOfDaysFloat > availableCredits) {
+      // Check if user has insufficient credits (only for types that consume vacation/sick credits).
+      // Monetization / terminal leave are validated by HR during certification, so they skip the warning.
+      if (!isPurposeLeave && availableCredits !== Infinity && numberOfDaysFloat > availableCredits) {
         const poolName = VACATION_POOL_TYPES.includes(effectiveLeaveType) ? 'vacation' : 'sick';
         // If employee has less than 1 credit, show without pay warning
         if (availableCredits < 1) {
@@ -425,10 +442,13 @@ const RequestLeaveAdvanced = () => {
       }
 
       // For the new structure, we will use leave_type directly with the correct value
-      // If leaveType is 'others_specify', we use the otherSpecify value
-      const actualLeaveType = submitData.leaveType === 'others_specify' 
-        ? submitData.otherSpecify 
-        : submitData.leaveType;
+      // If a purpose (monetization / terminal leave) is selected, it becomes the leave type.
+      // If leaveType is 'others_specify', we use the otherSpecify value.
+      const actualLeaveType = submitData.leavePurpose
+        ? submitData.leavePurpose
+        : (submitData.leaveType === 'others_specify'
+          ? submitData.otherSpecify
+          : submitData.leaveType);
 
       // Prepare the request data based on role
       const requestData = {
@@ -458,6 +478,13 @@ const RequestLeaveAdvanced = () => {
       });
 
       if (response.data.success) {
+        // Upload any selected supporting documents to the new request
+        const newRequestId = response.data.data?._id;
+        const docsOk = await uploadLeaveDocuments(newRequestId);
+        setSuccessMessage(docsOk
+          ? `Your leave request has been submitted successfully. ${getRoleBasedMessage(userRole)}`
+          : 'Your leave request was submitted, but the supporting documents could not be uploaded. You can attach them later from the request details page.');
+
         // Show success modal
         setShowSuccessModal(true);
         
@@ -500,6 +527,69 @@ const RequestLeaveAdvanced = () => {
       leaveType: leaveType,
       otherSpecify: ''
     }));
+  };
+
+  // Handle the purpose-of-request checkboxes (Monetization / Terminal Leave) on the Details step.
+  // They are mutually exclusive — checking one clears the other.
+  const handlePurposeChange = (e) => {
+    const { value, checked } = e.target;
+    setFormData(prev => ({ ...prev, leavePurpose: checked ? value : '' }));
+  };
+
+  // --- Supporting documents ---
+
+  // Handle file selection for supporting documents
+  const handleDocumentSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // allow re-selecting the same file
+    setDocumentsError('');
+
+    // Allowed types: images, PDF, Word, Excel, text (mirrors server middleware)
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain'
+    ];
+
+    const valid = files.filter(f => f.type.startsWith('image/') || allowedTypes.includes(f.type));
+    if (valid.length !== files.length) {
+      setDocumentsError('Some files were skipped: only images, PDF, Word, Excel and text files are allowed.');
+    }
+    setDocuments(prev => [...prev, ...valid].slice(0, 5));
+  };
+
+  const removeDocument = (index) => {
+    setDocuments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Upload the selected documents to a newly created leave request
+  const uploadLeaveDocuments = async (leaveRequestId) => {
+    if (!documents.length) return true;
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      documents.forEach(doc => formData.append('documents', doc));
+      const response = await axios.post(`/api/leave-requests/${leaveRequestId}/documents`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data.success !== false;
+    } catch (error) {
+      console.error('Error uploading leave documents:', error);
+      return false;
+    }
   };
 
   // Get minimum start date based on leave type
@@ -689,6 +779,24 @@ const RequestLeaveAdvanced = () => {
     { value: 'adoption_leave', label: 'Adoption Leave' },
     { value: 'others_specify', label: 'Others (Specify)' }
   ];
+
+  // Required supporting documents per leave type (CS Form No. 6, Revised 2020 practice)
+  const leaveTypeRequiredDocuments = {
+    vacation: [],
+    sick: ['Medical certificate (for absences of more than one day, or as required by HR)'],
+    mandatory_forced_leave: ['Official directive or memorandum from the head of office'],
+    maternity_leave: ['Maternity notification form (MAT-1)', 'SSS documents (if applicable)'],
+    paternity_leave: ['Marriage certificate', 'Birth certificate of the child'],
+    special_privilege_leave: ['Certification of eligibility from the head of agency'],
+    solo_parent_leave: ['Valid Solo Parent ID', 'Certification of eligibility as solo parent'],
+    study_leave: ['Certificate of enrollment / registration from the school', 'Program of study or endorsement (if applicable)'],
+    vawc_leave: ['Barangay Protection Order (BPO) or certification', 'Police / medical report (if applicable)'],
+    rehabilitation_privilege: ['Medical certification for rehabilitation treatment'],
+    special_leave_benefits_women: ['Medical certificate attesting to the gynecological condition'],
+    special_emergency: ['Certification from barangay / municipal authorities on the calamity'],
+    adoption_leave: ['Court order or placement authority document', 'Birth certificate of the child (if available)'],
+    others_specify: ['Supporting documents relevant to the purpose of leave (if any)']
+  };
 
   // Get color classes for requirements display
   const getColorClasses = (color) => {
@@ -948,6 +1056,25 @@ const RequestLeaveAdvanced = () => {
                           </li>
                         ))}
                       </ul>
+                      {leaveTypeRequiredDocuments[formData.leaveType]?.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-current border-opacity-20">
+                          <p className="text-sm font-bold mb-2">
+                            <i className="fas fa-paperclip mr-1"></i>
+                            Required Supporting Documents
+                          </p>
+                          <ul className="space-y-1.5">
+                            {leaveTypeRequiredDocuments[formData.leaveType].map((doc, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <i className="fas fa-file-alt mt-0.5 flex-shrink-0 opacity-75"></i>
+                                <span className="text-sm">{doc}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="text-xs mt-2 opacity-75">
+                            You can attach these in the next step (Confirmation) when you submit your request.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1207,6 +1334,74 @@ const RequestLeaveAdvanced = () => {
                     )}
                   </div>
                   
+                  {/* Purpose of Request - Monetization / Terminal Leave (6.B on CS Form No. 6) */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-800">Purpose of Request <span className="text-xs text-gray-400 font-normal">(if applicable)</span></h4>
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input
+                          type="checkbox"
+                          name="leavePurpose"
+                          value="monetization"
+                          className="checkbox checkbox-sm checkbox-primary"
+                          checked={formData.leavePurpose === 'monetization'}
+                          onChange={handlePurposeChange}
+                        />
+                        <span className="label-text text-gray-700">Monetization of Leave Credits</span>
+                      </label>
+                    </div>
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input
+                          type="checkbox"
+                          name="leavePurpose"
+                          value="terminal_leave"
+                          className="checkbox checkbox-sm checkbox-primary"
+                          checked={formData.leavePurpose === 'terminal_leave'}
+                          onChange={handlePurposeChange}
+                        />
+                        <span className="label-text text-gray-700">Terminal Leave</span>
+                      </label>
+                    </div>
+
+                    {/* Monetization / Terminal Leave info */}
+                    {formData.leavePurpose && (
+                      <div className={`border-l-4 rounded-r-lg p-4 ${formData.leavePurpose === 'monetization' ? 'border-lime-500 bg-lime-50' : 'border-slate-500 bg-slate-50'}`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`rounded-full p-2 ${formData.leavePurpose === 'monetization' ? 'bg-lime-100 text-lime-600' : 'bg-slate-100 text-slate-600'}`}>
+                            <i className={`fas ${formData.leavePurpose === 'monetization' ? 'fa-coins' : 'fa-flag-checkered'} text-lg`}></i>
+                          </div>
+                          <div>
+                            {formData.leavePurpose === 'monetization' ? (
+                              <>
+                                <h4 className="font-bold text-lime-800">Monetization of Leave Credits</h4>
+                                <p className="text-sm text-lime-700 mt-1">
+                                  This request will monetize <span className="font-bold">{formData.numberOfDays} vacation leave day(s)</span> into cash.
+                                  The days are deducted from your vacation leave credits upon approval, and HR certifies
+                                  your available credits before approving.
+                                </p>
+                                <p className="text-xs text-lime-700 mt-1">
+                                  Required documents: Application for monetization of leave credits, Certificate of available leave credits from HR.
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <h4 className="font-bold text-slate-800">Terminal Leave</h4>
+                                <p className="text-sm text-slate-700 mt-1">
+                                  This request is for terminal leave benefits — the cash equivalent of <span className="font-bold">{formData.numberOfDays} vacation leave day(s)</span>
+                                  upon retirement or separation from service.
+                                </p>
+                                <p className="text-xs text-slate-700 mt-1">
+                                  Required documents: Certificate of retirement / separation from service, Certificate of leave credits from HR.
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Commutation */}
                   <div className="space-y-4 pt-4 border-t border-gray-200">
                     <h4 className="font-medium text-gray-800">Commutation</h4>
@@ -1329,6 +1524,77 @@ const RequestLeaveAdvanced = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Supporting Documents */}
+                  <div className="border border-gray-300 rounded-lg overflow-hidden">
+                    <div className="bg-gray-100 p-4 border-b border-gray-300 flex items-center justify-between">
+                      <h4 className="font-bold text-gray-800 text-lg">
+                        <i className="fas fa-paperclip text-blue-500 mr-2"></i>
+                        Supporting Documents
+                      </h4>
+                      <span className="text-xs text-gray-500">Optional • Max 5 files • 10MB each</span>
+                    </div>
+                    <div className="p-4">
+                      {/* Guidance per leave type */}
+                      {leaveTypeRequiredDocuments[formData.leaveType]?.length > 0 && (
+                        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-sm font-semibold text-blue-800 mb-1">Suggested documents for {leaveTypeRequirements[formData.leaveType]?.title || 'this leave type'}:</p>
+                          <ul className="list-disc list-inside text-sm text-blue-700 space-y-0.5">
+                            {leaveTypeRequiredDocuments[formData.leaveType].map((doc, index) => (
+                              <li key={index}>{doc}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* File input */}
+                      <label className="btn btn-outline border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white w-full cursor-pointer">
+                        <i className="fas fa-upload mr-2"></i>
+                        Choose Files (Image, PDF, Word, Excel)
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                          className="hidden"
+                          onChange={handleDocumentSelect}
+                        />
+                      </label>
+
+                      {documentsError && (
+                        <p className="text-sm text-red-600 mt-2">{documentsError}</p>
+                      )}
+
+                      {/* Selected files */}
+                      {documents.length > 0 && (
+                        <ul className="mt-4 space-y-2">
+                          {documents.map((doc, index) => (
+                            <li key={index} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                              <div className="flex items-center min-w-0">
+                                <i className={`fas ${doc.type.startsWith('image/') ? 'fa-file-image' : doc.type === 'application/pdf' ? 'fa-file-pdf' : 'fa-file-alt'} text-blue-500 mr-3`}></i>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{doc.name}</p>
+                                  <p className="text-xs text-gray-500">{formatFileSize(doc.size)}</p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeDocument(index)}
+                                className="btn btn-ghost btn-xs text-red-500"
+                                title="Remove file"
+                              >
+                                <i className="fas fa-times"></i>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {documents.length === 0 && (
+                        <p className="text-sm text-gray-500 mt-3 text-center">
+                          No files attached yet. Supporting documents are optional but recommended.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   
                   <div className="flex justify-between mt-6">
                     <button 
@@ -1366,9 +1632,7 @@ const RequestLeaveAdvanced = () => {
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
         title="Leave Request Submitted"
-        message={`Your leave request has been submitted successfully. ${
-          getRoleBasedMessage(userRole)
-        }`}
+        message={successMessage}
         onConfirm={() => {
           setShowSuccessModal(false);
           // Handle special case for department_admin
@@ -1419,10 +1683,13 @@ const RequestLeaveAdvanced = () => {
             }
 
             // For the new structure, we will use leave_type directly with the correct value
-            // If leaveType is 'others_specify', we use the otherSpecify value
-            const actualLeaveType = submitData.leaveType === 'others_specify' 
-              ? submitData.otherSpecify 
-              : submitData.leaveType;
+            // If a purpose (monetization / terminal leave) is selected, it becomes the leave type.
+            // If leaveType is 'others_specify', we use the otherSpecify value.
+            const actualLeaveType = submitData.leavePurpose
+              ? submitData.leavePurpose
+              : (submitData.leaveType === 'others_specify'
+                ? submitData.otherSpecify
+                : submitData.leaveType);
 
             // Prepare the request data based on role
             const requestData = {
@@ -1452,6 +1719,13 @@ const RequestLeaveAdvanced = () => {
             });
 
             if (response.data.success) {
+              // Upload any selected supporting documents to the new request
+              const newRequestId = response.data.data?._id;
+              const docsOk = await uploadLeaveDocuments(newRequestId);
+              setSuccessMessage(docsOk
+                ? `Your leave request has been submitted successfully. ${getRoleBasedMessage(userRole)}`
+                : 'Your leave request was submitted, but the supporting documents could not be uploaded. You can attach them later from the request details page.');
+
               // Show success modal
               setShowSuccessModal(true);
               

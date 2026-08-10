@@ -109,6 +109,20 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
   const isLocationVacationType = ['vacation', 'special_privilege_leave', 'mandatory_forced_leave', 'study_leave'].includes(currentType);
   const isSickType = currentType === 'sick';
 
+  // 7.A certification table — show the projected deduction and balance for this application.
+  // The actual deduction is applied to the employee's credits only after the leave is approved.
+  const isPendingLike = !['approved', 'cancelled'].includes(leaveRecord.status);
+  const applicationDeduction = (cancelled) => {
+    if (cancelled) return 0;
+    // Approved requests use the recorded deduction (0 for without-pay);
+    // pending/recommended/hr_approved requests preview the days this leave will use.
+    return leaveRecord.status === 'approved' ? (leaveRecord.credits_deducted || 0) : (leaveRecord.days || 0);
+  };
+  const vacationDeduction = isVacationType ? applicationDeduction(leaveRecord.cancelled) : 0;
+  const sickDeduction = isSickType ? applicationDeduction(leaveRecord.cancelled) : 0;
+  const vacationBalance = Math.max(0, (leaveRecord.running_vacation_balance || 0) - (isPendingLike && isVacationType ? (leaveRecord.days || 0) : 0));
+  const sickBalance = Math.max(0, (leaveRecord.running_sick_balance || 0) - (isPendingLike && isSickType ? (leaveRecord.days || 0) : 0));
+
   // Save signature to backend
   const handleSaveSignature = async (signatureDataUrl) => {
     if (!activeSignatory) return;
@@ -624,18 +638,18 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
                     <tbody>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-1 text-left font-medium">Total Earned</td>
-                        <td className="border-r border-black p-1">{(leaveRecord.running_vacation_balance + (isVacationType ? leaveRecord.credits_deducted : 0)).toFixed(3)}</td>
-                        <td className="p-1">{(leaveRecord.running_sick_balance + (isSickType ? leaveRecord.credits_deducted : 0)).toFixed(3)}</td>
+                        <td className="border-r border-black p-1">{(leaveRecord.running_vacation_balance + (isVacationType ? (leaveRecord.credits_deducted || 0) : 0)).toFixed(3)}</td>
+                        <td className="p-1">{(leaveRecord.running_sick_balance + (isSickType ? (leaveRecord.credits_deducted || 0) : 0)).toFixed(3)}</td>
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-1 text-left font-medium">Less this application</td>
-                        <td className="border-r border-black p-1 font-bold text-red-600">{isVacationType ? leaveRecord.credits_deducted.toFixed(3) : '0.000'}</td>
-                        <td className="p-1 font-bold text-red-600">{isSickType ? leaveRecord.credits_deducted.toFixed(3) : '0.000'}</td>
+                        <td className="border-r border-black p-1 font-bold text-red-600">{vacationDeduction.toFixed(3)}</td>
+                        <td className="p-1 font-bold text-red-600">{sickDeduction.toFixed(3)}</td>
                       </tr>
                       <tr className="bg-yellow-50/50">
                         <td className="border-r border-black p-1 text-left font-bold">Balance</td>
-                        <td className="border-r border-black p-1 font-bold text-blue-800">{leaveRecord.running_vacation_balance.toFixed(3)}</td>
-                        <td className="p-1 font-bold text-emerald-800">{leaveRecord.running_sick_balance.toFixed(3)}</td>
+                        <td className="border-r border-black p-1 font-bold text-blue-800">{vacationBalance.toFixed(3)}</td>
+                        <td className="p-1 font-bold text-emerald-800">{sickBalance.toFixed(3)}</td>
                       </tr>
                     </tbody>
                   </table>

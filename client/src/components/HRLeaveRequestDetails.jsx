@@ -3,6 +3,11 @@ import Layout from './Layout';
 import axios from '../services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 
+// Leave types that draw from vacation credits vs sick credits (mirrors server getLeaveCreditsInfo).
+// Used by the 7.A Certification of Leave Credits table to show this application's deduction.
+const VACATION_POOL_TYPES = ['vacation', 'special_privilege_leave', 'study_leave', 'mandatory_forced_leave', 'monetization', 'terminal_leave'];
+const SICK_POOL_TYPES = ['sick', 'maternity_leave', 'paternity_leave', 'solo_parent_leave', 'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 'special_emergency', 'adoption_leave'];
+
 const HRLeaveRequestDetails = () => {
   const [leaveRequest, setLeaveRequest] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -644,17 +649,22 @@ const HRLeaveRequestDetails = () => {
                           <td>{(leaveRequest.user_id?.sick_earned_total ?? 0).toFixed(3)}</td>
                         </tr>
                         <tr>
-                          <td className="text-left font-medium">Less: Used</td>
-                          <td>{(leaveRequest.user_id?.vacation_used_total ?? 0).toFixed(3)}</td>
-                          <td>{(leaveRequest.user_id?.sick_used_total ?? 0).toFixed(3)}</td>
+                          <td className="text-left font-medium">Less this application</td>
+                          <td>{VACATION_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days ?? 0).toFixed(3) : '0.000'}</td>
+                          <td>{SICK_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days ?? 0).toFixed(3) : '0.000'}</td>
                         </tr>
                         <tr>
                           <td className="text-left font-bold">Balance</td>
-                          <td className="font-bold text-blue-700">{(leaveRequest.user_id?.vacation_balance ?? 0).toFixed(3)}</td>
-                          <td className="font-bold text-emerald-700">{(leaveRequest.user_id?.sick_balance ?? 0).toFixed(3)}</td>
+                          <td className="font-bold text-blue-700">{Math.max(0, (leaveRequest.user_id?.vacation_balance ?? 0) - (VACATION_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days ?? 0) : 0)).toFixed(3)}</td>
+                          <td className="font-bold text-emerald-700">{Math.max(0, (leaveRequest.user_id?.sick_balance ?? 0) - (SICK_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days ?? 0) : 0)).toFixed(3)}</td>
                         </tr>
                       </tbody>
                     </table>
+
+                    <p className="text-xs text-gray-500 mt-2">
+                      <i className="fas fa-info-circle mr-1"></i>
+                      The deduction and balance above are projections for this application. The deduction is applied to the employee's actual leave credits only after the leave is approved by the Mayor.
+                    </p>
 
                     <label className="flex items-start gap-2 mt-3 cursor-pointer">
                       <input
