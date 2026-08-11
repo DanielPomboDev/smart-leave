@@ -1,8 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import axios from '../services/api';
 import CSForm6Modal from './CSForm6Modal';
+
+const AUDIT_ACTION_LABELS = {
+  add_record: 'Add Record',
+  update_record: 'Update Record',
+  add_undertime: 'Add Undertime',
+  add_credits: 'Add Credits',
+  calculate_credits: 'Credit Calculation',
+  other: 'Other'
+};
 
 const HRLeaveRecord = () => {
   const { id } = useParams();
@@ -50,6 +59,17 @@ const HRLeaveRecord = () => {
   });
   const [isCreditsFutureDate, setIsCreditsFutureDate] = useState(false);
   const [showCreditsWarning, setShowCreditsWarning] = useState(false);
+
+  // Statutory leave entitlements state
+  const [showEntitlementsModal, setShowEntitlementsModal] = useState(false);
+  const [entitlements, setEntitlements] = useState([]);
+  const [entitlementsYear, setEntitlementsYear] = useState(new Date().getFullYear());
+  const [entitlementsLoading, setEntitlementsLoading] = useState(false);
+
+  // Audit log state
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   // Years available for month selectors (current year back a few years)
   const yearOptions = (() => {
@@ -112,54 +132,54 @@ const HRLeaveRecord = () => {
     50: 0.104, 51: 0.106, 52: 0.108, 53: 0.110, 54: 0.112, 55: 0.115, 56: 0.117, 57: 0.119, 58: 0.121, 59: 0.123, 60: 0.125
   };
 
-  // Fetch employee leave record data
-  useEffect(() => {
-    const fetchLeaveRecord = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
-
-        const params = {};
-        if (filters.year) {
-          params.year = filters.year;
-        }
-
-        const response = await axios.get(`/api/leave-records/${id}`, {
-          params,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.data.employee) {
-          setEmployee(response.data.employee);
-          setVacationSummary(response.data.vacationSummary);
-          setSickSummary(response.data.sickSummary);
-          // Convert leave records to the format expected by the UI
-          const formattedRecords = Object.values(response.data.leaveRecords).flat().map(record => ({
-            ...record,
-            month_year: `${getMonthName(record.month)} ${record.year}`,
-            formatted_undertime: record.undertime_hours > 0 ? record.undertime_hours.toFixed(3) : '0.000'
-          }));
-          setLeaveRecords(formattedRecords);
-        } else {
-          setError(response.data.message || 'Failed to fetch leave record');
-        }
-      } catch (error) {
-        console.error('Error fetching leave record:', error);
-        setError('Failed to fetch leave record: ' + (error.response?.data?.message || error.message));
-      } finally {
-        setLoading(false);
+  // Fetch employee leave record data (reusable — also refreshes after signed-PDF changes)
+  const fetchLeaveRecord = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
       }
-    };
 
+      const params = {};
+      if (filters.year) {
+        params.year = filters.year;
+      }
+
+      const response = await axios.get(`/api/leave-records/${id}`, {
+        params,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.employee) {
+        setEmployee(response.data.employee);
+        setVacationSummary(response.data.vacationSummary);
+        setSickSummary(response.data.sickSummary);
+        // Convert leave records to the format expected by the UI
+        const formattedRecords = Object.values(response.data.leaveRecords).flat().map(record => ({
+          ...record,
+          month_year: `${getMonthName(record.month)} ${record.year}`,
+          formatted_undertime: record.undertime_hours > 0 ? record.undertime_hours.toFixed(3) : '0.000'
+        }));
+        setLeaveRecords(formattedRecords);
+      } else {
+        setError(response.data.message || 'Failed to fetch leave record');
+      }
+    } catch (error) {
+      console.error('Error fetching leave record:', error);
+      setError('Failed to fetch leave record: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  }, [id, filters.year]);
+
+  useEffect(() => {
     if (id) {
       fetchLeaveRecord();
     }
-  }, [id, filters.year]);
+  }, [fetchLeaveRecord, id]);
 
   // Apply filters when filters change or when leaveRecords change
   useEffect(() => {
@@ -411,6 +431,42 @@ const HRLeaveRecord = () => {
     setIsCreditsFutureDate(false);
   };
 
+  // Fetch and show statutory leave entitlements for a year
+  const openEntitlements = async (year) => {
+    setShowEntitlementsModal(true);
+    setEntitlementsLoading(true);
+    setEntitlementsYear(year);
+    try {
+      const res = await axios.get(`/api/leave-records/entitlements/${id}`, { params: { year } });
+      if (res.data.success) {
+        setEntitlements(res.data.entitlements || []);
+      } else {
+        setEntitlements([]);
+      }
+    } catch (err) {
+      console.error('Error fetching entitlements:', err);
+      setEntitlements([]);
+    } finally {
+      setEntitlementsLoading(false);
+    }
+  };
+
+  // Fetch and show the audit log for this employee's leave records
+  const openAuditLog = async () => {
+    setShowAuditModal(true);
+    setAuditLoading(true);
+    try {
+      const res = await axios.get('/api/leave-records/audit-logs', { params: { userId: id, limit: 100 } });
+      if (res.data.success) {
+        setAuditLogs(res.data.logs || []);
+      }
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   const handleAddCreditsSubmit = async (e) => {
     e.preventDefault();
     setCreditsFormError('');
@@ -574,9 +630,15 @@ const HRLeaveRecord = () => {
                   {employee.department_id?.name || 'No Department'} • {employee.position || 'No Position'}
                 </p>
                 <p className="text-sm text-gray-500">Employee ID: {employee.user_id}</p>
+                {employee.appointment_status && (
+                  <span className="badge badge-outline badge-sm mt-1">
+                    <i className="fas fa-id-badge mr-1"></i>
+                    {(employee.appointment_status || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </span>
+                )}
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button onClick={openAddRecordModal} className="btn btn-secondary btn-sm sm:btn-md whitespace-nowrap">
                 <i className="fas fa-clipboard-list mr-2"></i>
                 Add Record
@@ -588,6 +650,14 @@ const HRLeaveRecord = () => {
               <button onClick={openAddCreditsModal} className="btn btn-success btn-sm sm:btn-md whitespace-nowrap">
                 <i className="fas fa-coins mr-2"></i>
                 Add Credits
+              </button>
+              <button onClick={() => openEntitlements(new Date().getFullYear())} className="btn btn-info btn-sm sm:btn-md whitespace-nowrap">
+                <i className="fas fa-scale-balanced mr-2"></i>
+                Statutory Leaves
+              </button>
+              <button onClick={openAuditLog} className="btn btn-outline btn-sm sm:btn-md whitespace-nowrap">
+                <i className="fas fa-history mr-2"></i>
+                Audit Log
               </button>
             </div>
           </div>
@@ -788,6 +858,18 @@ const HRLeaveRecord = () => {
 
                         {/* Action Button */}
                         <div className="flex items-center space-x-2 self-end md:self-center shrink-0">
+                          {vacation.official_pdf && vacation.official_pdf.url && (
+                            <a
+                              href={vacation.official_pdf.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn btn-sm btn-success text-white border-none shadow-sm space-x-1.5"
+                              title={`Signed PDF uploaded by ${vacation.official_pdf.uploaded_by_name || '—'}`}
+                            >
+                              <i className="fas fa-check-circle text-xs"></i>
+                              <span>Signed PDF</span>
+                            </a>
+                          )}
                           <button
                             onClick={() => {
                               setSelectedFormRecord(vacation);
@@ -874,6 +956,18 @@ const HRLeaveRecord = () => {
 
                         {/* Action Button */}
                         <div className="flex items-center space-x-2 self-end md:self-center shrink-0">
+                          {sick.official_pdf && sick.official_pdf.url && (
+                            <a
+                              href={sick.official_pdf.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn btn-sm btn-success text-white border-none shadow-sm space-x-1.5"
+                              title={`Signed PDF uploaded by ${sick.official_pdf.uploaded_by_name || '—'}`}
+                            >
+                              <i className="fas fa-check-circle text-xs"></i>
+                              <span>Signed PDF</span>
+                            </a>
+                          )}
                           <button
                             onClick={() => {
                               setSelectedFormRecord(sick);
@@ -1451,11 +1545,122 @@ const HRLeaveRecord = () => {
         </div>
       )}
 
+      {/* Statutory Leave Entitlements Modal */}
+      {showEntitlementsModal && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-2xl">
+            <h3 className="font-bold text-lg">Statutory Leave Entitlements</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Per-year usage for <b>{entitlementsYear}</b>. Only leaves approved by the Mayor count as used.
+            </p>
+            <div className="flex items-center gap-2 mb-4">
+              <label className="text-sm font-medium text-gray-600">Year:</label>
+              <select
+                className="select select-bordered select-sm"
+                value={entitlementsYear}
+                onChange={(e) => openEntitlements(parseInt(e.target.value))}
+              >
+                {(() => {
+                  const y = new Date().getFullYear();
+                  const opts = [];
+                  for (let i = y + 1; i >= y - 4; i--) opts.push(i);
+                  return opts.map(opt => <option key={opt} value={opt}>{opt}</option>);
+                })()}
+              </select>
+            </div>
+            {entitlementsLoading ? (
+              <div className="flex justify-center py-10"><span className="loading loading-spinner loading-lg text-primary"></span></div>
+            ) : entitlements.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No statutory leave entitlements configured.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table table-sm w-full">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="text-sm">Leave Type</th>
+                      <th className="text-sm">Annual Limit</th>
+                      <th className="text-sm">Used</th>
+                      <th className="text-sm">Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entitlements.map(e => (
+                      <tr key={e.leave_type}>
+                        <td className="font-medium">
+                          {e.label}
+                          <span className="text-xs text-gray-400 ml-1">({e.law})</span>
+                        </td>
+                        <td>{e.limit} days</td>
+                        <td>{e.used} days</td>
+                        <td>
+                          {e.remaining === null ? (
+                            <span className="text-gray-400">No fixed limit</span>
+                          ) : (
+                            <span className={e.remaining <= 0 ? 'font-semibold text-error' : ''}>{e.remaining} days</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="modal-action">
+              <button className="btn" onClick={() => setShowEntitlementsModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Log Modal */}
+      {showAuditModal && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-2xl">
+            <h3 className="font-bold text-lg">Audit Log — Leave Record Changes</h3>
+            <p className="text-sm text-gray-500 mb-4">Who changed this employee's leave record, and when.</p>
+            {auditLoading ? (
+              <div className="flex justify-center py-10"><span className="loading loading-spinner loading-lg text-primary"></span></div>
+            ) : auditLogs.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No leave record changes logged yet.</p>
+            ) : (
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <table className="table table-sm w-full">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="text-sm">Date & Time</th>
+                      <th className="text-sm">Changed By</th>
+                      <th className="text-sm">Action</th>
+                      <th className="text-sm">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map(log => (
+                      <tr key={log._id}>
+                        <td className="whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
+                        <td>{log.actor_name || 'System'}</td>
+                        <td>
+                          <span className="badge badge-ghost badge-sm">{AUDIT_ACTION_LABELS[log.action] || log.action}</span>
+                        </td>
+                        <td className="text-xs text-gray-600">{log.details}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="modal-action">
+              <button className="btn" onClick={() => setShowAuditModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <CSForm6Modal
         isOpen={showCSForm6Modal}
         onClose={() => setShowCSForm6Modal(false)}
         leaveRecord={selectedFormRecord}
         employee={employee}
+        onPdfChange={fetchLeaveRecord}
       />
     </Layout>
   );

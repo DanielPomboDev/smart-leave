@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import SignatureModal from './SignatureModal';
 import axios from '../services/api';
 
-const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
+const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) => {
   const printableRef = useRef(null);
   const [activeSignatory, setActiveSignatory] = useState(null); // 'applicant', 'hr', 'department', 'mayor'
   const [signatures, setSignatures] = useState({
@@ -19,6 +19,14 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
   const [editingName, setEditingName] = useState(null); // 'hr' | 'department' | 'mayor'
   const [isSaving, setIsSaving] = useState(false);
 
+  // Official signed PDF (PNPKI-signed copy of the finalized form)
+  const pdfInputRef = useRef(null);
+  const [officialPdf, setOfficialPdf] = useState(leaveRecord?.official_pdf?.url ? leaveRecord.official_pdf : null);
+  const hasPdf = !!(officialPdf && officialPdf.url);
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+  const [pdfSuccess, setPdfSuccess] = useState('');
+
   // Sync stored signatures from the leave record when the form opens (signatures state is
   // initialized once at mount, so re-sync here). Also auto-embed the applicant's profile
   // signature onto the leave request so HR doesn't have to capture it manually.
@@ -31,6 +39,10 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
       department: leaveRecord.department_signature || prev.department,
       mayor:      leaveRecord.mayor_signature      || prev.mayor
     }));
+
+    setOfficialPdf(leaveRecord.official_pdf && leaveRecord.official_pdf.url ? leaveRecord.official_pdf : null);
+    setPdfError('');
+    setPdfSuccess('');
 
     // Use the actual approvers' names (fall back to the role title when not yet acted on)
     setSignatoryNames(prev => ({
@@ -148,6 +160,61 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
       } finally {
         setIsSaving(false);
       }
+    }
+  };
+
+  // Upload the official signed PDF (signed in Adobe Reader with the PNPKI certificate)
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (file.type !== 'application/pdf') {
+      setPdfError('Please upload a PDF file (the signed copy from Adobe Reader).');
+      return;
+    }
+    if (!leaveRecord.leave_id) {
+      setPdfError('Cannot attach a PDF — no leave request is linked to this form.');
+      return;
+    }
+
+    setPdfUploading(true);
+    setPdfError('');
+    setPdfSuccess('');
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await axios.post(`/api/leave-requests/${leaveRecord.leave_id}/official-pdf`, fd);
+      if (res.data.success) {
+        setOfficialPdf(res.data.official_pdf);
+        setPdfSuccess('Signed PDF uploaded successfully.');
+        if (onPdfChange) onPdfChange();
+      } else {
+        setPdfError(res.data.message || 'Upload failed');
+      }
+    } catch (err) {
+      console.error('Error uploading signed PDF:', err);
+      setPdfError(err.response?.data?.message || 'Upload failed');
+    } finally {
+      setPdfUploading(false);
+    }
+  };
+
+  // Remove the official signed PDF
+  const handlePdfRemove = async () => {
+    if (!leaveRecord.leave_id) return;
+    if (!window.confirm('Remove the signed PDF from this leave request?')) return;
+    try {
+      const res = await axios.delete(`/api/leave-requests/${leaveRecord.leave_id}/official-pdf`);
+      if (res.data.success) {
+        setOfficialPdf(null);
+        setPdfSuccess('');
+        setPdfError('');
+        if (onPdfChange) onPdfChange();
+      }
+    } catch (err) {
+      console.error('Error removing signed PDF:', err);
+      setPdfError(err.response?.data?.message || 'Failed to remove the signed PDF');
     }
   };
 
@@ -418,6 +485,57 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee }) => {
               Mayor Sign
             </button>
           </div>
+        </div>
+
+        {/* Official Signed PDF Bar (Hidden on print) */}
+        <div className="bg-white px-6 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between text-xs print:hidden gap-2">
+          <span className="font-semibold text-slate-700 flex items-center">
+            <i className="fas fa-file-signature text-red-600 mr-1.5"></i>
+            Official Signed PDF (PNPKI):
+          </span>
+          {hasPdf ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={officialPdf.url}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-xs btn-success text-white border-none"
+              >
+                <i className="fas fa-file-pdf mr-1"></i>
+                {officialPdf.name || 'Signed Form'}
+              </a>
+              <span className="text-gray-500">
+                by <span className="font-semibold">{officialPdf.uploaded_by_name || '—'}</span>
+                {officialPdf.uploaded_at ? ` on ${new Date(officialPdf.uploaded_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}` : ''}
+              </span>
+              <button onClick={handlePdfRemove} className="btn btn-xs btn-ghost text-error">
+                <i className="fas fa-trash mr-1"></i>Remove
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-gray-500 max-w-md">
+                Sign the exported PDF in Adobe Reader with the PNPKI certificate, then upload the signed copy here.
+              </span>
+              <button
+                onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
+                className="btn btn-xs btn-outline border-red-300 text-red-600"
+                disabled={pdfUploading}
+              >
+                <i className={`fas ${pdfUploading ? 'fa-spinner fa-spin' : 'fa-upload'} mr-1`}></i>
+                {pdfUploading ? 'Uploading...' : 'Upload Signed PDF'}
+              </button>
+            </div>
+          )}
+          {pdfError && <span className="text-error font-semibold w-full">{pdfError}</span>}
+          {pdfSuccess && <span className="text-green-600 font-semibold w-full">{pdfSuccess}</span>}
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            onChange={handlePdfUpload}
+          />
         </div>
 
         {/* Form Body - CS Form No. 6 Standard Layout */}

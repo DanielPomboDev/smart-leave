@@ -5,6 +5,7 @@ import axios from '../services/api';
 import RequestLeave from './RequestLeave';
 import SuccessModal from './SuccessModal';
 import ConfirmationModal from './ConfirmationModal';
+import { calculateLeaveDays, calculateAdjustedEndDate as calculateAdjustedEndDateUtil, fetchHolidays } from '../utils/leaveDays';
 
 // Leave types that draw from vacation credits vs sick credits (mirrors server getLeaveCreditsInfo)
 const VACATION_POOL_TYPES = ['vacation', 'special_privilege_leave', 'study_leave', 'mandatory_forced_leave', 'monetization', 'terminal_leave'];
@@ -25,6 +26,21 @@ const EmployeeDashboard = () => {
   const [vacationBalance, setVacationBalance] = useState(0);
   const [sickBalance, setSickBalance] = useState(0);
   const [loadingCredits, setLoadingCredits] = useState(true);
+
+  // Non-working holiday dates (current + next year) — excluded from leave day counts
+  const [holidays, setHolidays] = useState([]);
+
+  useEffect(() => {
+    const loadHolidays = async () => {
+      const currentYear = new Date().getFullYear();
+      const [y1, y2] = await Promise.all([
+        fetchHolidays(currentYear),
+        fetchHolidays(currentYear + 1)
+      ]);
+      setHolidays([...y1, ...y2]);
+    };
+    loadHolidays();
+  }, []);
 
   // State for recent leave requests
   const [recentLeaveRequests, setRecentLeaveRequests] = useState([]);
@@ -157,24 +173,9 @@ const EmployeeDashboard = () => {
     }));
   }, []);
 
-  // Calculate adjusted end date for a given number of WORKING days (skips weekends)
-  const calculateAdjustedEndDate = (startDate, numberOfDays) => {
-    const parts = String(startDate).split('-').map(Number);
-    if (parts.length !== 3 || parts.some(isNaN)) return startDate;
-    const endDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-    let remaining = Math.max(1, Math.floor(numberOfDays));
-    while (remaining > 1) {
-      endDateObj.setDate(endDateObj.getDate() + 1);
-      const day = endDateObj.getDay();
-      if (day !== 0 && day !== 6) {
-        remaining--;
-      }
-    }
-    const y = endDateObj.getFullYear();
-    const m = String(endDateObj.getMonth() + 1).padStart(2, '0');
-    const d = String(endDateObj.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
+  // Calculate adjusted end date for a given number of WORKING days (skips weekends and holidays)
+  const calculateAdjustedEndDate = (startDate, numberOfDays) =>
+    calculateAdjustedEndDateUtil(startDate, numberOfDays, holidays);
 
   // Handle input changes
   const handleQuickLeaveChange = (e) => {
@@ -311,30 +312,9 @@ const EmployeeDashboard = () => {
     }
   };
 
-  // Calculate number of WORKING days (Mon–Fri, inclusive) between start and end dates.
-  // Matches CS Form 6 6.C "Number of Working Days Applied For".
-  const calculateDays = (data) => {
-    const partsS = String(data.startDate || '').split('-').map(Number);
-    const partsE = String(data.endDate || '').split('-').map(Number);
-    
-    if (partsS.length === 3 && partsE.length === 3 && !partsS.some(isNaN) && !partsE.some(isNaN)) {
-      const startDate = new Date(partsS[0], partsS[1] - 1, partsS[2]);
-      const endDate = new Date(partsE[0], partsE[1] - 1, partsE[2]);
-      if (endDate < startDate) return 1;
-      
-      let workingDays = 0;
-      const current = new Date(startDate);
-      while (current <= endDate) {
-        const day = current.getDay();
-        if (day !== 0 && day !== 6) { // 0 = Sunday, 6 = Saturday
-          workingDays++;
-        }
-        current.setDate(current.getDate() + 1);
-      }
-      return workingDays > 0 ? workingDays : 1;
-    }
-    return 1; // Default to 1 day if dates are invalid
-  };
+  // Calculate number of WORKING days (Mon–Fri, inclusive, excluding non-working holidays)
+  // between start and end dates. Matches CS Form 6 6.C "Number of Working Days Applied For".
+  const calculateDays = (data) => calculateLeaveDays(data.startDate, data.endDate, holidays);
 
   // Validate quick leave step
   const validateQuickStep = (step) => {

@@ -18,6 +18,8 @@ import HREmployees from './components/HREmployees.jsx';
 import HRLeaveRecord from './components/HRLeaveRecord.jsx';
 import HRLeaveRecords from './components/HRLeaveRecords.jsx';
 import HRReports from './components/HRReports.jsx';
+import HRHolidays from './components/HRHolidays.jsx';
+import HRCalendar from './components/HRCalendar.jsx';
 import MayorDashboard from './components/MayorDashboard.jsx';
 import MayorLeaveRequests from './components/MayorLeaveRequests.jsx';
 import MayorLeaveRequestDetails from './components/MayorLeaveRequestDetails.jsx';
@@ -46,6 +48,9 @@ function App() {
           <Route path="/hr/leave-records" element={<HRLeaveRecords />} />
           <Route path="/hr/leave-record/:id" element={<HRLeaveRecord />} />
           <Route path="/hr/reports" element={<HRReports />} />
+          <Route path="/hr/holidays" element={<HRHolidays />} />
+          <Route path="/hr/calendar" element={<HRCalendar />} />
+          <Route path="/department/calendar" element={<HRCalendar />} />
           <Route path="/mayor/dashboard" element={<MayorDashboard />} />
           <Route path="/mayor/leave-requests" element={<MayorLeaveRequests />} />
           <Route path="/mayor/leave-requests/:id" element={<MayorLeaveRequestDetails />} />

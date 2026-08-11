@@ -8,13 +8,23 @@ const {
 } = require('../utils/notificationUtils');
 const User = require('../models/User');
 const { getLeaveCreditsInfo } = require('./LeaveRecordController');
+const { getHolidayDates } = require('../utils/holidayUtils');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinary');
 
+// Format a Date as YYYY-MM-DD (local time)
+const toDateStr = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 // Count working days (Mon–Fri, inclusive) between two YYYY-MM-DD dates.
-// CS Form 6 6.C asks for "Number of Working Days Applied For", so weekends are excluded.
-const countWorkingDays = (startDate, endDate) => {
+// CS Form 6 6.C asks for "Number of Working Days Applied For", so weekends AND
+// non-working holidays are excluded. Pass holidayDates as a Set of YYYY-MM-DD strings.
+const countWorkingDays = (startDate, endDate, holidayDates = new Set()) => {
   try {
     const partsS = String(startDate).split('-').map(Number);
     const partsE = String(endDate).split('-').map(Number);
@@ -26,7 +36,8 @@ const countWorkingDays = (startDate, endDate) => {
     const current = new Date(s);
     while (current <= e) {
       const day = current.getDay();
-      if (day !== 0 && day !== 6) { // 0 = Sunday, 6 = Saturday
+      const dateStr = toDateStr(current);
+      if (day !== 0 && day !== 6 && !holidayDates.has(dateStr)) { // 0 = Sunday, 6 = Saturday
         workingDays++;
       }
       current.setDate(current.getDate() + 1);
@@ -35,6 +46,21 @@ const countWorkingDays = (startDate, endDate) => {
   } catch (error) {
     return null;
   }
+};
+
+// Fetch all non-working holiday dates between two YYYY-MM-DD dates (inclusive)
+const getHolidayDatesForRange = async (startDate, endDate) => {
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return new Set();
+  const startYear = s.getFullYear();
+  const endYear = e.getFullYear();
+  const dates = [];
+  for (let y = startYear; y <= endYear; y++) {
+    const { dates: yearDates } = await getHolidayDates(y);
+    dates.push(...yearDates);
+  }
+  return new Set(dates);
 };
 
 // Check if the new leave request dates overlap with existing leave requests
@@ -124,9 +150,11 @@ const createLeaveRequest = async (req, res) => {
       });
     }
 
-    // CS Form 6 6.C counts WORKING days (Mon–Fri, inclusive) — recompute authoritatively
-    // so the stored day count matches the form even if the client computes differently.
-    const computedDays = countWorkingDays(start_date, end_date);
+    // CS Form 6 6.C counts WORKING days (Mon–Fri, inclusive, excluding non-working
+    // holidays) — recompute authoritatively so the stored day count matches the form
+    // even if the client computes differently.
+    const holidayDates = await getHolidayDatesForRange(start_date, end_date);
+    const computedDays = countWorkingDays(start_date, end_date, holidayDates);
     const effectiveNumberOfDays = computedDays !== null ? computedDays : number_of_days;
 
     // Check employee's leave credits
@@ -667,6 +695,159 @@ const deleteLeaveDocument = async (req, res) => {
   }
 };
 
+// @desc    Get leave requests for the team calendar (who's on leave)
+// @route   GET /api/leave-requests/calendar?month=&year=&department_id=
+// @access  Private (HR sees all; department admin sees own department)
+const getLeaveCalendar = async (req, res) => {
+  try {
+    const { month, year, department_id } = req.query;
+    if (!month || !year) {
+      return res.status(400).json({ success: false, message: 'Month and year are required' });
+    }
+
+    const m = parseInt(month);
+    const y = parseInt(year);
+    const monthStart = new Date(y, m - 1, 1);
+    const monthEnd = new Date(y, m, 0, 23, 59, 59);
+
+    // Department scope: explicit filter, HR default all, department admin defaults to own dept
+    let deptId = department_id && department_id !== 'all' ? department_id : null;
+    if (!deptId && req.user.user_type === 'department_admin') {
+      deptId = req.user.department_id ? (req.user.department_id._id || req.user.department_id) : null;
+    }
+
+    const userQuery = deptId ? { department_id: deptId } : {};
+    const users = await User.find(userQuery)
+      .select('user_id first_name last_name middle_initial department_id position appointment_status');
+    const userIds = users.map(u => u.user_id);
+
+    const requests = await LeaveRequest.find({
+      user_id: { $in: userIds },
+      status: { $nin: ['cancelled', 'disapproved'] },
+      start_date: { $lte: monthEnd },
+      end_date: { $gte: monthStart }
+    }).sort({ start_date: 1 });
+
+    const userMap = {};
+    users.forEach(u => { userMap[u.user_id] = u; });
+
+    const events = requests.map(r => {
+      // LeaveRequest auto-populates user_id into a full user object on find()
+      const rawUserId = r.user_id && typeof r.user_id === 'object' ? r.user_id.user_id : r.user_id;
+      const u = userMap[rawUserId] || {};
+      const dept = u.department_id ? (u.department_id.name || u.department_id) : null;
+      return {
+        _id: r._id,
+        leave_type: r.leave_type,
+        status: r.status,
+        start_date: r.start_date,
+        end_date: r.end_date,
+        number_of_days: r.number_of_days,
+        user_id: rawUserId,
+        employee_name: `${u.first_name || ''}${u.middle_initial ? ' ' + u.middle_initial + '.' : ''} ${u.last_name || ''}`.trim(),
+        department: dept,
+        department_id: u.department_id ? (u.department_id._id || u.department_id) : null,
+        without_pay: r.without_pay
+      };
+    });
+
+    res.json({ success: true, events });
+  } catch (error) {
+    console.error('Error fetching leave calendar:', error);
+    res.status(500).json({ success: false, message: 'Server error while fetching leave calendar' });
+  }
+};
+
+// @desc    Upload the official signed PDF of a leave request
+// @route   POST /api/leave-requests/:id/official-pdf
+// @access  Private (owner, HR, department admin, mayor)
+const uploadOfficialPdf = async (req, res) => {
+  try {
+    const leaveRequest = await LeaveRequest.findById(req.params.id);
+    if (!leaveRequest) {
+      return res.status(404).json({ success: false, message: 'Leave request not found' });
+    }
+
+    const isOwner = isOwnerOfLeaveRequest(leaveRequest, req.user.user_id);
+    const isHr = req.user.user_type === 'hr';
+    const isDeptAdmin = req.user.user_type === 'department_admin';
+    const isMayor = req.user.user_type === 'mayor';
+    if (!isOwner && !isHr && !isDeptAdmin && !isMayor) {
+      return res.status(403).json({ success: false, message: 'Not authorized to upload the signed PDF' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const actorName = `${req.user.first_name || ''}${req.user.middle_initial ? ' ' + req.user.middle_initial + '.' : ''} ${req.user.last_name || ''}`.trim();
+
+    leaveRequest.official_pdf = {
+      url: req.file.path,
+      public_id: req.file.filename || null,
+      name: req.file.originalname,
+      uploaded_at: new Date(),
+      uploaded_by: req.user.user_id,
+      uploaded_by_name: actorName
+    };
+    await leaveRequest.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Signed PDF uploaded successfully',
+      official_pdf: leaveRequest.official_pdf
+    });
+  } catch (error) {
+    console.error('Error uploading official PDF:', error);
+    res.status(500).json({ success: false, message: 'Server error while uploading signed PDF: ' + (error.message || '') });
+  }
+};
+
+// @desc    Remove the official signed PDF of a leave request
+// @route   DELETE /api/leave-requests/:id/official-pdf
+// @access  Private (owner, HR, department admin, mayor)
+const deleteOfficialPdf = async (req, res) => {
+  try {
+    const leaveRequest = await LeaveRequest.findById(req.params.id);
+    if (!leaveRequest) {
+      return res.status(404).json({ success: false, message: 'Leave request not found' });
+    }
+
+    const isOwner = isOwnerOfLeaveRequest(leaveRequest, req.user.user_id);
+    const isHr = req.user.user_type === 'hr';
+    const isDeptAdmin = req.user.user_type === 'department_admin';
+    const isMayor = req.user.user_type === 'mayor';
+    if (!isOwner && !isHr && !isDeptAdmin && !isMayor) {
+      return res.status(403).json({ success: false, message: 'Not authorized to remove the signed PDF' });
+    }
+
+    const oldPdf = leaveRequest.official_pdf;
+    if (!oldPdf || !oldPdf.url) {
+      return res.status(404).json({ success: false, message: 'No signed PDF attached' });
+    }
+
+    // $unset cleanly removes the field (assigning undefined can leave an empty {} behind)
+    await LeaveRequest.updateOne({ _id: leaveRequest._id }, { $unset: { official_pdf: 1 } });
+
+    // Best-effort cleanup of the file (Cloudinary for new uploads)
+    if (oldPdf.public_id) {
+      try {
+        await cloudinary.uploader.destroy(oldPdf.public_id, { resource_type: 'raw' });
+      } catch (cloudErr) {
+        console.error('Error deleting signed PDF from Cloudinary:', cloudErr);
+      }
+    } else if (oldPdf.url && oldPdf.url.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '..', oldPdf.url);
+      fs.unlink(filePath, () => {});
+    }
+
+    res.json({ success: true, message: 'Signed PDF removed successfully' });
+  } catch (error) {
+    console.error('Error removing official PDF:', error);
+    res.status(500).json({ success: false, message: 'Server error while removing signed PDF' });
+  }
+};
+
 // @desc    Update digital signatures on a leave request
 // @route   POST /api/leave-requests/:id/signatures
 // @access  Private
@@ -707,8 +888,11 @@ module.exports = {
   createLeaveRequest,
   getLeaveRequests,
   getLeaveRequest,
+  getLeaveCalendar,
   cancelLeaveRequest,
   updateSignatures,
   uploadLeaveDocuments,
-  deleteLeaveDocument
+  deleteLeaveDocument,
+  uploadOfficialPdf,
+  deleteOfficialPdf
 };

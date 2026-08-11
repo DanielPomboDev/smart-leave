@@ -139,7 +139,30 @@ const leaveRequestSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
-  }]
+  }],
+  // Official signed PDF of the finalized form (PNPKI-signed by approvers in Adobe
+  // Reader after printing/saving from the CS Form 6). Kept alongside the digital record.
+  official_pdf: {
+    url: {
+      type: String
+    },
+    public_id: {
+      type: String
+    },
+    name: {
+      type: String
+    },
+    uploaded_at: {
+      type: Date
+    },
+    uploaded_by: {
+      type: String,
+      ref: 'User'
+    },
+    uploaded_by_name: {
+      type: String
+    }
+  }
 }, {
   timestamps: true
 });

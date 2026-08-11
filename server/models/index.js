@@ -5,5 +5,7 @@ require('./LeaveRequest');
 require('./LeaveRecommendation');
 require('./LeaveApproval');
 require('./LeaveRecord');
+require('./Holiday');
+require('./AuditLog');
 
 console.log('All models loaded successfully');

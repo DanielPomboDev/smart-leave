@@ -107,6 +107,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/department_admin/request-leave" },
           { label: "Leave History", icon: "fas fa-history", route: "/department_admin/leave-history" },
           { label: "Leave Requests", icon: "fas fa-tasks", route: "/department/leave-requests" },
+          { label: "Leave Calendar", icon: "fas fa-calendar-days", route: "/department/calendar" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }
         ];
@@ -117,6 +118,8 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Leave History", icon: "fas fa-history", route: "/hr/leave-history" },
           { label: "Employees", icon: "fas fa-users", route: "/hr/employees" },
           { label: "Leave Records", icon: "fas fa-file-alt", route: "/hr/leave-records" },
+          { label: "Leave Calendar", icon: "fas fa-calendar-days", route: "/hr/calendar" },
+          { label: "Holidays", icon: "fas fa-calendar-day", route: "/hr/holidays" },
           { label: "Leave Requests", icon: "fas fa-tasks", route: "/hr/leave-requests" },
           { label: "Reports", icon: "fas fa-chart-bar", route: "/hr/reports" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },

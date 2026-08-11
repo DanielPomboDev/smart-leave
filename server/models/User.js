@@ -45,6 +45,11 @@ const userSchema = new mongoose.Schema({
     enum: ['employee', 'hr', 'department_admin', 'mayor'],
     default: 'employee'
   },
+  appointment_status: {
+    type: String,
+    enum: ['permanent', 'temporary', 'co_terminus', 'contractual', 'casual', 'job_order', 'elected_official', 'other'],
+    default: 'permanent'
+  },
   profile_image: {
     type: String
   },

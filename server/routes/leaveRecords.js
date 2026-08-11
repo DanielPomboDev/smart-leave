@@ -13,6 +13,12 @@ router.get('/', leaveRecordController.index);
 // GET /api/leave-records/current - Get current leave credits for authenticated user
 router.get('/current', leaveRecordController.getCurrentLeaveCredits);
 
+// GET /api/leave-records/entitlements/:userId - Get statutory leave entitlements for an employee (before /:userId)
+router.get('/entitlements/:userId', leaveRecordController.getEntitlements);
+
+// GET /api/leave-records/audit-logs - Get audit logs for leave-record changes (before /:userId)
+router.get('/audit-logs', leaveRecordController.getAuditLogs);
+
 // GET /api/leave-records/:userId - Get leave records for a specific employee
 router.get('/:userId', leaveRecordController.show);
 

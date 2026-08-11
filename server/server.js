@@ -99,6 +99,10 @@ app.use('/api/mayor', mayorRoutes);
 const notificationRoutes = require('./routes/notifications');
 app.use('/api/notifications', notificationRoutes);
 
+// Holiday routes
+const holidayRoutes = require('./routes/holidays');
+app.use('/api/holidays', holidayRoutes);
+
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

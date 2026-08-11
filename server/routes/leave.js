@@ -1,5 +1,5 @@
 const express = require('express');
-const { createLeaveRequest, getLeaveRequests, getLeaveRequest, cancelLeaveRequest, updateSignatures, uploadLeaveDocuments, deleteLeaveDocument } = require('../controllers/LeaveController');
+const { createLeaveRequest, getLeaveRequests, getLeaveRequest, getLeaveCalendar, cancelLeaveRequest, updateSignatures, uploadLeaveDocuments, deleteLeaveDocument, uploadOfficialPdf, deleteOfficialPdf } = require('../controllers/LeaveController');
 const { protect } = require('../middleware/auth');
 const leaveUpload = require('../middleware/leaveUpload');
 
@@ -13,6 +13,9 @@ router.post('/', createLeaveRequest);
 
 // Get all leave requests for the authenticated user
 router.get('/', getLeaveRequests);
+
+// Get leave requests for the team calendar (must be before /:id)
+router.get('/calendar', getLeaveCalendar);
 
 // Get a specific leave request
 router.get('/:id', getLeaveRequest);
@@ -28,5 +31,11 @@ router.post('/:id/documents', protect, leaveUpload.array('documents', 5), upload
 
 // Delete a document from a leave request
 router.delete('/:id/documents/:docId', deleteLeaveDocument);
+
+// Upload the official signed PDF of a leave request
+router.post('/:id/official-pdf', protect, leaveUpload.single('file'), uploadOfficialPdf);
+
+// Remove the official signed PDF of a leave request
+router.delete('/:id/official-pdf', deleteOfficialPdf);
 
 module.exports = router;

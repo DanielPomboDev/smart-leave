@@ -2,7 +2,10 @@ const LeaveRecord = require('../models/LeaveRecord');
 const User = require('../models/User');
 const LeaveRequest = require('../models/LeaveRequest');
 const LeaveApproval = require('../models/LeaveApproval');
+const AuditLog = require('../models/AuditLog');
 const { createLeaveRecordValidation, updateLeaveRecordValidation, addUndertimeValidation } = require('../middleware/leaveRecordValidation');
+const { logAudit } = require('../utils/audit');
+const { STATUTORY_ENTITLEMENTS, CREDIT_ACCRUING_STATUSES } = require('../utils/leaveEntitlements');
 
 // Proration table for vacation credits
 const prorationTable = [
@@ -456,6 +459,7 @@ exports.show = async (req, res) => {
         cancelled: req.status === 'cancelled',
         applicant_signature: req.applicant_signature, hr_signature: req.hr_signature,
         department_signature: req.department_signature, mayor_signature: req.mayor_signature,
+        official_pdf: req.official_pdf || null,
         department_approved_by_name: approverNameMap[req.department_approved_by] || '',
         hr_approved_by_name:         approverNameMap[req.hr_approved_by]        || '',
         mayor_approved_by_name:      approverNameMap[req.mayor_approved_by]     || '',
@@ -526,6 +530,77 @@ exports.getMonthlyRecord = async (req, res) => {
   }
 };
 
+// Get statutory leave entitlements and usage for an employee in a given year
+// @route   GET /api/leave-records/entitlements/:userId?year=YYYY
+// @access  Private
+// Note: registered before /:userId in the router
+// @desc    Statutory (non-vacation/sick) leave usage per year
+exports.getEntitlements = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+
+    const employee = await User.findOne({ user_id: userId });
+    if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+
+    // Only leaves actually approved by the Mayor count as used.
+    const requests = await LeaveRequest.find({
+      user_id: userId,
+      status: 'approved',
+      start_date: { $gte: yearStart, $lte: yearEnd }
+    });
+
+    const usedByType = {};
+    requests.forEach(r => {
+      usedByType[r.leave_type] = (usedByType[r.leave_type] || 0) + (r.number_of_days || 0);
+    });
+
+    const entitlements = Object.entries(STATUTORY_ENTITLEMENTS).map(([type, def]) => {
+      const used = usedByType[type] || 0;
+      return {
+        leave_type: type,
+        label: def.label,
+        law: def.law,
+        limit: def.days,
+        used,
+        remaining: def.days === null ? null : Math.max(0, def.days - used)
+      };
+    });
+
+    res.json({ success: true, year, entitlements });
+  } catch (error) {
+    console.error('Error fetching leave entitlements:', error);
+    res.status(500).json({ message: 'Error fetching leave entitlements', error: error.message });
+  }
+};
+
+// Get audit logs for leave-record changes
+// @route   GET /api/leave-records/audit-logs?userId=&limit=
+// @access  Private (HR only)
+// Note: registered before /:userId in the router
+exports.getAuditLogs = async (req, res) => {
+  try {
+    if (req.user.user_type !== 'hr') {
+      return res.status(403).json({ success: false, message: 'Access denied. HR access required.' });
+    }
+
+    const { userId } = req.query;
+    const query = userId ? { user_id: userId } : {};
+    const logs = await AuditLog.find(query)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(req.query.limit) || 100)
+      .exec();
+
+    res.json({ success: true, logs });
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    res.status(500).json({ message: 'Error fetching audit logs', error: error.message });
+  }
+};
+
 // Create a new leave record
 exports.store = async (req, res) => {
   try {
@@ -571,7 +646,23 @@ exports.store = async (req, res) => {
     });
     
     const savedRecord = await leaveRecord.save();
-    
+
+    await logAudit({
+      actor: req.user,
+      action: 'add_record',
+      user_id,
+      entity_id: savedRecord._id,
+      after: {
+        month, year,
+        vacation_earned: savedRecord.vacation_earned,
+        vacation_used: savedRecord.vacation_used,
+        sick_earned: savedRecord.sick_earned,
+        sick_used: savedRecord.sick_used,
+        undertime_hours: savedRecord.undertime_hours
+      },
+      details: `Created leave record for ${month}/${year}`
+    });
+
     res.status(201).json(savedRecord);
   } catch (error) {
     res.status(500).json({ message: 'Error creating leave record', error: error.message });
@@ -598,6 +689,16 @@ exports.update = async (req, res) => {
     if (!leaveRecord) {
       return res.status(404).json({ message: 'Leave record not found' });
     }
+
+    const before = {
+      month: leaveRecord.month,
+      year: leaveRecord.year,
+      vacation_earned: leaveRecord.vacation_earned,
+      vacation_used: leaveRecord.vacation_used,
+      sick_earned: leaveRecord.sick_earned,
+      sick_used: leaveRecord.sick_used,
+      undertime_hours: leaveRecord.undertime_hours
+    };
     
     // Update fields if provided
     if (vacation_earned !== undefined) leaveRecord.vacation_earned = vacation_earned;
@@ -613,7 +714,25 @@ exports.update = async (req, res) => {
     leaveRecord.sick_balance = leaveRecord.sick_earned - leaveRecord.sick_used;
     
     const updatedRecord = await leaveRecord.save();
-    
+
+    await logAudit({
+      actor: req.user,
+      action: 'update_record',
+      user_id: leaveRecord.user_id,
+      entity_id: leaveRecord._id,
+      before,
+      after: {
+        month: leaveRecord.month,
+        year: leaveRecord.year,
+        vacation_earned: leaveRecord.vacation_earned,
+        vacation_used: leaveRecord.vacation_used,
+        sick_earned: leaveRecord.sick_earned,
+        sick_used: leaveRecord.sick_used,
+        undertime_hours: leaveRecord.undertime_hours
+      },
+      details: `Updated leave record for ${leaveRecord.month}/${leaveRecord.year}`
+    });
+
     res.json(updatedRecord);
   } catch (error) {
     res.status(500).json({ message: 'Error updating leave record', error: error.message });
@@ -648,6 +767,10 @@ exports.addUndertime = async (req, res) => {
     // Check if a leave record already exists for this user/month/year
     let leaveRecord = await LeaveRecord.findOne({ user_id, month, year });
 
+    const before = leaveRecord
+      ? { undertime_hours: leaveRecord.undertime_hours, vacation_used: leaveRecord.vacation_used }
+      : null;
+
     if (leaveRecord) {
       // Update existing record by ADDING to the current undertime
       const newUndertime = Math.round((leaveRecord.undertime_hours + undertimeToAdd) * 1000) / 1000;
@@ -680,6 +803,19 @@ exports.addUndertime = async (req, res) => {
 
       await leaveRecord.save();
     }
+
+    await logAudit({
+      actor: req.user,
+      action: 'add_undertime',
+      user_id,
+      entity_id: leaveRecord._id,
+      before,
+      after: {
+        undertime_hours: leaveRecord.undertime_hours,
+        vacation_used: leaveRecord.vacation_used
+      },
+      details: `Added ${undertimeToAdd} day(s) of undertime for ${month}/${year}`
+    });
 
     res.json({
       success: true,
@@ -723,6 +859,10 @@ exports.addCredits = async (req, res) => {
     // Find the month record; create it if it doesn't exist yet
     let leaveRecord = await LeaveRecord.findOne({ user_id, month, year });
 
+    const before = leaveRecord
+      ? { vacation_earned: leaveRecord.vacation_earned, sick_earned: leaveRecord.sick_earned }
+      : null;
+
     if (!leaveRecord) {
       leaveRecord = new LeaveRecord({
         user_id,
@@ -750,6 +890,19 @@ exports.addCredits = async (req, res) => {
     leaveRecord.sick_balance = Math.round((leaveRecord.sick_earned - leaveRecord.sick_used) * 1000) / 1000;
 
     await leaveRecord.save();
+
+    await logAudit({
+      actor: req.user,
+      action: 'add_credits',
+      user_id,
+      entity_id: leaveRecord._id,
+      before,
+      after: {
+        vacation_earned: leaveRecord.vacation_earned,
+        sick_earned: leaveRecord.sick_earned
+      },
+      details: `Set earned credits for ${month}/${year}`
+    });
 
     res.json({
       success: true,
@@ -821,10 +974,15 @@ exports.calculateCredits = async (req, res) => {
             const daysPresent = Math.max(0, workingDaysInMonth - lwopDays);
             const proratedVacationCredits = getProratedCredits(daysPresent, lwopDays);
 
+            // Only credit-accruing appointments (permanent, temporary, co-terminus,
+            // casual, elected) earn monthly vacation/sick credits. Contractual and
+            // job-order (JO/COS) workers do not accrue credits.
+            const accruesCredits = CREDIT_ACCRUING_STATUSES.includes(user.appointment_status || 'permanent');
+
             // Update leave record
             leaveRecord.lwop_days = lwopDays;
-            leaveRecord.vacation_earned = proratedVacationCredits;
-            leaveRecord.sick_earned = 1.250;
+            leaveRecord.vacation_earned = accruesCredits ? proratedVacationCredits : 0;
+            leaveRecord.sick_earned = accruesCredits ? 1.250 : 0;
 
             // Get previous month's balance
             const prevMonth = month === 1 ? 12 : month - 1;
@@ -834,10 +992,24 @@ exports.calculateCredits = async (req, res) => {
             const prevVacationBalance = prevRecord ? prevRecord.vacation_balance : 0;
             const prevSickBalance = prevRecord ? prevRecord.sick_balance : 0;
 
-            leaveRecord.vacation_balance = prevVacationBalance + proratedVacationCredits - leaveRecord.vacation_used;
-            leaveRecord.sick_balance = prevSickBalance + 1.250 - leaveRecord.sick_used;
+            leaveRecord.vacation_balance = prevVacationBalance + leaveRecord.vacation_earned - leaveRecord.vacation_used;
+            leaveRecord.sick_balance = prevSickBalance + leaveRecord.sick_earned - leaveRecord.sick_used;
 
             await leaveRecord.save();
+
+            await logAudit({
+              actor: req.user,
+              action: 'calculate_credits',
+              user_id: user.user_id,
+              entity_id: leaveRecord._id,
+              after: {
+                month, year,
+                lwop_days: leaveRecord.lwop_days,
+                vacation_earned: leaveRecord.vacation_earned,
+                sick_earned: leaveRecord.sick_earned
+              },
+              details: `Monthly credit calculation for ${month}/${year}`
+            });
         }
 
         res.json({ success: true, message: 'Leave credits calculated successfully' });

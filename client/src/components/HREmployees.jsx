@@ -42,7 +42,8 @@ const HREmployees = () => {
     position: '',
     start_date: '',
     salary: '',
-    user_type: 'employee'
+    user_type: 'employee',
+    appointment_status: 'permanent'
   });
 
   const [editForm, setEditForm] = useState({
@@ -55,7 +56,8 @@ const HREmployees = () => {
     position: '',
     start_date: '',
     salary: '',
-    user_type: 'employee'
+    user_type: 'employee',
+    appointment_status: 'permanent'
   });
 
   // Fetch employees
@@ -140,7 +142,8 @@ const HREmployees = () => {
           position: user.position || '',
           start_date: user.start_date ? new Date(user.start_date).toISOString().split('T')[0] : '',
           salary: user.salary || '',
-          user_type: user.user_type || 'employee'
+          user_type: user.user_type || 'employee',
+          appointment_status: user.appointment_status || 'permanent'
         });
         setEmployeeToEdit(user);
         setShowEditModal(true);
@@ -207,7 +210,8 @@ const HREmployees = () => {
           position: '',
           start_date: '',
           salary: '',
-          user_type: 'employee'
+          user_type: 'employee',
+          appointment_status: 'permanent'
         });
         fetchEmployees();
       } else {
@@ -443,6 +447,7 @@ const HREmployees = () => {
                   <tr className="bg-gray-100">
                     <th className="text-gray-600">Employee</th>
                     <th className="text-gray-600">User Type</th>
+                    <th className="text-gray-600">Appointment</th>
                     <th className="text-gray-600">Department</th>
                     <th className="text-gray-600">Actions</th>
                   </tr>
@@ -465,6 +470,11 @@ const HREmployees = () => {
                           </div>
                         </td>
                         <td>{employee.user_type === 'hr' ? 'HR' : employee.user_type === 'department_admin' ? 'Department Admin' : employee.user_type === 'mayor' ? 'Mayor' : 'Employee'}</td>
+                        <td>
+                          <span className={`badge badge-sm ${employee.appointment_status === 'job_order' || employee.appointment_status === 'contractual' ? 'badge-warning' : 'badge-outline'}`}>
+                            {(employee.appointment_status || 'permanent').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                          </span>
+                        </td>
                         <td>{employee.department_id?.name || 'N/A'}</td>
                         <td>
                           <div className="flex space-x-2">
@@ -486,7 +496,7 @@ const HREmployees = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="4" className="text-center py-8">
+                      <td colSpan="5" className="text-center py-8">
                         <div className="text-gray-500">No employees found</div>
                       </td>
                     </tr>
@@ -617,6 +627,27 @@ const HREmployees = () => {
                     placeholder="Position" 
                     required 
                   />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Appointment Status</span>
+                  </label>
+                  <select 
+                    name="appointment_status"
+                    value={addForm.appointment_status}
+                    onChange={handleAddFormChange}
+                    className="select select-bordered" 
+                  >
+                    <option value="permanent">Permanent</option>
+                    <option value="temporary">Temporary</option>
+                    <option value="co_terminus">Co-Terminus</option>
+                    <option value="contractual">Contractual</option>
+                    <option value="casual">Casual</option>
+                    <option value="job_order">Job Order (JO/COS)</option>
+                    <option value="elected_official">Elected Official</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
 
                 <div className="form-control">
@@ -809,6 +840,27 @@ const HREmployees = () => {
                     placeholder="Position" 
                     required 
                   />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Appointment Status</span>
+                  </label>
+                  <select 
+                    name="appointment_status"
+                    value={editForm.appointment_status}
+                    onChange={handleEditFormChange}
+                    className="select select-bordered" 
+                  >
+                    <option value="permanent">Permanent</option>
+                    <option value="temporary">Temporary</option>
+                    <option value="co_terminus">Co-Terminus</option>
+                    <option value="contractual">Contractual</option>
+                    <option value="casual">Casual</option>
+                    <option value="job_order">Job Order (JO/COS)</option>
+                    <option value="elected_official">Elected Official</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
 
                 <div className="form-control">

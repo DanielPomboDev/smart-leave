@@ -150,6 +150,7 @@ const createHREmployee = async (req, res) => {
       start_date,
       salary,
       user_type,
+      appointment_status: appointment_status || 'permanent',
       password: hashedPassword
     });
 
@@ -231,7 +232,8 @@ const updateHREmployee = async (req, res) => {
       position, 
       start_date, 
       salary, 
-      user_type 
+      user_type,
+      appointment_status
     } = req.body;
 
     // Validate user_type
@@ -240,6 +242,15 @@ const updateHREmployee = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid user type. Must be one of: employee, hr, department_admin, mayor'
+      });
+    }
+
+    // Validate appointment_status
+    const validAppointmentStatuses = ['permanent', 'temporary', 'co_terminus', 'contractual', 'casual', 'job_order', 'elected_official', 'other'];
+    if (appointment_status && !validAppointmentStatuses.includes(appointment_status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid appointment status'
       });
     }
 
@@ -283,6 +294,7 @@ const updateHREmployee = async (req, res) => {
     user.start_date = start_date;
     user.salary = salary;
     user.user_type = user_type;
+    if (appointment_status) user.appointment_status = appointment_status;
 
     await user.save();
 
