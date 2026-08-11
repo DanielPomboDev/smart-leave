@@ -236,6 +236,8 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
         <title>CS Form No. 6 - Application for Leave</title>
         <style>
           *, *::before, *::after { box-sizing: border-box; }
+          /* Hide app-only UI elements (status chips, edit hints) from the official form */
+          .print\\:hidden { display: none !important; }
           /* Tight body margins to maximize space on A4 */
           html, body { margin: 4mm; padding: 0; font-family: Arial, sans-serif; font-size: 7.5pt; background: white; color: black; }
           /* Override all Tailwind spacing to be more compact */
@@ -773,7 +775,7 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
 
                   {/* Certification of Leave Credits (7.A) */}
                   {leaveRecord.credits_certified && (
-                    <div className="mt-2 bg-green-50 border border-green-300 rounded px-2 py-1.5 text-[9px]">
+                    <div className="mt-2 bg-green-50 border border-green-300 rounded px-2 py-1.5 text-[9px] print:hidden">
                       <p className="font-bold text-green-800">✓ Leave credits certified correct</p>
                       <p className="text-green-700">
                         Certified by: <span className="font-semibold uppercase">{leaveRecord.credits_certified_by_name || 'HR Officer'}</span>
