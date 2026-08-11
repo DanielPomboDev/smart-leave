@@ -541,10 +541,10 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
         </div>
 
         {/* Form Body - CS Form No. 6 Standard Layout */}
-        <div className="p-6 sm:p-8 overflow-y-auto text-black font-sans text-xs bg-white print:p-0 print:overflow-visible">
+        <div className="p-6 sm:p-8 overflow-y-auto overflow-x-auto text-black font-sans text-xs bg-white print:p-0 print:overflow-visible">
           
-          {/* Printable Page Wrapper */}
-          <div ref={printableRef} className="cs-form-6-printable-area max-w-[760px] mx-auto border-2 border-black p-4 sm:p-6 bg-white space-y-3 print:border-2 print:p-4 print:max-w-none print:w-full">
+          {/* Printable Page Wrapper — keeps the official form layout on phones by scrolling horizontally instead of squeezing */}
+          <div ref={printableRef} className="cs-form-6-printable-area max-w-[760px] mx-auto min-w-[620px] sm:min-w-0 print:min-w-0 border-2 border-black p-4 sm:p-6 bg-white space-y-3 print:border-2 print:p-4 print:max-w-none print:w-full">
             
             {/* Header */}
             <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-2">

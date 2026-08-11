@@ -86,7 +86,7 @@ const Login = () => {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
       <div className="card shadow-lg bg-white flex flex-col lg:flex-row w-full max-w-5xl h-auto lg:h-[600px]">
         {/* Left Side - Logo and Info */}
         <div className="lg:w-1/2 bg-gradient-to-br from-blue-500 via-blue-400 to-blue-300 text-white flex flex-col items-center justify-center p-8">

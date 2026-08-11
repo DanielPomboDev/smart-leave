@@ -148,7 +148,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
   const navItems = getNavItems();
 
   return (
-    <div className="flex h-screen bg-base-200">
+    <div className="flex h-screen supports-[height:100dvh]:h-dvh bg-base-200">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
