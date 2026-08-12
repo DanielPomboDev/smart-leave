@@ -7,6 +7,24 @@ const { createLeaveRecordValidation, updateLeaveRecordValidation, addUndertimeVa
 const { logAudit } = require('../utils/audit');
 const { STATUTORY_ENTITLEMENTS, CREDIT_ACCRUING_STATUSES } = require('../utils/leaveEntitlements');
 
+// Authorization helpers for leave records.
+// HR may access any employee's record; every other role may only access their own.
+const denyUnlessHrOrSelf = (req, res) => {
+  if (req.user.user_type === 'hr') return false;
+  const targetId = req.params.userId;
+  if (targetId && targetId !== req.user.user_id) {
+    res.status(403).json({ success: false, message: 'Access denied. You can only view your own leave record.' });
+    return true;
+  }
+  return false;
+};
+
+const denyUnlessHr = (req, res) => {
+  if (req.user.user_type === 'hr') return false;
+  res.status(403).json({ success: false, message: 'Access denied. HR access required.' });
+  return true;
+};
+
 // Proration table for vacation credits
 const prorationTable = [
     { present: 30.00, leave_wo_pay: 0.00, credits: 1.250 },
@@ -210,6 +228,7 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
 // Get all leave records with optional filtering
 exports.index = async (req, res) => {
   try {
+    if (denyUnlessHr(req, res)) return;
     const { department, user_type, search, page = 1, limit = 10 } = req.query;
     
     // Build query
@@ -293,6 +312,7 @@ exports.getCurrentLeaveCredits = async (req, res) => {
 // Get leave records for a specific employee
 exports.show = async (req, res) => {
   try {
+    if (denyUnlessHrOrSelf(req, res)) return;
     const { userId } = req.params;
     const { year: filterYear } = req.query;
 
@@ -515,6 +535,7 @@ exports.show = async (req, res) => {
 // Get leave record for a specific month/year for an employee
 exports.getMonthlyRecord = async (req, res) => {
   try {
+    if (denyUnlessHrOrSelf(req, res)) return;
     const { userId } = req.params;
     const { month, year } = req.query;
     
@@ -537,6 +558,7 @@ exports.getMonthlyRecord = async (req, res) => {
 // @desc    Statutory (non-vacation/sick) leave usage per year
 exports.getEntitlements = async (req, res) => {
   try {
+    if (denyUnlessHrOrSelf(req, res)) return;
     const { userId } = req.params;
     const year = parseInt(req.query.year) || new Date().getFullYear();
 
@@ -604,6 +626,7 @@ exports.getAuditLogs = async (req, res) => {
 // Create a new leave record
 exports.store = async (req, res) => {
   try {
+    if (denyUnlessHr(req, res)) return;
     const {
       user_id,
       month,
@@ -672,6 +695,7 @@ exports.store = async (req, res) => {
 // Update a leave record
 exports.update = async (req, res) => {
   try {
+    if (denyUnlessHr(req, res)) return;
     const { id } = req.params;
     const {
       vacation_earned,
@@ -742,6 +766,7 @@ exports.update = async (req, res) => {
 // Add undertime to a leave record
 exports.addUndertime = async (req, res) => {
   try {
+    if (denyUnlessHr(req, res)) return;
     const { user_id, month, year, undertime_hours } = req.body;
 
     // Validate required fields
@@ -837,6 +862,7 @@ exports.addUndertime = async (req, res) => {
 // @access  Private (HR only via UI)
 exports.addCredits = async (req, res) => {
   try {
+    if (denyUnlessHr(req, res)) return;
     const { user_id, month, year, vacation_earned, sick_earned } = req.body;
 
     if (!user_id || !month || !year) {
@@ -917,6 +943,7 @@ exports.addCredits = async (req, res) => {
 
 // Calculate and award monthly leave credits
 exports.calculateCredits = async (req, res) => {
+    if (denyUnlessHr(req, res)) return;
     const { month, year } = req.body;
 
     if (!month || !year) {

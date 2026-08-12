@@ -106,6 +106,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Dashboard", icon: "fas fa-home", route: "/department/dashboard" },
           { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/department_admin/request-leave" },
           { label: "Leave History", icon: "fas fa-history", route: "/department_admin/leave-history" },
+          { label: "My Leave Record", icon: "fas fa-clipboard-list", route: "/department_admin/my-leave-record" },
           { label: "Leave Requests", icon: "fas fa-tasks", route: "/department/leave-requests" },
           { label: "Leave Calendar", icon: "fas fa-calendar-days", route: "/department/calendar" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
@@ -130,6 +131,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Dashboard", icon: "fas fa-home", route: "/mayor/dashboard" },
           { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/mayor/request-leave" },
           { label: "Leave History", icon: "fas fa-history", route: "/mayor/leave-history" },
+          { label: "My Leave Record", icon: "fas fa-clipboard-list", route: "/mayor/my-leave-record" },
           { label: "Leave Requests", icon: "fas fa-tasks", route: "/mayor/leave-requests" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }
@@ -138,6 +140,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
         return [
           { label: "Dashboard", icon: "fas fa-home", route: "/employee/dashboard" },
           { label: "Leave History", icon: "fas fa-history", route: "/employee/leave-history" },
+          { label: "My Leave Record", icon: "fas fa-clipboard-list", route: "/employee/my-leave-record" },
           { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/employee/request-leave" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }

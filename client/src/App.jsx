@@ -8,6 +8,7 @@ import DepartmentLeaveRequestDetails from './components/DepartmentLeaveRequestDe
 import RequestLeave from './components/RequestLeave.jsx';
 import RequestLeaveAdvanced from './components/RequestLeaveAdvanced.jsx';
 import LeaveHistory from './components/LeaveHistory.jsx';
+import MyLeaveRecord from './components/MyLeaveRecord.jsx';
 import Profile from './components/Profile.jsx';
 import Settings from './components/Settings.jsx';
 import LeaveRequestDetails from './components/LeaveRequestDetails.jsx';
@@ -64,6 +65,11 @@ function App() {
           <Route path="/department_admin/leave-history" element={<LeaveHistory />} />
           <Route path="/hr/leave-history" element={<LeaveHistory />} />
           <Route path="/mayor/leave-history" element={<LeaveHistory />} />
+          
+          {/* My Leave Record (own record, read-only) */}
+          <Route path="/employee/my-leave-record" element={<MyLeaveRecord />} />
+          <Route path="/department_admin/my-leave-record" element={<MyLeaveRecord />} />
+          <Route path="/mayor/my-leave-record" element={<MyLeaveRecord />} />
           
           {/* Role-based leave request details routes */}
           <Route path="/department_admin/leave-request/:id" element={<LeaveRequestDetails />} />
