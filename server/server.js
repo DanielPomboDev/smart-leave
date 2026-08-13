@@ -14,6 +14,11 @@ require('./models');
 // Create Express app
 const app = express();
 
+// Render (and similar PaaS) terminate TLS and proxy requests, so treat the
+// first proxy hop as trusted. Without this, express-rate-limit sees every
+// user as the proxy's IP and the whole app shares one login budget.
+app.set('trust proxy', 1);
+
 // Middleware
 const corsOptions = {
   origin: function (origin, callback) {

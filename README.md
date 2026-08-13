@@ -254,9 +254,37 @@ node create-user.js     # create a single user (edit the file first)
 
 ## Deployment (Production)
 
-- **Backend:** [`railway.toml`](railway.toml) deploys the API on Railway (`cd server && npm start`). Railway sets `PORT` itself and you paste the env vars into the dashboard.
-- **Frontend:** deploy to Vercel/Netlify from source — they run `cd client && npm run build` themselves. `client/dist` is **not committed** (it's git-ignored), so do not use a "deploy from repo" preset that expects pre-built files. Set `VITE_API_URL` to the deployed API URL.
-- CORS already allows `http://localhost:3000`, `localhost` origins in general, and the deployed `https://smart-leave-mern.vercel.app` / any `*.vercel.app` domain.
+The production stack is **Vercel (free)** for the frontend, **Render (free)** for the backend API, and **MongoDB Atlas (M0 free)** for the database. Both `vercel.json` and `render.yaml` are in the repo root — deploy from GitHub and the platforms pick up the config.
+
+### 1. MongoDB Atlas
+
+1. Create a free **M0** cluster at https://www.mongodb.com/atlas.
+2. Database Access → add a database user (keep the username/password; the URI embeds them).
+3. Network Access → allow `0.0.0.0/0` (free tier; tighten later if you can).
+4. Connect → Drivers → copy the connection string (`mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority`).
+
+### 2. Render (backend)
+
+1. New → Web Service → connect the GitHub repo → Render reads [`render.yaml`](render.yaml).
+2. First deploy will succeed only after secrets are filled in — open the service's **Environment** tab and set:
+   - `MONGODB_URI` — the Atlas connection string from step 1
+   - `JWT_SECRET` — `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (the server refuses to start without it)
+   - `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` (required for uploads)
+   - `BREVO_API_KEY` (optional, for email notifications)
+3. Render sets `PORT` itself — the server already honors it.
+4. Note: the free plan **sleeps after ~15 min idle** and cold-starts slowly (~30–60 s on the first request after a nap).
+
+### 3. Vercel (frontend)
+
+1. New Project → import the GitHub repo → Vercel reads [`vercel.json`](vercel.json) (root `client`, builds with `npm run build`, serves `dist`).
+2. Add the environment variable `VITE_API_URL=https://<your-service>.onrender.com` (the Render API URL).
+3. Deploy — the SPA routing rewrite and security headers (CSP, nosniff, HSTS-compatible) are already configured.
+4. CORS already allows any `*.vercel.app` domain, so preview deployments and the production domain work without changes. If you attach a **custom domain**, add it to the `allowedOrigins` list in `server/server.js`.
+
+### Verify
+
+- `curl https://<your-service>.onrender.com/` → `{"message":"SmartLeave API is running"}`
+- Log in at the Vercel URL; uploads (Cloudinary) and emails (Brevo, if set) work from the deployed API.
 
 Before deploying, review the **Security** checklist below.
 
