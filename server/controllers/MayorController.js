@@ -77,11 +77,38 @@ class MayorController {
       // and shows the balance after "Less this application".
       const isLeaveWithPay = !leaveRequest.without_pay;
       
-      // For vacation leave - record and deduct from vacation credits.
-      // Monetization and terminal leave also draw from vacation credits (see getLeaveCreditsInfo).
-      if (leaveRequest.leave_type === 'vacation' ||
-          leaveRequest.leave_type === 'monetization' ||
-          leaveRequest.leave_type === 'terminal_leave') {
+      // Terminal leave commutes the FULL accumulated vacation + sick leave balance
+      // (CSC MC No. 14 s. 1999, as amended — "without limitation and regardless of the
+      // period when the credits were earned"). Vacation credits are consumed first, the
+      // remainder from sick credits. The split is persisted on the leave request so
+      // cancellation and the leave-record ledger can reverse it correctly.
+      if (leaveRequest.leave_type === 'terminal_leave') {
+        const vacationDays = Math.min(leaveRequest.number_of_days, Math.max(0, leaveRecord.vacation_balance || 0));
+        const sickDays = Math.max(0, leaveRequest.number_of_days - vacationDays);
+
+        if (leaveRequest._id) {
+          await LeaveRequest.updateOne(
+            { _id: leaveRequest._id },
+            { $set: { vacation_days: vacationDays, sick_days: sickDays } }
+          );
+        }
+
+        // Deduct at approval for leaves with pay
+        if (isLeaveWithPay) {
+          leaveRecord.vacation_used += vacationDays;
+          leaveRecord.vacation_balance -= vacationDays;
+          if (sickDays > 0) {
+            leaveRecord.sick_used += sickDays;
+            leaveRecord.sick_balance -= sickDays;
+          }
+        }
+
+        vacationEntries.push({ ...leaveEntry, vacation_days: vacationDays, sick_days: sickDays });
+      }
+      // For vacation leave and monetization - record and deduct from vacation credits.
+      // Monetization draws from vacation credits (see getLeaveCreditsInfo).
+      else if (leaveRequest.leave_type === 'vacation' ||
+          leaveRequest.leave_type === 'monetization') {
         // Deduct at approval for leaves with pay
         if (isLeaveWithPay) {
           leaveRecord.vacation_used += leaveRequest.number_of_days;
@@ -390,6 +417,7 @@ class MayorController {
         
         // Create a simplified leave request object with the properties we need
         const simplifiedLeaveRequest = {
+          _id: leaveRequest._id,
           user_id: userId,
           leave_type: leaveType,
           number_of_days: numberOfDays,

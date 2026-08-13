@@ -123,13 +123,18 @@ exports.hasSufficientLeaveCredits = async (userId, leaveType, numberOfDays) => {
     // Determine available credits based on leave type
     let availableCredits = 0;
     
+    // Terminal leave commutes the FULL accumulated vacation + sick leave balance
+    // (CSC MC No. 14 s. 1999, as amended — "without limitation and regardless of the
+    // period when the credits were earned").
+    if (leaveType === 'terminal_leave') {
+      availableCredits = vacationBalance + sickBalance;
+    }
     // Vacation-type leaves use vacation credits
-    if (leaveType === 'vacation' ||
+    else if (leaveType === 'vacation' ||
         leaveType === 'special_privilege_leave' ||
         leaveType === 'study_leave' ||
         leaveType === 'mandatory_forced_leave' ||
-        leaveType === 'monetization' ||
-        leaveType === 'terminal_leave') {
+        leaveType === 'monetization') {
       availableCredits = vacationBalance;
     }
     // Sick leave uses sick credits
@@ -166,7 +171,9 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
         hasSufficientCredits: false,
         availableCredits: 0,
         maxAllowedDays: 0,
-        usesCredits: true
+        usesCredits: true,
+        vacationBalance: 0,
+        sickBalance: 0
       };
     }
     
@@ -180,13 +187,17 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
     // Determine available credits based on leave type
     let availableCredits = 0;
     
+    // Terminal leave commutes the FULL accumulated vacation + sick leave balance
+    // (CSC MC No. 14 s. 1999, as amended).
+    if (leaveType === 'terminal_leave') {
+      availableCredits = vacationBalance + sickBalance;
+    }
     // Vacation-type leaves use vacation credits
-    if (leaveType === 'vacation' || 
+    else if (leaveType === 'vacation' || 
         leaveType === 'special_privilege_leave' || 
         leaveType === 'study_leave' || 
         leaveType === 'mandatory_forced_leave' || 
-        leaveType === 'monetization' || 
-        leaveType === 'terminal_leave') {
+        leaveType === 'monetization') {
       availableCredits = vacationBalance;
     }
     // Sick leave uses sick credits
@@ -211,7 +222,9 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
       hasSufficientCredits: availableCredits >= 1, // Consider less than 1 as no credits
       availableCredits: availableCredits,
       maxAllowedDays: Math.floor(availableCredits * 1000) / 1000, // Round to 3 decimal places
-      usesCredits: true
+      usesCredits: true,
+      vacationBalance: Math.floor(vacationBalance * 1000) / 1000,
+      sickBalance: Math.floor(sickBalance * 1000) / 1000
     };
   } catch (error) {
     console.error('Error checking leave credits:', error);
@@ -220,7 +233,9 @@ exports.getLeaveCreditsInfo = async (userId, leaveType) => {
       hasSufficientCredits: true,
       availableCredits: 0,
       maxAllowedDays: 0,
-      usesCredits: true
+      usesCredits: true,
+      vacationBalance: 0,
+      sickBalance: 0
     };
   }
 };
@@ -346,6 +361,22 @@ exports.show = async (req, res) => {
       req.status === 'approved' ||
       (req.status === 'cancelled' && !!req.mayor_approved_by);
 
+    // Per-request deduction split. For terminal leave the approved split
+    // (vacation_days / sick_days) is stored at approval time — vacation credits are
+    // consumed first, the remainder from sick credits (CSC: full VL + SL balance is
+    // commuted). Older requests without the split fall back to the full days from
+    // the vacation pool.
+    const getSplitDeduction = (req, isApproved, withoutPay) => {
+      const total = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
+      if (req.leave_type === 'terminal_leave') {
+        return { vac: req.vacation_days ?? total, sick: req.sick_days ?? 0 };
+      }
+      return {
+        vac: DEDUCT_VACATION_TYPES.includes(req.leave_type) && total > 0 ? total : 0,
+        sick: DEDUCT_SICK_TYPES.includes(req.leave_type) && total > 0 ? total : 0
+      };
+    };
+
     // Phase 1: Chronological ledger — only APPROVED non-cancelled, non-without_pay leaves deduct credits
     let runningVac = 0;
     let runningSick = 0;
@@ -369,13 +400,14 @@ exports.show = async (req, res) => {
         const isApproved      = req.status === 'approved';
         const withoutPay      = req.without_pay || false;
         const creditsDeducted = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
+        const splitDeduction  = getSplitDeduction(req, isApproved, withoutPay);
 
         const beforeVac  = runningVac;
         const beforeSick = runningSick;
 
         if (creditsDeducted > 0) {
-          if (deductsVacation) runningVac  = Math.max(0, runningVac  - creditsDeducted);
-          if (deductsSick)     runningSick = Math.max(0, runningSick - creditsDeducted);
+          if (splitDeduction.vac  > 0) runningVac  = Math.max(0, runningVac  - splitDeduction.vac);
+          if (splitDeduction.sick > 0) runningSick = Math.max(0, runningSick - splitDeduction.sick);
         }
 
         leaveBalanceMap[req._id.toString()] = {
@@ -409,11 +441,12 @@ exports.show = async (req, res) => {
       const isApproved = req.status === 'approved';
       const withoutPay = req.without_pay || false;
       const creditsDeducted = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
+      const splitDeduction  = getSplitDeduction(req, isApproved, withoutPay);
       const beforeVac  = runningVac;
       const beforeSick = runningSick;
       if (creditsDeducted > 0) {
-        if (deductsVacation) runningVac  = Math.max(0, runningVac  - creditsDeducted);
-        if (deductsSick)     runningSick = Math.max(0, runningSick - creditsDeducted);
+        if (splitDeduction.vac  > 0) runningVac  = Math.max(0, runningVac  - splitDeduction.vac);
+        if (splitDeduction.sick > 0) runningSick = Math.max(0, runningSick - splitDeduction.sick);
       }
       leaveBalanceMap[req._id.toString()] = {
         credits_deducted: creditsDeducted, credits_before_vac: beforeVac, credits_before_sick: beforeSick,
@@ -430,10 +463,10 @@ exports.show = async (req, res) => {
 
     const approvedVacUsed = allLeaveRequests
       .filter(r => r.status === 'approved' && !r.without_pay && DEDUCT_VACATION_TYPES.includes(r.leave_type))
-      .reduce((s, r) => s + (r.number_of_days || 0), 0);
+      .reduce((s, r) => s + (r.vacation_days ?? (r.number_of_days || 0)), 0);
     const approvedSickUsed = allLeaveRequests
-      .filter(r => r.status === 'approved' && !r.without_pay && DEDUCT_SICK_TYPES.includes(r.leave_type))
-      .reduce((s, r) => s + (r.number_of_days || 0), 0);
+      .filter(r => r.status === 'approved' && !r.without_pay && (DEDUCT_SICK_TYPES.includes(r.leave_type) || r.leave_type === 'terminal_leave'))
+      .reduce((s, r) => s + (r.leave_type === 'terminal_leave' ? (r.sick_days ?? 0) : (r.number_of_days || 0)), 0);
 
     const vacationSummary = {
       earned:  totalVacEarned,

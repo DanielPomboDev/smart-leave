@@ -106,12 +106,22 @@ const createLeaveRequest = async (req, res) => {
       where_spent,
       commutation,
       location_specify,
+      separation_type,
       role_based_approval,
       requester_role
     } = req.body;
 
-    // Validate required fields
-    if (!leave_type || !start_date || !end_date || !number_of_days) {
+    // Monetization / terminal leave have no inclusive dates (CSC MC No. 31: "No
+    // inclusive dates shall be indicated" for monetization) — the employee enters
+    // the number of days directly and keeps reporting for work. Dates default to the
+    // filing date so the record still lands in the filing month.
+    const isPurposeLeave = leave_type === 'monetization' || leave_type === 'terminal_leave';
+    const filingDate = toDateStr(new Date());
+    const effectiveStartDate = start_date || filingDate;
+    const effectiveEndDate = end_date || filingDate;
+
+    // Validate required fields (dates are only mandatory for actual leave-taking types)
+    if (!leave_type || !number_of_days) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
@@ -141,8 +151,11 @@ const createLeaveRequest = async (req, res) => {
       });
     }
 
-    // Check for overlapping leave dates
-    const hasOverlap = await hasOverlappingLeave(req.user.user_id, start_date, end_date);
+    // Check for overlapping leave dates — not applicable to monetization / terminal
+    // leave since no actual leave is taken (the employee keeps reporting for work).
+    const hasOverlap = isPurposeLeave
+      ? false
+      : await hasOverlappingLeave(req.user.user_id, effectiveStartDate, effectiveEndDate);
     if (hasOverlap) {
       return res.status(400).json({
         success: false,
@@ -152,13 +165,25 @@ const createLeaveRequest = async (req, res) => {
 
     // CS Form 6 6.C counts WORKING days (Mon–Fri, inclusive, excluding non-working
     // holidays) — recompute authoritatively so the stored day count matches the form
-    // even if the client computes differently.
-    const holidayDates = await getHolidayDatesForRange(start_date, end_date);
-    const computedDays = countWorkingDays(start_date, end_date, holidayDates);
-    const effectiveNumberOfDays = computedDays !== null ? computedDays : number_of_days;
+    // even if the client computes differently. Purpose leaves (monetization / terminal)
+    // are the exception: the number of days is entered directly by the employee and is
+    // NOT derived from a date range (CSC MC No. 31).
+    const holidayDates = await getHolidayDatesForRange(effectiveStartDate, effectiveEndDate);
+    const computedDays = isPurposeLeave
+      ? null
+      : countWorkingDays(effectiveStartDate, effectiveEndDate, holidayDates);
+    const effectiveNumberOfDays = computedDays !== null ? computedDays : parseFloat(number_of_days);
 
     // Check employee's leave credits
     const numberOfDaysFloat = parseFloat(effectiveNumberOfDays);
+
+    // Purpose leaves need a concrete, positive whole-day count
+    if (isPurposeLeave && (!Number.isFinite(numberOfDaysFloat) || numberOfDaysFloat < 1)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid number of days.'
+      });
+    }
     const leaveCreditsInfo = await getLeaveCreditsInfo(req.user.user_id, leave_type);
 
     // CSC Rule XVI, Sec. 22 (Omnibus Rules on Leave, CSC MC No. 41 s. 1998; Joint CSC-DBM Circular No. 2 s. 1997)
@@ -168,7 +193,7 @@ const createLeaveRequest = async (req, res) => {
     //   - at least 5 days vacation leave must remain after monetization
     //   - availed of only once a year
     if (leave_type === 'monetization') {
-      if (numberOfDaysFloat < 10 || numberOfDaysFloat > 30) {
+      if (!Number.isInteger(numberOfDaysFloat) || numberOfDaysFloat < 10 || numberOfDaysFloat > 30) {
         return res.status(400).json({
           success: false,
           message: 'Per CSC rules (Sec. 22, Omnibus Rules on Leave), you may monetize a minimum of 10 days and a maximum of 30 days of vacation leave credits in a given year.'
@@ -189,8 +214,9 @@ const createLeaveRequest = async (req, res) => {
         });
       }
 
-      // Availed only once a year (based on the year of the request's start date)
-      const monetizationYear = new Date(start_date).getFullYear();
+      // Availed only once a year (based on the year of the request's start date;
+      // monetization defaults to the filing date when no dates are supplied)
+      const monetizationYear = new Date(effectiveStartDate).getFullYear();
       const existingMonetization = await LeaveRequest.findOne({
         user_id: req.user.user_id,
         leave_type: 'monetization',
@@ -208,12 +234,50 @@ const createLeaveRequest = async (req, res) => {
       }
     }
 
+    // Terminal leave (CSC MC No. 14 s. 1999, as amended): granted only upon actual
+    // retirement / resignation / separation from the service, commuting the FULL
+    // accumulated vacation + sick leave balance. It may be availed of only once per
+    // lifetime and is always paid (never marked without pay).
+    if (leave_type === 'terminal_leave') {
+      if (!['retirement', 'resignation', 'separation'].includes(separation_type)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please indicate the separation context (retirement, resignation, or separation from the service) for your terminal leave request.'
+        });
+      }
+
+      // CSC MC No. 14 s. 1999 (as amended): terminal leave commutes the FULL
+      // accumulated vacation + sick leave balance — a partial amount is not allowed.
+      if (Math.abs(numberOfDaysFloat - leaveCreditsInfo.availableCredits) > 0.001) {
+        return res.status(400).json({
+          success: false,
+          message: `Per CSC MC No. 14 s. 1999 (as amended), terminal leave commutes your FULL accumulated vacation and sick leave balance (currently ${leaveCreditsInfo.availableCredits.toFixed(3)} days in total). Please file for the full ${leaveCreditsInfo.availableCredits.toFixed(3)} days.`
+        });
+      }
+
+      // Availed of only once per lifetime — a terminal leave request stays on file until
+      // the employee actually separates from the service.
+      const existingTerminalLeave = await LeaveRequest.findOne({
+        user_id: req.user.user_id,
+        leave_type: 'terminal_leave',
+        status: { $ne: 'cancelled' }
+      });
+      if (existingTerminalLeave) {
+        return res.status(400).json({
+          success: false,
+          message: 'Terminal leave may be availed of only once, upon retirement or separation from the service. You already have a terminal leave request on file.'
+        });
+      }
+    }
+
     let isWithoutPay = false;
     
     // Only auto-mark without pay for leave types that actually draw from vacation/sick
     // credits. Statutory leaves (maternity, paternity, etc.) and free-text "Others" types
     // are decided by the approver at 7.C of CS Form 6, so their pay status is not preset.
-    if (leaveCreditsInfo.usesCredits !== false && numberOfDaysFloat > leaveCreditsInfo.maxAllowedDays) {
+    // Monetization / terminal leave are cash conversions (CSC MC No. 31; MC No. 14 s. 1999),
+    // so they are never without pay.
+    if (!isPurposeLeave && leaveCreditsInfo.usesCredits !== false && numberOfDaysFloat > leaveCreditsInfo.maxAllowedDays) {
       // If employee has less than 1 credit, consider as no credits
       if (leaveCreditsInfo.maxAllowedDays < 1) {
         isWithoutPay = true;
@@ -256,12 +320,15 @@ const createLeaveRequest = async (req, res) => {
     const leaveRequest = new LeaveRequest({
       user_id: req.user.user_id, // Use user_id from authenticated user
       leave_type,
-      start_date,
-      end_date,
+      start_date: effectiveStartDate,
+      end_date: effectiveEndDate,
       number_of_days: parseInt(effectiveNumberOfDays),
       where_spent: formattedWhereSpent,
-      commutation: commutation === '1' || commutation === true,
+      // Monetization / terminal leave ARE commutation (cash conversions per CSC MC No. 31
+      // and MC No. 14 s. 1999) — commutation is always requested for these types.
+      commutation: isPurposeLeave ? true : (commutation === '1' || commutation === true),
       without_pay: isWithoutPay,
+      separation_type: leave_type === 'terminal_leave' ? separation_type : undefined,
       status: initialStatus
     });
 
@@ -444,10 +511,22 @@ const returnLeaveCredits = async (leaveRequest) => {
       return;
     }
 
-    // For vacation-type leaves (incl. monetization / terminal leave) - return credits from vacation credits
-    if (leaveRequest.leave_type === 'vacation' ||
-        leaveRequest.leave_type === 'monetization' ||
-        leaveRequest.leave_type === 'terminal_leave') {
+    // For terminal leave, return the approved split — vacation credits were consumed
+    // first, the remainder from sick credits (CSC: full VL + SL balance is commuted).
+    if (leaveRequest.leave_type === 'terminal_leave') {
+      const vacationReturn = leaveRequest.vacation_days ?? leaveRequest.number_of_days;
+      const sickReturn = leaveRequest.sick_days ?? 0;
+      leaveRecord.vacation_used = Math.max(0, leaveRecord.vacation_used - vacationReturn);
+      // Recalculate balance based on earned minus used
+      leaveRecord.vacation_balance = leaveRecord.vacation_earned - leaveRecord.vacation_used;
+      if (sickReturn > 0) {
+        leaveRecord.sick_used = Math.max(0, leaveRecord.sick_used - sickReturn);
+        leaveRecord.sick_balance = leaveRecord.sick_earned - leaveRecord.sick_used;
+      }
+    }
+    // For vacation-type leaves (incl. monetization) - return credits from vacation credits
+    else if (leaveRequest.leave_type === 'vacation' ||
+        leaveRequest.leave_type === 'monetization') {
       // Return the deducted days back to vacation credits
       leaveRecord.vacation_used = Math.max(0, leaveRecord.vacation_used - leaveRequest.number_of_days);
       // Recalculate balance based on earned minus used
@@ -721,9 +800,12 @@ const getLeaveCalendar = async (req, res) => {
       .select('user_id first_name last_name middle_initial department_id position appointment_status');
     const userIds = users.map(u => u.user_id);
 
+    // Monetization / terminal leave are excluded — no actual leave is taken, so the
+    // employee is not "out" on those dates (CSC MC No. 31).
     const requests = await LeaveRequest.find({
       user_id: { $in: userIds },
       status: { $nin: ['cancelled', 'disapproved'] },
+      leave_type: { $nin: ['monetization', 'terminal_leave'] },
       start_date: { $lte: monthEnd },
       end_date: { $gte: monthStart }
     }).sort({ start_date: 1 });

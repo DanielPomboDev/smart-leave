@@ -352,6 +352,21 @@ const HRLeaveRequestDetails = () => {
     );
   }
 
+  // Terminal leave commutes the full accumulated vacation + sick leave balance —
+  // vacation credits are consumed first, the remainder from sick credits (CSC MC
+  // No. 14 s. 1999, as amended). Once approved, the actual split is stored on the
+  // request (vacation_days / sick_days); while pending it is projected against the
+  // employee's current balances.
+  const isTerminalLeave = leaveRequest.leave_type === 'terminal_leave';
+  const terminalVacationDays = isTerminalLeave
+    ? (leaveRequest.vacation_days ?? Math.min(leaveRequest.number_of_days || 0, Math.max(0, leaveRequest.user_id?.vacation_balance ?? 0)))
+    : (VACATION_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days || 0) : 0);
+  const terminalSickDays = isTerminalLeave
+    ? (leaveRequest.sick_days ?? Math.max(0, (leaveRequest.number_of_days || 0) - terminalVacationDays))
+    : (SICK_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days || 0) : 0);
+  // Full commuted balance (VL + SL) — the basis for the terminal leave value estimate
+  const terminalTotalDays = terminalVacationDays + terminalSickDays;
+
   return (
     <Layout title="Approve Leave Request">
       <div className="card bg-white shadow-md mb-6">
@@ -648,13 +663,13 @@ const HRLeaveRequestDetails = () => {
                         </tr>
                         <tr>
                           <td className="text-left font-medium">Less this application</td>
-                          <td>{VACATION_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days ?? 0).toFixed(3) : '0.000'}</td>
-                          <td>{SICK_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days ?? 0).toFixed(3) : '0.000'}</td>
+                          <td>{terminalVacationDays.toFixed(3)}</td>
+                          <td>{terminalSickDays.toFixed(3)}</td>
                         </tr>
                         <tr>
                           <td className="text-left font-bold">Balance</td>
-                          <td className="font-bold text-blue-700">{Math.max(0, (leaveRequest.user_id?.vacation_balance ?? 0) - (VACATION_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days ?? 0) : 0)).toFixed(3)}</td>
-                          <td className="font-bold text-emerald-700">{Math.max(0, (leaveRequest.user_id?.sick_balance ?? 0) - (SICK_POOL_TYPES.includes(leaveRequest.leave_type) ? (leaveRequest.number_of_days ?? 0) : 0)).toFixed(3)}</td>
+                          <td className="font-bold text-blue-700">{Math.max(0, (leaveRequest.user_id?.vacation_balance ?? 0) - terminalVacationDays).toFixed(3)}</td>
+                          <td className="font-bold text-emerald-700">{Math.max(0, (leaveRequest.user_id?.sick_balance ?? 0) - terminalSickDays).toFixed(3)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -673,6 +688,20 @@ const HRLeaveRequestDetails = () => {
                         </p>
                         <p className="text-xs text-lime-700 mt-1">
                           Computed as {leaveRequest.user_id?.salary ? `₱${Number(leaveRequest.user_id.salary).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '(no salary on file)'} × {leaveRequest.number_of_days} day(s) × 0.0481927 (CSC daily-rate factor per MC 2 s. 2016 / DBM Circular Letter 2021-4). Subject to funding availability and the agency head's recommendation.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Estimated terminal leave value (CSC MC No. 14 s. 1999 / DBM BC 2016-2:
+                        TLB = highest monthly salary x total accumulated VL + SL days x 0.0481927) */}
+                    {isTerminalLeave && (
+                      <div className="mt-3 p-3 bg-slate-50 border border-slate-300 rounded-lg">
+                        <p className="text-sm text-slate-800">
+                          <i className="fas fa-flag-checkered mr-1"></i>
+                          <strong>Estimated terminal leave value:</strong> ₱{(((leaveRequest.user_id?.salary || 0) * terminalTotalDays * 0.0481927)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-slate-700 mt-1">
+                          Computed as {leaveRequest.user_id?.salary ? `₱${Number(leaveRequest.user_id.salary).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '(no salary on file)'} × {terminalTotalDays.toFixed(3)} day(s) × 0.0481927 (CSC daily-rate factor per MC 2 s. 2016 / DBM Budget Circular 2016-2). The full balance is commuted from vacation credits first, then sick ({terminalVacationDays.toFixed(3)} VL + {terminalSickDays.toFixed(3)} SL) per CSC MC No. 14 s. 1999. This estimate uses the salary currently on file; per CSC MC No. 14 s. 1999 the actual payment is based on the highest salary rate received, so HR should verify. Terminal leave pay is exempt from income tax (CIR v. CA, G.R. No. 96016). Subject to funding availability.
                         </p>
                       </div>
                     )}

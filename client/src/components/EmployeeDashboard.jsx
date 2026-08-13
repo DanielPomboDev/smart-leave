@@ -21,6 +21,17 @@ const getAvailableCredits = (leaveType, vacationBalance, sickBalance) => {
   return Infinity;
 };
 
+// Purpose-of-request leaves (monetization / terminal) have no inclusive dates per CSC MC
+// No. 31 — the employee enters the number of days directly instead of selecting dates.
+// Named isPurposeLeaveType to avoid shadowing the local `isPurposeLeave` booleans
+// declared inside submitLeaveRequest / validateQuickStep below.
+const isPurposeLeaveType = (data) =>
+  data.leavePurpose === 'monetization' || data.leavePurpose === 'terminal_leave' ||
+  data.leaveType === 'monetization' || data.leaveType === 'terminal_leave';
+
+// Round to 3 decimal places (matches the server's leave-balance precision)
+const round3 = (n) => Math.round(n * 1000) / 1000;
+
 const EmployeeDashboard = () => {
   // State for leave credits
   const [vacationBalance, setVacationBalance] = useState(0);
@@ -91,7 +102,8 @@ const EmployeeDashboard = () => {
     locationType: '',
     locationSpecify: '',
     commutation: false,
-    leavePurpose: '' // Purpose of request (monetization / terminal leave) — 6.B on CS Form No. 6
+    leavePurpose: '', // Purpose of request (monetization / terminal leave) — 6.B on CS Form No. 6
+    separationType: '' // Terminal leave separation context (retirement / resignation / separation)
   });
 
   const [quickLeaveErrors, setQuickLeaveErrors] = useState({});
@@ -184,7 +196,14 @@ const EmployeeDashboard = () => {
 
     // Purpose-of-request checkboxes (Monetization / Terminal Leave) are mutually exclusive
     if (name === 'quickPurpose') {
-      setQuickLeaveData(prev => ({ ...prev, leavePurpose: checked ? value : '' }));
+      setQuickLeaveData(prev => {
+        const next = { ...prev, leavePurpose: checked ? value : '' };
+        // CSC MC No. 14 s. 1999: terminal leave commutes the FULL VL + SL balance
+        if (checked && value === 'terminal_leave') {
+          next.numberOfDays = round3(vacationBalance + sickBalance);
+        }
+        return next;
+      });
       return;
     }
     
@@ -331,38 +350,52 @@ const EmployeeDashboard = () => {
         errors.otherSpecify = 'Please specify the purpose of your leave';
       }
     } else if (step === 2) {
-      if (!quickLeaveData.startDate) {
-        errors.startDate = 'Please select a start date';
-      }
-      if (!quickLeaveData.endDate) {
-        errors.endDate = 'Please select an end date';
-      }
-      
-      if (quickLeaveData.startDate && quickLeaveData.endDate) {
-        const start = new Date(quickLeaveData.startDate);
-        const end = new Date(quickLeaveData.endDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        if (end < start) {
-          errors.endDate = 'End date cannot be earlier than start date';
+      // Monetization / terminal leave have no dates — validate the day count instead
+      if (isPurposeLeaveType(quickLeaveData)) {
+        const purposeDays = parseFloat(quickLeaveData.numberOfDays);
+        // Terminal leave may be fractional (the full VL + SL balance, e.g. 12.75 days);
+        // monetization requires a whole number of days.
+        if (!quickLeaveData.numberOfDays || isNaN(purposeDays) || purposeDays < 1) {
+          errors.numberOfDays = 'Please enter a valid number of days';
+        } else if (quickLeaveData.leavePurpose === 'monetization' && (!Number.isInteger(purposeDays) || purposeDays < 10 || purposeDays > 30)) {
+          errors.numberOfDays = 'Per CSC rules (Sec. 22, Omnibus Rules on Leave), you may monetize a minimum of 10 days and a maximum of 30 days of vacation leave credits in a given year.';
+        } else if (quickLeaveData.leavePurpose === 'terminal_leave' && !quickLeaveData.separationType) {
+          errors.separationType = 'Please indicate the separation context (retirement, resignation, or separation from the service).';
+        }
+      } else {
+        if (!quickLeaveData.startDate) {
+          errors.startDate = 'Please select a start date';
+        }
+        if (!quickLeaveData.endDate) {
+          errors.endDate = 'Please select an end date';
         }
         
-        // Vacation leave and similar types specific validation - requires 5 days advance notice
-        if (quickLeaveData.leaveType === 'vacation' || 
-            (quickLeaveData.leaveType === 'others' && 
-             quickLeaveData.otherLeaveType === 'vacation')) {
-          const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
-          if (daysDifference < 5) {
-            errors.startDate = 'This type of leave must be applied at least 5 days before the start date';
-            setDateWarning(`(${daysDifference} days notice - requires 5 days minimum)`);
+        if (quickLeaveData.startDate && quickLeaveData.endDate) {
+          const start = new Date(quickLeaveData.startDate);
+          const end = new Date(quickLeaveData.endDate);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          if (end < start) {
+            errors.endDate = 'End date cannot be earlier than start date';
+          }
+          
+          // Vacation leave and similar types specific validation - requires 5 days advance notice
+          if (quickLeaveData.leaveType === 'vacation' || 
+              (quickLeaveData.leaveType === 'others' && 
+               quickLeaveData.otherLeaveType === 'vacation')) {
+            const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
+            if (daysDifference < 5) {
+              errors.startDate = 'This type of leave must be applied at least 5 days before the start date';
+              setDateWarning(`(${daysDifference} days notice - requires 5 days minimum)`);
+            } else {
+              setDateWarning(`(${daysDifference} days notice - OK)`);
+            }
           } else {
+            // For other leave types (like sick, maternity, paternity, etc.), no advance notice is required
+            const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
             setDateWarning(`(${daysDifference} days notice - OK)`);
           }
-        } else {
-          // For other leave types (like sick, maternity, paternity, etc.), no advance notice is required
-          const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
-          setDateWarning(`(${daysDifference} days notice - OK)`);
         }
       }
     } else if (step === 3) {
@@ -718,12 +751,20 @@ const EmployeeDashboard = () => {
         
       const requestData = {
         leave_type: actualLeaveType,
-        start_date: submitData.startDate,
-        end_date: submitData.endDate,
+        // Monetization / terminal leave have no inclusive dates (CSC MC No. 31) —
+        // send the filing date so the record still lands in the filing month.
+        start_date: isPurposeLeaveType(submitData)
+          ? new Date().toISOString().split('T')[0]
+          : submitData.startDate,
+        end_date: isPurposeLeaveType(submitData)
+          ? new Date().toISOString().split('T')[0]
+          : submitData.endDate,
         number_of_days: submitData.numberOfDays,
         where_spent: whereSpentValue,
-        commutation: submitData.commutation,
-        location_specify: submitData.locationSpecify
+        // Monetization / terminal leave are commutation by definition — always requested
+        commutation: isPurposeLeaveType(submitData) ? true : submitData.commutation,
+        location_specify: submitData.locationSpecify,
+        separation_type: submitData.leavePurpose === 'terminal_leave' ? submitData.separationType : undefined
       };
 
       // Get token from localStorage
@@ -880,7 +921,7 @@ const EmployeeDashboard = () => {
                     value="vacation" 
                     className="radio radio-sm radio-primary"
                     checked={quickLeaveData.leaveType === 'vacation'}
-                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: '', leavePurpose: ''}))}
                   />
                   <span>Vacation Leave</span>
                 </label>
@@ -900,7 +941,7 @@ const EmployeeDashboard = () => {
                     value="sick" 
                     className="radio radio-sm radio-primary"
                     checked={quickLeaveData.leaveType === 'sick'}
-                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: '', leavePurpose: ''}))}
                   />
                   <span>Sick Leave</span>
                 </label>
@@ -912,6 +953,46 @@ const EmployeeDashboard = () => {
                   </div>
                 )}
                 
+                {/* Monetization of Leave Credits */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="leaveType" 
+                    value="monetization" 
+                    className="radio radio-sm radio-primary"
+                    checked={quickLeaveData.leaveType === 'monetization'}
+                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, leavePurpose: 'monetization', otherSpecify: ''}))}
+                  />
+                  <span>Monetization of Leave Credits</span>
+                </label>
+                
+                {quickLeaveData.leaveType === 'monetization' && (
+                  <div className="alert bg-lime-100 border border-lime-300 text-lime-700 px-4 py-2 rounded ml-6">
+                    <i className="fas fa-coins mr-2"></i>
+                    <span className="text-xs">Convert 10–30 vacation leave days into cash. No leave is taken and no inclusive dates are required (CSC MC No. 31).</span>
+                  </div>
+                )}
+                
+                {/* Terminal Leave */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="leaveType" 
+                    value="terminal_leave" 
+                    className="radio radio-sm radio-primary"
+                    checked={quickLeaveData.leaveType === 'terminal_leave'}
+                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, leavePurpose: 'terminal_leave', otherSpecify: '', numberOfDays: round3(vacationBalance + sickBalance)}))}
+                  />
+                  <span>Terminal Leave</span>
+                </label>
+                
+                {quickLeaveData.leaveType === 'terminal_leave' && (
+                  <div className="alert bg-slate-100 border border-slate-300 text-slate-700 px-4 py-2 rounded ml-6">
+                    <i className="fas fa-flag-checkered mr-2"></i>
+                    <span className="text-xs">Cash equivalent of vacation leave upon retirement or separation. No inclusive dates required (CSC MC No. 31).</span>
+                  </div>
+                )}
+                
                 {/* Others - Generic option to hide specific leave types */}
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input 
@@ -920,7 +1001,7 @@ const EmployeeDashboard = () => {
                     value="others" 
                     className="radio radio-sm radio-primary"
                     checked={quickLeaveData.leaveType === 'others'}
-                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                    onChange={(e) => setQuickLeaveData(prev => ({...prev, leaveType: e.target.value, otherSpecify: '', leavePurpose: ''}))}
                   />
                   <span>Others</span>
                 </label>
@@ -1127,7 +1208,7 @@ const EmployeeDashboard = () => {
             </div>
           )}
           
-          {/* Step 2: Date Selection */}
+          {/* Step 2: Date Selection (or Number of Days for monetization / terminal leave) */}
           {quickLeaveData.step === 2 && (
             <div className="space-y-3">
               {quickLeaveErrors.startDate && (
@@ -1137,53 +1218,136 @@ const EmployeeDashboard = () => {
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="form-control">
-                  <label className="label py-1">
-                    <span className="label-text font-medium">Start Date</span>
-                    {dateWarning && (
-                      <span className="label-text-alt text-warning">{dateWarning}</span>
+              {isPurposeLeaveType(quickLeaveData) ? (
+                <>
+                  {/* Terminal leave separation context (CSC: granted only upon actual
+                      retirement / resignation / separation from the service) */}
+                  {quickLeaveData.leavePurpose === 'terminal_leave' && (
+                    <div className="form-control">
+                      <label className="label py-1">
+                        <span className="label-text font-medium">Separation Context</span>
+                      </label>
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {[
+                          { value: 'retirement', label: 'Retirement' },
+                          { value: 'resignation', label: 'Resignation' },
+                          { value: 'separation', label: 'Separation from Service' }
+                        ].map(opt => (
+                          <label
+                            key={opt.value}
+                            className={`label cursor-pointer justify-start gap-2 border rounded-lg px-3 py-1.5 ${quickLeaveData.separationType === opt.value ? 'border-slate-500 bg-slate-100' : 'border-gray-300'}`}
+                          >
+                            <input
+                              type="radio"
+                              name="separationType"
+                              value={opt.value}
+                              className="radio radio-sm radio-primary"
+                              checked={quickLeaveData.separationType === opt.value}
+                              onChange={handleQuickLeaveChange}
+                            />
+                            <span className="label-text text-gray-700">{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {quickLeaveErrors.separationType && (
+                        <div className="text-red-500 text-sm mt-1">{quickLeaveErrors.separationType}</div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text font-medium">
+                        {quickLeaveData.leavePurpose === 'monetization' ? 'Number of Days to Monetize' : 'Number of Days to Convert to Cash'}
+                      </span>
+                    </label>
+                    {quickLeaveData.leavePurpose === 'terminal_leave' ? (
+                      <>
+                        <input 
+                          type="number" 
+                          name="numberOfDays" 
+                          min="1" 
+                          step="any"
+                          className="input input-bordered input-sm w-full bg-gray-100" 
+                          value={quickLeaveData.numberOfDays}
+                          readOnly
+                        />
+                        <p className="text-xs text-slate-600 mt-1">
+                          Full accumulated balance ({round3(vacationBalance)} VL + {round3(sickBalance)} SL) is commuted per CSC MC No. 14 s. 1999.
+                        </p>
+                      </>
+                    ) : (
+                      <input 
+                        type="number" 
+                        name="numberOfDays" 
+                        min="1" 
+                        step="1"
+                        className="input input-bordered input-sm w-full" 
+                        value={quickLeaveData.numberOfDays}
+                        onChange={handleQuickLeaveChange}
+                      />
                     )}
-                  </label>
-                  <input 
-                    type="date" 
-                    name="startDate" 
-                    className="input input-bordered input-sm w-full" 
-                    required 
-                    value={quickLeaveData.startDate}
-                    onChange={handleStartDateChange}
-                    min={quickLeaveData.leaveType === 'vacation' ? getMinStartDateForVacation() : minStartDate}
-                  />
-                </div>
-                
-                <div className="form-control">
-                  <label className="label py-1">
-                    <span className="label-text font-medium">End Date</span>
-                  </label>
-                  <input 
-                    type="date" 
-                    name="endDate" 
-                    className="input input-bordered input-sm w-full" 
-                    required 
-                    value={quickLeaveData.endDate}
-                    onChange={handleQuickLeaveChange}
-                    min={quickLeaveData.startDate || minStartDate}
-                  />
-                </div>
-              </div>
-              
-              <div className="form-control">
-                <label className="label py-1">
-                  <span className="label-text font-medium">Number of Days</span>
-                </label>
-                <input 
-                  type="text" 
-                  name="numberOfDays" 
-                  className="input input-bordered input-sm w-full" 
-                  readOnly 
-                  value={quickLeaveData.numberOfDays}
-                />
-              </div>
+                    {quickLeaveErrors.numberOfDays && (
+                      <div className="text-red-500 text-sm mt-1">{quickLeaveErrors.numberOfDays}</div>
+                    )}
+                  </div>
+                  
+                  <div className="alert bg-lime-50 border border-lime-200 text-lime-700 px-4 py-2 rounded">
+                    <i className="fas fa-info-circle mr-2"></i>
+                    <span className="text-xs">No inclusive dates are required for {quickLeaveData.leavePurpose === 'monetization' ? 'monetization' : 'terminal leave'} (CSC MC No. 31) — this is a one-time cash conversion of your accumulated vacation AND sick leave credits upon retirement or separation. You keep reporting for work until your separation, and the full amount is paid (tax-exempt).</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="form-control">
+                      <label className="label py-1">
+                        <span className="label-text font-medium">Start Date</span>
+                        {dateWarning && (
+                          <span className="label-text-alt text-warning">{dateWarning}</span>
+                        )}
+                      </label>
+                      <input 
+                        type="date" 
+                        name="startDate" 
+                        className="input input-bordered input-sm w-full" 
+                        required 
+                        value={quickLeaveData.startDate}
+                        onChange={handleStartDateChange}
+                        min={quickLeaveData.leaveType === 'vacation' ? getMinStartDateForVacation() : minStartDate}
+                      />
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label py-1">
+                        <span className="label-text font-medium">End Date</span>
+                      </label>
+                      <input 
+                        type="date" 
+                        name="endDate" 
+                        className="input input-bordered input-sm w-full" 
+                        required 
+                        value={quickLeaveData.endDate}
+                        onChange={handleQuickLeaveChange}
+                        min={quickLeaveData.startDate || minStartDate}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text font-medium">Number of Days</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      name="numberOfDays" 
+                      className="input input-bordered input-sm w-full" 
+                      readOnly 
+                      value={quickLeaveData.numberOfDays}
+                    />
+                  </div>
+                </>
+              )}
               
               <div className="flex justify-between mt-3">
                 <button 
@@ -1225,35 +1389,37 @@ const EmployeeDashboard = () => {
               </div>
               
               {/* Purpose of Request - Monetization / Terminal Leave (6.B on CS Form No. 6) */}
-              <div className="form-control">
-                <label className="label py-1">
-                  <span className="label-text font-medium">Purpose of Request (if applicable)</span>
-                </label>
-                <div className="flex flex-col space-y-1.5">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="quickPurpose"
-                      value="monetization"
-                      className="checkbox checkbox-sm checkbox-primary"
-                      checked={quickLeaveData.leavePurpose === 'monetization'}
-                      onChange={handleQuickLeaveChange}
-                    />
-                    <span className="label-text">Monetization of Leave Credits</span>
+              {quickLeaveData.leaveType !== 'monetization' && quickLeaveData.leaveType !== 'terminal_leave' && (
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-medium">Purpose of Request (if applicable)</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="quickPurpose"
-                      value="terminal_leave"
-                      className="checkbox checkbox-sm checkbox-primary"
-                      checked={quickLeaveData.leavePurpose === 'terminal_leave'}
-                      onChange={handleQuickLeaveChange}
-                    />
-                    <span className="label-text">Terminal Leave</span>
-                  </label>
+                  <div className="flex flex-col space-y-1.5">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="quickPurpose"
+                        value="monetization"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={quickLeaveData.leavePurpose === 'monetization'}
+                        onChange={handleQuickLeaveChange}
+                      />
+                      <span className="label-text">Monetization of Leave Credits</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="quickPurpose"
+                        value="terminal_leave"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={quickLeaveData.leavePurpose === 'terminal_leave'}
+                        onChange={handleQuickLeaveChange}
+                      />
+                      <span className="label-text">Terminal Leave</span>
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Monetization / Terminal Leave info */}
               {quickLeaveData.leavePurpose && (
@@ -1265,7 +1431,7 @@ const EmployeeDashboard = () => {
                   <p className="text-xs mt-1">
                     {quickLeaveData.leavePurpose === 'monetization'
                       ? `This request monetizes ${quickLeaveData.numberOfDays} vacation leave day(s) into cash. The days are deducted from your vacation credits upon approval, and HR certifies your available credits before approving.`
-                      : `Terminal leave benefits — the cash equivalent of ${quickLeaveData.numberOfDays} vacation leave day(s) upon retirement or separation from service. A certificate of separation is required.`}
+                      : `Terminal leave benefits — the cash equivalent of ${quickLeaveData.numberOfDays} vacation + sick leave day(s) upon ${quickLeaveData.separationType ? quickLeaveData.separationType.replace('_', ' ') : 'retirement or separation'} from service. Vacation credits are consumed first, then sick credits. A certificate of separation is required.`}
                   </p>
                 </div>
               )}
@@ -1278,11 +1444,15 @@ const EmployeeDashboard = () => {
                     name="commutation" 
                     value="1" 
                     className="checkbox checkbox-sm checkbox-primary"
-                    checked={quickLeaveData.commutation}
+                    checked={isPurposeLeaveType(quickLeaveData) ? true : quickLeaveData.commutation}
+                    disabled={isPurposeLeaveType(quickLeaveData)}
                     onChange={handleQuickLeaveChange}
                   />
                   <span className="label-text">Request for commutation of leave credits</span>
                 </label>
+                {isPurposeLeaveType(quickLeaveData) && (
+                  <p className="text-xs text-gray-500">Commutation is automatic for monetization and terminal leave — the credits are converted to cash (CSC MC No. 31; MC No. 14 s. 1999).</p>
+                )}
               </div>
               
               <div className="flex justify-between mt-3">
@@ -1471,7 +1641,8 @@ const EmployeeDashboard = () => {
               number_of_days: submitData.numberOfDays,
               where_spent: whereSpentValue,
               commutation: submitData.commutation,
-              location_specify: submitData.locationSpecify
+              location_specify: submitData.locationSpecify,
+              separation_type: submitData.leavePurpose === 'terminal_leave' ? submitData.separationType : undefined
             };
 
             // Get token from localStorage

@@ -45,6 +45,22 @@ const leaveRequestSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Terminal leave context — only used when leave_type === 'terminal_leave'.
+  // CSC: terminal leave is granted upon actual retirement / resignation / separation
+  // from the service, and commutes the FULL accumulated vacation + sick leave balance.
+  separation_type: {
+    type: String,
+    enum: ['retirement', 'resignation', 'separation'],
+    required: false
+  },
+  // Split of terminal leave days across vacation / sick credits, computed at approval
+  // time (vacation credits are consumed first, the remainder from sick credits).
+  vacation_days: {
+    type: Number
+  },
+  sick_days: {
+    type: Number
+  },
   status: {
     type: String,
     enum: ['pending', 'recommended', 'hr_approved', 'approved', 'disapproved', 'cancelled'],
@@ -171,7 +187,7 @@ const leaveRequestSchema = new mongoose.Schema({
 leaveRequestSchema.pre(/^find/, function(next) {
   this.populate({
     path: 'user_id',
-    select: 'first_name last_name middle_initial department_id position user_id profile_image',
+    select: 'first_name last_name middle_initial department_id position user_id profile_image salary',
     foreignField: 'user_id',  // Match User's user_id field instead of _id
     localField: 'user_id',     // Use LeaveRequest's user_id field
     populate: {

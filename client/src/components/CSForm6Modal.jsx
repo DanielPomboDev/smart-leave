@@ -702,7 +702,12 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
                   <p className="font-bold uppercase text-[9.5px]">6.C NUMBER OF WORKING DAYS APPLIED FOR</p>
                   <p className="pl-2 font-bold text-xs">{leaveRecord.days} day(s)</p>
                   <p className="font-bold uppercase text-[9.5px] mt-2">INCLUSIVE DATES</p>
-                  <p className="pl-2 font-bold text-xs underline">{leaveRecord.start_date} to {leaveRecord.end_date}</p>
+                  {/* CSC MC No. 31: no inclusive dates may be indicated for monetization / terminal leave */}
+                  <p className="pl-2 font-bold text-xs underline">
+                    {currentType === 'monetization' || currentType === 'terminal_leave'
+                      ? '—'
+                      : `${leaveRecord.start_date} to ${leaveRecord.end_date}`}
+                  </p>
                 </div>
 
                 <div className="col-span-6 p-2 flex flex-col justify-between">

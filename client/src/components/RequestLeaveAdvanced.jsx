@@ -20,6 +20,17 @@ const getAvailableCredits = (leaveType, vacationBalance, sickBalance) => {
   return Infinity;
 };
 
+// Purpose-of-request leaves (monetization / terminal) have no inclusive dates per CSC MC
+// No. 31 — the employee enters the number of days directly instead of selecting dates.
+// Named isPurposeLeaveType to avoid shadowing the local `isPurposeLeave` boolean
+// declared inside submitLeaveRequest below.
+const isPurposeLeaveType = (leaveType, leavePurpose) =>
+  leavePurpose === 'monetization' || leavePurpose === 'terminal_leave' ||
+  leaveType === 'monetization' || leaveType === 'terminal_leave';
+
+// Round to 3 decimal places (matches the server's leave-balance precision)
+const round3 = (n) => Math.round(n * 1000) / 1000;
+
 const RequestLeaveAdvanced = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
@@ -45,7 +56,9 @@ const RequestLeaveAdvanced = () => {
     locationSpecify: '',
     commutation: '',
     // Purpose of request (monetization / terminal leave) — mirrors 6.B on CS Form No. 6
-    leavePurpose: ''
+    leavePurpose: '',
+    // Terminal leave separation context (retirement / resignation / separation)
+    separationType: ''
   });
 
   const [reviewData, setReviewData] = useState({
@@ -206,34 +219,51 @@ const RequestLeaveAdvanced = () => {
       }
     }
     
-    // Step 2: Date Selection validation
+    // Step 2: Date Selection validation (or Number of Days for monetization / terminal leave)
     else if (step === 2) {
-      if (!formData.startDate) {
-        setError('Please select a start date');
-        isValid = false;
-      }
-      if (!formData.endDate) {
-        setError('Please select an end date');
-        isValid = false;
-      }
-      
-      if (formData.startDate && formData.endDate) {
-        const start = new Date(formData.startDate);
-        const end = new Date(formData.endDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        if (end < start) {
-          setError('End date cannot be earlier than start date');
+      // Monetization / terminal leave have no dates — validate the day count instead
+      if (isPurposeLeaveType(formData.leaveType, formData.leavePurpose)) {
+        const purposeDays = parseFloat(formData.numberOfDays);
+        // Terminal leave may be fractional (the full VL + SL balance, e.g. 12.75 days);
+        // monetization requires a whole number of days.
+        if (!formData.numberOfDays || isNaN(purposeDays) || purposeDays < 1) {
+          setError('Please enter a valid number of days');
+          isValid = false;
+        } else if (formData.leavePurpose === 'monetization' && (!Number.isInteger(purposeDays) || purposeDays < 10 || purposeDays > 30)) {
+          setError('Per CSC rules (Sec. 22, Omnibus Rules on Leave), you may monetize a minimum of 10 days and a maximum of 30 days of vacation leave credits in a given year.');
+          isValid = false;
+        } else if (formData.leavePurpose === 'terminal_leave' && !formData.separationType) {
+          setError('Please indicate the separation context (retirement, resignation, or separation from the service).');
+          isValid = false;
+        }
+      } else {
+        if (!formData.startDate) {
+          setError('Please select a start date');
+          isValid = false;
+        }
+        if (!formData.endDate) {
+          setError('Please select an end date');
           isValid = false;
         }
         
-        // Vacation leave specific validation - requires 5 days advance notice
-        if (formData.leaveType === 'vacation') {
-          const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
-          if (daysDifference < 5) {
-            setError('This type of leave must be applied at least 5 days before the start date');
+        if (formData.startDate && formData.endDate) {
+          const start = new Date(formData.startDate);
+          const end = new Date(formData.endDate);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          if (end < start) {
+            setError('End date cannot be earlier than start date');
             isValid = false;
+          }
+          
+          // Vacation leave specific validation - requires 5 days advance notice
+          if (formData.leaveType === 'vacation') {
+            const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
+            if (daysDifference < 5) {
+              setError('This type of leave must be applied at least 5 days before the start date');
+              isValid = false;
+            }
           }
         }
       }
@@ -378,7 +408,9 @@ const RequestLeaveAdvanced = () => {
     
     setReviewData({
       leaveType: leaveTypeText,
-      dateRange: `${formatDate(formData.startDate)} to ${formatDate(formData.endDate)}`,
+      dateRange: isPurposeLeaveType(formData.leaveType, formData.leavePurpose)
+        ? 'Not applicable (no inclusive dates per CSC MC No. 31)'
+        : `${formatDate(formData.startDate)} to ${formatDate(formData.endDate)}`,
       numberOfDays: `${formData.numberOfDays} day${formData.numberOfDays === 1 ? '' : 's'}`,
       location: locationText,
       commutation: commutationText
@@ -472,12 +504,20 @@ const RequestLeaveAdvanced = () => {
       // Prepare the request data based on role
       const requestData = {
         leave_type: actualLeaveType,
-        start_date: submitData.startDate,
-        end_date: submitData.endDate,
+        // Monetization / terminal leave have no inclusive dates (CSC MC No. 31) —
+        // send the filing date so the record still lands in the filing month.
+        start_date: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose)
+          ? new Date().toISOString().split('T')[0]
+          : submitData.startDate,
+        end_date: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose)
+          ? new Date().toISOString().split('T')[0]
+          : submitData.endDate,
         number_of_days: submitData.numberOfDays,
         where_spent: whereSpentValue,
-        commutation: submitData.commutation,
-        location_specify: submitData.locationSpecify
+        // Monetization / terminal leave are commutation by definition — always requested
+        commutation: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose) ? '1' : submitData.commutation,
+        location_specify: submitData.locationSpecify,
+        separation_type: submitData.leavePurpose === 'terminal_leave' ? submitData.separationType : undefined
       };
 
       // Add a special field to indicate role-based handling
@@ -552,7 +592,18 @@ const RequestLeaveAdvanced = () => {
   // They are mutually exclusive — checking one clears the other.
   const handlePurposeChange = (e) => {
     const { value, checked } = e.target;
-    setFormData(prev => ({ ...prev, leavePurpose: checked ? value : '' }));
+    setFormData(prev => {
+      const next = { ...prev, leavePurpose: checked ? value : '' };
+      if (checked) {
+        // Monetization / terminal leave are commutation by definition (cash conversions)
+        next.commutation = '1';
+        // CSC MC No. 14 s. 1999: terminal leave commutes the FULL VL + SL balance
+        if (value === 'terminal_leave') {
+          next.numberOfDays = round3(vacationBalance + sickBalance);
+        }
+      }
+      return next;
+    });
   };
 
   // --- Supporting documents ---
@@ -778,6 +829,31 @@ const RequestLeaveAdvanced = () => {
         'Supporting documents may be required',
         'Leave credits will depend on the type of leave specified'
       ]
+    },
+    monetization: {
+      title: 'Monetization of Leave Credits',
+      icon: 'fa-coins',
+      color: 'lime',
+      requirements: [
+        'Convert vacation leave credits into cash — no leave is actually taken',
+        'Must have at least 15 days of accumulated vacation leave credits',
+        'Monetize a minimum of 10 days, up to a maximum of 30 days per year',
+        'At least 5 days of vacation leave must remain after monetization',
+        'May be availed only once a year',
+        'No inclusive dates required (CSC MC No. 31)'
+      ]
+    },
+    terminal_leave: {
+      title: 'Terminal Leave',
+      icon: 'fa-flag-checkered',
+      color: 'slate',
+      requirements: [
+        'Cash equivalent of ALL accumulated vacation AND sick leave credits upon retirement, resignation, or separation from the service',
+        'Availed of only once — upon actual separation from the service',
+        'Certificate of retirement / separation from service required',
+        'No inclusive dates required (CSC MC No. 31)',
+        'Payment is based on your salary and is exempt from income tax'
+      ]
     }
   };
 
@@ -796,7 +872,9 @@ const RequestLeaveAdvanced = () => {
     { value: 'special_leave_benefits_women', label: 'Special Leave Benefits for Women' },
     { value: 'special_emergency', label: 'Special Emergency (Calamity)' },
     { value: 'adoption_leave', label: 'Adoption Leave' },
-    { value: 'others_specify', label: 'Others (Specify)' }
+    { value: 'others_specify', label: 'Others (Specify)' },
+    { value: 'monetization', label: 'Monetization of Leave Credits' },
+    { value: 'terminal_leave', label: 'Terminal Leave' }
   ];
 
   // Required supporting documents per leave type (CS Form No. 6, Revised 2020 practice)
@@ -814,7 +892,9 @@ const RequestLeaveAdvanced = () => {
     special_leave_benefits_women: ['Medical certificate attesting to the gynecological condition'],
     special_emergency: ['Certification from barangay / municipal authorities on the calamity'],
     adoption_leave: ['Court order or placement authority document', 'Birth certificate of the child (if available)'],
-    others_specify: ['Supporting documents relevant to the purpose of leave (if any)']
+    others_specify: ['Supporting documents relevant to the purpose of leave (if any)'],
+    monetization: ['Application for monetization of leave credits', 'Certificate of available leave credits from HR'],
+    terminal_leave: ['Certificate of retirement / separation from service', 'Certificate of leave credits from HR']
   };
 
   // Get color classes for requirements display
@@ -1024,7 +1104,18 @@ const RequestLeaveAdvanced = () => {
                     <select
                       name="leaveType"
                       value={formData.leaveType}
-                      onChange={(e) => setFormData(prev => ({...prev, leaveType: e.target.value, otherSpecify: ''}))}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFormData(prev => ({
+                          ...prev,
+                          leaveType: value,
+                          otherSpecify: '',
+                          // Selecting monetization / terminal leave as the type also sets the
+                          // purpose-of-request so the flow treats it correctly (no dates needed);
+                          // switching to any other type clears a stale purpose.
+                          leavePurpose: (value === 'monetization' || value === 'terminal_leave') ? value : ''
+                        }));
+                      }}
                       className="select select-bordered w-full text-base"
                     >
                       <option value="" disabled>-- Select Leave Type --</option>
@@ -1109,62 +1200,147 @@ const RequestLeaveAdvanced = () => {
                 </div>
               )}
               
-              {/* Step 2: Date Selection */}
+              {/* Step 2: Date Selection (or Number of Days for monetization / terminal leave) */}
               {currentStep === 2 && (
                 <div id="step2" className="space-y-6">
-                  <h3 className="font-medium text-lg text-gray-800">Date Selection</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="form-control">
-                      <label className="label">
-                        <span className="label-text font-medium text-gray-700">Start Date</span>
-                      </label>
-                      <input 
-                        type="date" 
-                        name="startDate" 
-                        className="input input-bordered border-gray-300 focus:border-blue-500 w-full" 
-                        value={formData.startDate}
-                        onChange={handleStartDateChange}
-                        min={getMinStartDate()}
-                      />
-                    </div>
-                    
-                    <div className="form-control">
-                      <label className="label">
-                        <span className="label-text font-medium text-gray-700">End Date</span>
-                      </label>
-                      <input 
-                        type="date" 
-                        name="endDate" 
-                        className="input input-bordered border-gray-300 focus:border-blue-500 w-full" 
-                        value={formData.endDate}
-                        onChange={handleInputChange}
-                        min={formData.startDate || new Date().toISOString().split('T')[0]}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text font-medium text-gray-700">Number of Days</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      step="1" 
-                      name="numberOfDays" 
-                      className="input input-bordered border-gray-300 focus:border-blue-500 w-full" 
-                      value={formData.numberOfDays}
-                      readOnly
-                    />
-                  </div>
-                  
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <p className="text-gray-700 flex items-center">
-                      <i className="fas fa-info-circle mr-2"></i>
-                      <span>The number of days will be automatically calculated based on your selected dates.</span>
-                    </p>
-                  </div>
+                  <h3 className="font-medium text-lg text-gray-800">
+                    {isPurposeLeaveType(formData.leaveType, formData.leavePurpose) ? 'Number of Days' : 'Date Selection'}
+                  </h3>
+
+                  {isPurposeLeaveType(formData.leaveType, formData.leavePurpose) ? (
+                    <>
+                      {/* Terminal leave separation context (CSC: granted only upon actual
+                          retirement / resignation / separation from the service) */}
+                      {formData.leavePurpose === 'terminal_leave' && (
+                        <div className="form-control">
+                          <label className="label">
+                            <span className="label-text font-medium text-gray-700">Separation Context</span>
+                          </label>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            {[
+                              { value: 'retirement', label: 'Retirement' },
+                              { value: 'resignation', label: 'Resignation' },
+                              { value: 'separation', label: 'Separation from Service' }
+                            ].map(opt => (
+                              <label
+                                key={opt.value}
+                                className={`label cursor-pointer justify-start gap-2 border rounded-lg px-3 py-2 ${formData.separationType === opt.value ? 'border-slate-500 bg-slate-100' : 'border-gray-300'}`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="separationType"
+                                  value={opt.value}
+                                  className="radio radio-sm radio-primary"
+                                  checked={formData.separationType === opt.value}
+                                  onChange={handleInputChange}
+                                />
+                                <span className="label-text text-gray-700">{opt.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="form-control">
+                        <label className="label">
+                          <span className="label-text font-medium text-gray-700">
+                            {formData.leavePurpose === 'monetization' ? 'Number of Days to Monetize' : 'Number of Days to Convert to Cash'}
+                          </span>
+                        </label>
+                        {formData.leavePurpose === 'terminal_leave' ? (
+                          <>
+                            <input
+                              type="number"
+                              min="1"
+                              step="any"
+                              name="numberOfDays"
+                              className="input input-bordered border-gray-300 focus:border-blue-500 w-full bg-gray-100"
+                              value={formData.numberOfDays}
+                              readOnly
+                            />
+                            <p className="text-xs text-slate-600 mt-1">
+                              Full accumulated balance ({round3(vacationBalance)} VL + {round3(sickBalance)} SL) is commuted per CSC MC No. 14 s. 1999.
+                            </p>
+                          </>
+                        ) : (
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            name="numberOfDays"
+                            className="input input-bordered border-gray-300 focus:border-blue-500 w-full"
+                            value={formData.numberOfDays}
+                            onChange={handleInputChange}
+                          />
+                        )}
+                      </div>
+
+                      <div className={`p-4 rounded-lg border ${formData.leavePurpose === 'monetization' ? 'bg-lime-50 border-lime-200' : 'bg-gray-50 border-gray-200'}`}>
+                        <p className={`flex items-center ${formData.leavePurpose === 'monetization' ? 'text-lime-700' : 'text-gray-700'}`}>
+                          <i className={`fas ${formData.leavePurpose === 'monetization' ? 'fa-coins text-lime-600' : 'fa-info-circle'} mr-2`}></i>
+                          <span>
+                            {formData.leavePurpose === 'monetization'
+                              ? 'No inclusive dates are required for monetization (CSC MC No. 31) — you continue reporting for work and receive the cash value of the days entered (10–30 days, once a year).'
+                              : 'No inclusive dates are required for terminal leave (CSC MC No. 31) — this is a one-time cash conversion of your accumulated vacation AND sick leave credits upon retirement or separation. You keep reporting for work until your separation, and the full amount is paid (tax-exempt).'}
+                          </span>
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="form-control">
+                          <label className="label">
+                            <span className="label-text font-medium text-gray-700">Start Date</span>
+                          </label>
+                          <input 
+                            type="date" 
+                            name="startDate" 
+                            className="input input-bordered border-gray-300 focus:border-blue-500 w-full" 
+                            value={formData.startDate}
+                            onChange={handleStartDateChange}
+                            min={getMinStartDate()}
+                          />
+                        </div>
+                        
+                        <div className="form-control">
+                          <label className="label">
+                            <span className="label-text font-medium text-gray-700">End Date</span>
+                          </label>
+                          <input 
+                            type="date" 
+                            name="endDate" 
+                            className="input input-bordered border-gray-300 focus:border-blue-500 w-full" 
+                            value={formData.endDate}
+                            onChange={handleInputChange}
+                            min={formData.startDate || new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="form-control">
+                        <label className="label">
+                          <span className="label-text font-medium text-gray-700">Number of Days</span>
+                        </label>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          step="1" 
+                          name="numberOfDays" 
+                          className="input input-bordered border-gray-300 focus:border-blue-500 w-full" 
+                          value={formData.numberOfDays}
+                          readOnly
+                        />
+                      </div>
+                      
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <p className="text-gray-700 flex items-center">
+                          <i className="fas fa-info-circle mr-2"></i>
+                          <span>The number of days will be automatically calculated based on your selected dates.</span>
+                        </p>
+                      </div>
+                    </>
+                  )}
                   
                   <div className="flex justify-between mt-6">
                     <button 
@@ -1355,33 +1531,37 @@ const RequestLeaveAdvanced = () => {
                   
                   {/* Purpose of Request - Monetization / Terminal Leave (6.B on CS Form No. 6) */}
                   <div className="space-y-3">
-                    <h4 className="font-medium text-gray-800">Purpose of Request <span className="text-xs text-gray-400 font-normal">(if applicable)</span></h4>
-                    <div className="form-control">
-                      <label className="label cursor-pointer justify-start gap-2">
-                        <input
-                          type="checkbox"
-                          name="leavePurpose"
-                          value="monetization"
-                          className="checkbox checkbox-sm checkbox-primary"
-                          checked={formData.leavePurpose === 'monetization'}
-                          onChange={handlePurposeChange}
-                        />
-                        <span className="label-text text-gray-700">Monetization of Leave Credits</span>
-                      </label>
-                    </div>
-                    <div className="form-control">
-                      <label className="label cursor-pointer justify-start gap-2">
-                        <input
-                          type="checkbox"
-                          name="leavePurpose"
-                          value="terminal_leave"
-                          className="checkbox checkbox-sm checkbox-primary"
-                          checked={formData.leavePurpose === 'terminal_leave'}
-                          onChange={handlePurposeChange}
-                        />
-                        <span className="label-text text-gray-700">Terminal Leave</span>
-                      </label>
-                    </div>
+                    {formData.leaveType !== 'monetization' && formData.leaveType !== 'terminal_leave' && (
+                      <>
+                        <h4 className="font-medium text-gray-800">Purpose of Request <span className="text-xs text-gray-400 font-normal">(if applicable)</span></h4>
+                        <div className="form-control">
+                          <label className="label cursor-pointer justify-start gap-2">
+                            <input
+                              type="checkbox"
+                              name="leavePurpose"
+                              value="monetization"
+                              className="checkbox checkbox-sm checkbox-primary"
+                              checked={formData.leavePurpose === 'monetization'}
+                              onChange={handlePurposeChange}
+                            />
+                            <span className="label-text text-gray-700">Monetization of Leave Credits</span>
+                          </label>
+                        </div>
+                        <div className="form-control">
+                          <label className="label cursor-pointer justify-start gap-2">
+                            <input
+                              type="checkbox"
+                              name="leavePurpose"
+                              value="terminal_leave"
+                              className="checkbox checkbox-sm checkbox-primary"
+                              checked={formData.leavePurpose === 'terminal_leave'}
+                              onChange={handlePurposeChange}
+                            />
+                            <span className="label-text text-gray-700">Terminal Leave</span>
+                          </label>
+                        </div>
+                      </>
+                    )}
 
                     {/* Monetization / Terminal Leave info */}
                     {formData.leavePurpose && (
@@ -1414,8 +1594,9 @@ const RequestLeaveAdvanced = () => {
                               <>
                                 <h4 className="font-bold text-slate-800">Terminal Leave</h4>
                                 <p className="text-sm text-slate-700 mt-1">
-                                  This request is for terminal leave benefits — the cash equivalent of <span className="font-bold">{formData.numberOfDays} vacation leave day(s)</span>
-                                  upon retirement or separation from service.
+                                  This request is for terminal leave benefits — the cash equivalent of <span className="font-bold">{formData.numberOfDays} vacation + sick leave day(s)</span>
+                                  upon {formData.separationType ? formData.separationType.replace('_', ' ') : 'retirement or separation'} from service.
+                                  Vacation credits are consumed first, then sick credits.
                                 </p>
                                 <p className="text-xs text-slate-700 mt-1">
                                   Required documents: Certificate of retirement / separation from service, Certificate of leave credits from HR.
@@ -1431,6 +1612,12 @@ const RequestLeaveAdvanced = () => {
                   {/* Commutation */}
                   <div className="space-y-4 pt-4 border-t border-gray-200">
                     <h4 className="font-medium text-gray-800">Commutation</h4>
+
+                    {isPurposeLeaveType(formData.leaveType, formData.leavePurpose) && (
+                      <p className="text-sm text-gray-600">
+                        Commutation is automatic for monetization and terminal leave — the credits are converted to cash (CSC MC No. 31; MC No. 14 s. 1999).
+                      </p>
+                    )}
                     
                     <div className="form-control">
                       <label className="label cursor-pointer justify-start gap-2">
@@ -1439,7 +1626,8 @@ const RequestLeaveAdvanced = () => {
                           name="commutation" 
                           value="1" 
                           className="radio radio-sm radio-primary" 
-                          checked={formData.commutation === '1'}
+                          checked={isPurposeLeaveType(formData.leaveType, formData.leavePurpose) ? true : formData.commutation === '1'}
+                          disabled={isPurposeLeaveType(formData.leaveType, formData.leavePurpose)}
                           onChange={handleInputChange}
                         />
                         <span className="label-text text-gray-700">Requested</span>
@@ -1453,7 +1641,8 @@ const RequestLeaveAdvanced = () => {
                           name="commutation" 
                           value="0" 
                           className="radio radio-sm radio-primary" 
-                          checked={formData.commutation === '0'}
+                          checked={isPurposeLeaveType(formData.leaveType, formData.leavePurpose) ? false : formData.commutation === '0'}
+                          disabled={isPurposeLeaveType(formData.leaveType, formData.leavePurpose)}
                           onChange={handleInputChange}
                         />
                         <span className="label-text text-gray-700">Not Requested</span>
@@ -1720,12 +1909,20 @@ const RequestLeaveAdvanced = () => {
             // Prepare the request data based on role
             const requestData = {
               leave_type: actualLeaveType,
-              start_date: submitData.startDate,
-              end_date: submitData.endDate,
+              // Monetization / terminal leave have no inclusive dates (CSC MC No. 31) —
+              // send the filing date so the record still lands in the filing month.
+              start_date: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose)
+                ? new Date().toISOString().split('T')[0]
+                : submitData.startDate,
+              end_date: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose)
+                ? new Date().toISOString().split('T')[0]
+                : submitData.endDate,
               number_of_days: submitData.numberOfDays,
               where_spent: whereSpentValue,
-              commutation: submitData.commutation,
-              location_specify: submitData.locationSpecify
+              // Monetization / terminal leave are commutation by definition — always requested
+              commutation: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose) ? '1' : submitData.commutation,
+              location_specify: submitData.locationSpecify,
+              separation_type: submitData.leavePurpose === 'terminal_leave' ? submitData.separationType : undefined
             };
 
             // Add a special field to indicate role-based handling
