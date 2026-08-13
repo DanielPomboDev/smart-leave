@@ -1,6 +1,0 @@
-[build]
-builder = "NIXPACKS"
-
-[deploy]
-startCommand = "cd server && npm start"
-buildCommand = "cd server && npm install"

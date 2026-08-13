@@ -50,7 +50,7 @@ smart-leave-mern/
 │   ├── config/ + utils/           # Cloudinary, email, helpers
 │   ├── create-all-users.js        # Seed script (default test accounts)
 │   └── package.json
-├── railway.toml                   # Backend deployment config (Railway)
+├── render.yaml                    # Backend deployment config (Render)
 └── HANDOVER.md                    # IT handover & production guide
 ```
 
@@ -254,7 +254,7 @@ node create-user.js     # create a single user (edit the file first)
 
 ## Deployment (Production)
 
-The production stack is **Vercel (free)** for the frontend, **Render (free)** for the backend API, and **MongoDB Atlas (M0 free)** for the database. Both `vercel.json` and `render.yaml` are in the repo root — deploy from GitHub and the platforms pick up the config.
+The production stack is **Vercel (free)** for the frontend, **Render (free)** for the backend API, and **MongoDB Atlas (M0 free)** for the database. [`vercel.json`](client/vercel.json) lives in `client/` (where Vercel reads it) and `render.yaml` sits in the repo root — deploy from GitHub and the platforms pick up the config.
 
 ### 1. MongoDB Atlas
 
@@ -276,7 +276,7 @@ The production stack is **Vercel (free)** for the frontend, **Render (free)** fo
 
 ### 3. Vercel (frontend)
 
-1. New Project → import the GitHub repo → Vercel reads [`vercel.json`](vercel.json) (root `client`, builds with `npm run build`, serves `dist`).
+1. New Project → import the GitHub repo → Vercel reads [`client/vercel.json`](client/vercel.json) (root `client`, builds with `npm run build`, serves `dist`).
 2. Add the environment variable `VITE_API_URL=https://<your-service>.onrender.com` (the Render API URL).
 3. Deploy — the SPA routing rewrite and security headers (CSP, nosniff, HSTS-compatible) are already configured.
 4. CORS already allows any `*.vercel.app` domain, so preview deployments and the production domain work without changes. If you attach a **custom domain**, add it to the `allowedOrigins` list in `server/server.js`.
@@ -285,6 +285,7 @@ The production stack is **Vercel (free)** for the frontend, **Render (free)** fo
 
 - `curl https://<your-service>.onrender.com/` → `{"message":"SmartLeave API is running"}`
 - Log in at the Vercel URL; uploads (Cloudinary) and emails (Brevo, if set) work from the deployed API.
+- Before deploying, click-test the exact production bundle locally: build with the production API URL (`VITE_API_URL=https://<your-service>.onrender.com npm run build`), then `node server/scripts/csp-test-server.js` and open http://localhost:8080 — it serves `client/dist` with the same CSP/security headers `vercel.json` applies.
 
 Before deploying, review the **Security** checklist below.
 
