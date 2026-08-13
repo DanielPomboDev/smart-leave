@@ -500,7 +500,7 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
               <a
                 href={officialPdf.url}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="btn btn-xs btn-success text-white border-none"
               >
                 <i className="fas fa-file-pdf mr-1"></i>

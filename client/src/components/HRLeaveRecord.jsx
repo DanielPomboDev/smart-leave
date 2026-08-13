@@ -862,7 +862,7 @@ const HRLeaveRecord = () => {
                             <a
                               href={vacation.official_pdf.url}
                               target="_blank"
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                               className="btn btn-sm btn-success text-white border-none shadow-sm space-x-1.5"
                               title={`Signed PDF uploaded by ${vacation.official_pdf.uploaded_by_name || '—'}`}
                             >
@@ -960,7 +960,7 @@ const HRLeaveRecord = () => {
                             <a
                               href={sick.official_pdf.url}
                               target="_blank"
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                               className="btn btn-sm btn-success text-white border-none shadow-sm space-x-1.5"
                               title={`Signed PDF uploaded by ${sick.official_pdf.uploaded_by_name || '—'}`}
                             >

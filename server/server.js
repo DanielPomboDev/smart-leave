@@ -48,7 +48,15 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      // The app displays Cloudinary-hosted images; the default 'self' + data:
+      // would break them if the frontend is ever served from this server.
+      imgSrc: ["'self'", 'data:', 'https:']
+    }
+  }
+}));
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 

@@ -219,6 +219,15 @@ const updateSignature = async (req, res) => {
       });
     }
 
+    // Only plain raster image data URLs are accepted — SVG/HTML payloads or any
+    // other string must never be stored as a signature.
+    if (signature !== '' && !/^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(signature)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid signature format. Only PNG or JPG images are allowed.'
+      });
+    }
+
     // Update user with new signature (data URL or empty string to remove)
     const user = await User.findOneAndUpdate(
       { user_id: req.user.user_id },

@@ -945,6 +945,18 @@ const updateSignatures = async (req, res) => {
       });
     }
 
+    // Only plain raster image data URLs are accepted — SVG/HTML payloads or any
+    // other string must never be stored as a signature.
+    const isValidSignature = (s) =>
+      s === undefined || s === '' || /^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(s);
+
+    if (![applicant_signature, hr_signature, department_signature, mayor_signature].every(isValidSignature)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid signature format. Only PNG or JPG images are allowed.'
+      });
+    }
+
     if (applicant_signature !== undefined) leaveRequest.applicant_signature = applicant_signature;
     if (hr_signature !== undefined) leaveRequest.hr_signature = hr_signature;
     if (department_signature !== undefined) leaveRequest.department_signature = department_signature;

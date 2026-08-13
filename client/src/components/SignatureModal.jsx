@@ -66,19 +66,46 @@ const SignatureModal = ({ isOpen, onClose, onSave, title = "Digital Signature" }
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Reject oversized images early with a clear message (base64 inflates the size ~33%)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('That image is too large. Please upload a PNG or JPG under 5MB.');
-        e.target.value = '';
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedImage(reader.result);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Reject oversized images early with a clear message (base64 inflates the size ~33%)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('That image is too large. Please upload a PNG or JPG under 5MB.');
+      e.target.value = '';
+      return;
     }
+
+    // Only accept actual image files (the picker filters, but "All files" is selectable)
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a PNG or JPG image of your signature.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onload = () => {
+        // Re-encode the image as a plain PNG by drawing it onto a canvas.
+        // This guarantees only safe raster data is stored — SVG, HTML or other
+        // payloads can never be saved as a signature.
+        const canvas = document.createElement('canvas');
+        const maxW = 440;
+        const maxH = 180;
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setUploadedImage(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        alert('That file is not a valid image. Please upload a PNG or JPG.');
+        e.target.value = '';
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = () => {
