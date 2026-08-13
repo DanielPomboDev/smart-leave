@@ -55,6 +55,12 @@ const userSchema = new mongoose.Schema({
   },
   signature: {
     type: String
+  },
+  // Set true when an account is created with the default password — the user
+  // must pick their own password before using the system.
+  mustChangePassword: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

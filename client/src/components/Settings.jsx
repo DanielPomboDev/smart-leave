@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const Settings = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Forced mode: the user logged in with the public default password and must
+  // pick their own before they can use the rest of the system.
+  const [forcePassword, setForcePassword] = useState(
+    () => location.state?.forcePassword === true || localStorage.getItem('forcePasswordChange') === '1'
+  );
   const [formData, setFormData] = useState({
     password: '',
     password_confirmation: ''
@@ -152,6 +158,10 @@ const Settings = () => {
       if (response.data.success) {
         setMessageType('success');
         setMessage('Password changed successfully. You will be logged out shortly.');
+
+        // Clear the forced-change flag — the user now has their own password
+        localStorage.removeItem('forcePasswordChange');
+        setForcePassword(false);
         
         // Clear form
         setFormData({
@@ -178,6 +188,12 @@ const Settings = () => {
   };
 
   const handleCancel = () => {
+    if (forcePassword) {
+      // Can't skip a forced password change — only option is to leave the session
+      localStorage.removeItem('token');
+      navigate('/login');
+      return;
+    }
     navigate(-1); // Go back to previous page
   };
 
@@ -200,6 +216,18 @@ const Settings = () => {
             {/* Password Change Card */}
             <div className="card bg-white shadow-md w-full max-w-2xl">
               <div className="card-body">
+                {forcePassword && (
+                  <div className="alert alert-warning shadow-lg mb-6">
+                    <div>
+                      <i className="fas fa-exclamation-triangle"></i>
+                      <span className="font-semibold">You must change your password before continuing.</span>
+                      <p className="text-sm mt-1">
+                        Your account was created with a temporary default password. Pick a new one now —
+                        you won't be able to use the rest of the system until you do.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <h2 className="card-title text-xl font-bold text-gray-800 mb-6">
                   <i className="fas fa-lock text-blue-500 mr-2"></i>
                   Change Your Password
@@ -316,13 +344,23 @@ const Settings = () => {
 
                   {/* Action Buttons */}
                   <div className="flex justify-end space-x-3 pt-6">
-                    <button 
-                      type="button" 
-                      className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                      onClick={handleCancel}
-                    >
-                      Cancel
-                    </button>
+                    {forcePassword ? (
+                      <button 
+                        type="button" 
+                        className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                        onClick={handleCancel}
+                      >
+                        Log out
+                      </button>
+                    ) : (
+                      <button 
+                        type="button" 
+                        className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                        onClick={handleCancel}
+                      >
+                        Cancel
+                      </button>
+                    )}
                     <button 
                       type="submit" 
                       className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 flex items-center"

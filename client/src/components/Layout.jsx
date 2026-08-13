@@ -46,6 +46,13 @@ const Layout = ({ children, title = "Dashboard" }) => {
           setUser(response.data.user);
           console.log('User profile:', response.data.user); // Debug log
           fetchNotificationCount(); // Fetch notification count after user is loaded
+
+          // Safety net: if the user still has the default password, keep them
+          // on the change-password page no matter which route they try to open.
+          if (response.data.user.mustChangePassword && !location.pathname.startsWith('/employee/settings')) {
+            localStorage.setItem('forcePasswordChange', '1');
+            navigate('/employee/settings', { state: { forcePassword: true } });
+          }
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);

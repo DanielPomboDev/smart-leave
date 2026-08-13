@@ -206,7 +206,16 @@ This creates one department and four accounts (existing users are skipped):
 
 Log in at http://localhost:3000 to see each role's dashboard.
 
-> **Security:** these are public default credentials. Before real use, change the passwords or create real staff accounts (HR → **Employees**), and never commit real credentials to the repo.
+> **Security:** these are public default credentials for local development only. **Real staff accounts created via HR → Employees are created with the default password `password` and are forced to change it on first login** — they cannot use the system until they do. Never commit real credentials to the repo.
+
+---
+
+## Security Checklist (before deploying)
+
+- `server/.env` and `client/.env` are git-ignored — never commit them. Use the `.env.example` templates and generate a strong `JWT_SECRET` (the server refuses to start without one).
+- Keep dependencies patched: `cd server && npm audit` and `cd client && npm audit` should report no vulnerabilities.
+- Login is rate-limited (20 attempts / 15 min / IP) and the API sets hardened headers (helmet).
+- The Firebase keys in an old `client/.env` are unused legacy config; the file is no longer tracked. If push notifications are re-enabled, rotate those keys.
 
 ---
 
@@ -246,10 +255,10 @@ node create-user.js     # create a single user (edit the file first)
 ## Deployment (Production)
 
 - **Backend:** [`railway.toml`](railway.toml) deploys the API on Railway (`cd server && npm start`). Railway sets `PORT` itself and you paste the env vars into the dashboard.
-- **Frontend:** `cd client && npm run build` → deploy the `dist/` folder to Vercel/Netlify, with `VITE_API_URL` pointing at the deployed API.
+- **Frontend:** deploy to Vercel/Netlify from source — they run `cd client && npm run build` themselves. `client/dist` is **not committed** (it's git-ignored), so do not use a "deploy from repo" preset that expects pre-built files. Set `VITE_API_URL` to the deployed API URL.
 - CORS already allows `http://localhost:3000`, `localhost` origins in general, and the deployed `https://smart-leave-mern.vercel.app` / any `*.vercel.app` domain.
 
-See **[`HANDOVER.md`](HANDOVER.md)** for the complete production handover guide.
+Before deploying, review the **Security** checklist below.
 
 ---
 

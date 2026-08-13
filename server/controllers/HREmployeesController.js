@@ -151,7 +151,9 @@ const createHREmployee = async (req, res) => {
       salary,
       user_type,
       appointment_status: appointment_status || 'permanent',
-      password: hashedPassword
+      password: hashedPassword,
+      // Force a password change on first login — the default password is public
+      mustChangePassword: true
     });
 
     await user.save();

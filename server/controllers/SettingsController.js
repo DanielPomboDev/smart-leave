@@ -39,9 +39,10 @@ const updatePassword = async (req, res) => {
     
     // Update user password using the custom user_id field
     // req.user.user_id corresponds to the user_id field in the User model
+    // Also clear mustChangePassword — the user has now chosen their own password
     const updatedUser = await User.findOneAndUpdate(
       { user_id: req.user.user_id },
-      { password: hashedPassword },
+      { password: hashedPassword, mustChangePassword: false },
       { new: true, runValidators: true }
     );
 

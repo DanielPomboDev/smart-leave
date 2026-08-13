@@ -10,6 +10,16 @@
 
 # production
 /build
+/dist
+
+# environment variables (never commit real values)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# ...but do track the template
+!.env.example
 
 # misc
 .DS_Store

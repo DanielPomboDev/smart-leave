@@ -50,8 +50,15 @@ const Login = () => {
         // Store token in localStorage
         localStorage.setItem('token', res.data.token);
         
-        // Redirect to appropriate dashboard
-        navigate(res.data.redirectUrl);
+        // If the account was created with the default password, force a change
+        // before letting the user into the rest of the system.
+        if (res.data.user?.mustChangePassword) {
+          localStorage.setItem('forcePasswordChange', '1');
+          navigate('/employee/settings', { state: { forcePassword: true } });
+        } else {
+          // Redirect to appropriate dashboard
+          navigate(res.data.redirectUrl);
+        }
       } else {
         setError(res.data.message);
       }

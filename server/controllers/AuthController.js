@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { JWT_SECRET } = require('../config/jwt');
 
 // Generate JWT token
 const generateToken = (user) => {
@@ -9,7 +10,7 @@ const generateToken = (user) => {
       id: user.user_id,
       user_type: user.user_type
     },
-    process.env.JWT_SECRET || 'smartleave_secret',
+    JWT_SECRET,
     { expiresIn: '30d' }
   );
 };
@@ -93,7 +94,8 @@ const login = async (req, res) => {
         position: user.position,
         salary: user.salary,
         start_date: user.start_date,
-        user_type: user.user_type
+        user_type: user.user_type,
+        mustChangePassword: user.mustChangePassword
       },
       redirectUrl
     });
