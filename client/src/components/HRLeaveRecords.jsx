@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
 import axios from '../services/api';
-import CalculateCreditsModal from './CalculateCreditsModal';
 
 const HRLeaveRecords = () => {
   const [users, setUsers] = useState([]);
@@ -20,7 +19,6 @@ const HRLeaveRecords = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [forcedLeave, setForcedLeave] = useState([]);
   const [forcedYear, setForcedYear] = useState(new Date().getFullYear());
   const [showForcedLeave, setShowForcedLeave] = useState(false);
@@ -165,41 +163,6 @@ const HRLeaveRecords = () => {
     }
   };
 
-  // Calculate credits
-    const calculateCredits = async (month, year) => {
-        try {
-            setLoading(true);
-            setError('');
-            setSuccess('');
-            const token = localStorage.getItem('token');
-            if (!token) {
-                throw new Error('No authentication token found');
-            }
-
-            const response = await axios.post('/api/leave-records/calculate-credits', 
-                { month, year },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            if (response.data.success) {
-                setSuccess(response.data.message);
-            } else {
-                setError(response.data.message || 'Failed to calculate credits');
-            }
-        } catch (error) {
-            console.error('Error calculating credits:', error);
-            setError('Failed to calculate credits: ' + (error.response?.data?.message || error.message));
-        } finally {
-            setLoading(false);
-            setIsModalOpen(false);
-        }
-    };
-
   // Effect to fetch departments and leave records on initial load
   useEffect(() => {
     fetchDepartments();
@@ -232,10 +195,6 @@ const HRLeaveRecords = () => {
               <i className="fi fi-rr-time-past text-blue-500 mr-2"></i>
               Leave Records
             </h2>
-            <button className="btn btn-primary btn-sm whitespace-nowrap" onClick={() => setIsModalOpen(true)}>
-              <i className="fas fa-calculator mr-1"></i>
-              Calculate Credits
-            </button>
           </div>
 
             {success && (
@@ -249,7 +208,7 @@ const HRLeaveRecords = () => {
           <div className="alert alert-info mb-4">
             <i className="fas fa-robot"></i>
             <span>
-              Monthly credits accrue <strong>automatically</strong> (on server start and daily) using the CSC actual-service table — both vacation and sick credits are prorated. "Calculate Credits" remains as a manual, audited fallback; manually edited records are never overwritten.
+              Monthly credits accrue <strong>automatically</strong> (on server start and daily) using the CSC actual-service table — both vacation and sick credits are prorated. Manually edited records are never overwritten by the automatic job.
             </span>
             <button className="btn btn-sm btn-outline btn-info" onClick={runAccrualNow} disabled={runningAccrual}>
               {runningAccrual ? <span className="loading loading-spinner loading-xs"></span> : <i className="fas fa-sync-alt mr-1"></i>}
@@ -570,11 +529,6 @@ const HRLeaveRecords = () => {
           )}
         </div>
       </div>
-      <CalculateCreditsModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onConfirm={calculateCredits} 
-      />
     </Layout>
   );
 };

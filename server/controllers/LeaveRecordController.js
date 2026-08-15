@@ -1285,23 +1285,3 @@ exports.getWellnessLeaveStatus = async (req, res) => {
 
 // Calculate and award monthly leave credits (manual HR batch — kept as an explicit,
 // audited fallback to the automatic job)
-exports.calculateCredits = async (req, res) => {
-    if (denyUnlessHr(req, res)) return;
-    const { month, year } = req.body;
-
-    if (!month || !year) {
-        return res.status(400).json({ message: 'Month and year are required' });
-    }
-
-    try {
-        const users = await User.find();
-        let processed = 0;
-        for (const user of users) {
-            const record = await exports.recomputeMonthCredits(user.user_id, month, year, req.user, true);
-            if (record) processed++;
-        }
-        res.json({ success: true, message: `Leave credits calculated successfully for ${processed} employee(s).` });
-    } catch (error) {
-        res.status(500).json({ message: 'Error calculating leave credits', error: error.message });
-    }
-};

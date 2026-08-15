@@ -43,9 +43,6 @@ router.post('/add-undertime', addUndertimeValidation, leaveRecordController.addU
 // POST /api/leave-records/add-credits - Manually add/update earned leave credits
 router.post('/add-credits', addLeaveCreditsValidation, leaveRecordController.addCredits);
 
-// POST /api/leave-records/calculate-credits - Calculate and award monthly leave credits
-router.post('/calculate-credits', leaveRecordController.calculateCredits);
-
 // POST /api/leave-records/accrue - Run the up-to-now automatic accrual (HR fallback)
 router.post('/accrue', leaveRecordController.accrueNow);
 
