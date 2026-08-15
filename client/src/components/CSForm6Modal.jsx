@@ -109,9 +109,17 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
     special_leave_benefits_women: 'Special Leave Benefits for Women',
     special_emergency: 'Special Emergency (Calamity) Leave',
     adoption_leave: 'Adoption Leave',
+    wellness_leave: 'Wellness Leave',
     monetization: 'Monetization of Leave Credits',
     terminal_leave: 'Terminal Leave',
     others_specify: 'Others'
+  };
+
+  // Format a day count for the form (½ day for half-day leaves — Sec. 28)
+  const formatDays = (d) => {
+    const n = parseFloat(d) || 0;
+    if (n === 0.5) return '½ day';
+    return `${n} day${n === 1 ? '' : 's'}`;
   };
 
   const currentType = leaveRecord.type || 'vacation';
@@ -617,6 +625,7 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
                       { key: 'special_leave_benefits_women', label: 'Special Leave Benefits for Women (RA No. 9710 / CSC MC No. 25, s. 2010)' },
                       { key: 'special_emergency', label: 'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)' },
                       { key: 'adoption_leave', label: 'Adoption Leave (R.A. No. 8552)' },
+                      { key: 'wellness_leave', label: 'Wellness Leave (CSC MC No. 1, s. 2026)' },
                       { key: 'others_specify', label: <>Others:{currentType === 'others_specify' ? ` ${leaveRecord.location_specify || 'Specified'}` : currentType === 'monetization' ? ' Monetization of Leave Credits' : currentType === 'terminal_leave' ? ' Terminal Leave' : <BlankLine width={200} />}</> }
                     ].map(item => (
                       <div key={item.key} className="flex items-center space-x-1.5">
@@ -700,7 +709,7 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
               <div className="grid grid-cols-12 border-t border-black divide-x divide-black text-[10px]">
                 <div className="col-span-6 p-2 space-y-1">
                   <p className="font-bold uppercase text-[9.5px]">6.C NUMBER OF WORKING DAYS APPLIED FOR</p>
-                  <p className="pl-2 font-bold text-xs">{leaveRecord.days} day(s)</p>
+                  <p className="pl-2 font-bold text-xs">{formatDays(leaveRecord.days)}</p>
                   <p className="font-bold uppercase text-[9.5px] mt-2">INCLUSIVE DATES</p>
                   {/* CSC MC No. 31: no inclusive dates may be indicated for monetization / terminal leave */}
                   <p className="pl-2 font-bold text-xs underline">
@@ -836,11 +845,11 @@ const CSForm6Modal = ({ isOpen, onClose, leaveRecord, employee, onPdfChange }) =
                   <p className="font-bold text-[10px] uppercase mb-2">7.C APPROVED FOR:</p>
                   <div className="flex items-center space-x-1.5">
                     <CheckBox checked={leaveRecord.status === 'approved' && leaveRecord.paid} />
-                    <span><span className="font-bold underline">{leaveRecord.paid ? leaveRecord.days : 0}</span> days with pay</span>
+                    <span><span className="font-bold underline">{formatDays(leaveRecord.paid ? leaveRecord.days : 0)}</span> with pay</span>
                   </div>
                   <div className="flex items-center space-x-1.5">
                     <CheckBox checked={leaveRecord.status === 'approved' && !leaveRecord.paid} />
-                    <span><span className="font-bold underline">{!leaveRecord.paid ? leaveRecord.days : 0}</span> days without pay</span>
+                    <span><span className="font-bold underline">{formatDays(!leaveRecord.paid ? leaveRecord.days : 0)}</span> without pay</span>
                   </div>
                   <div className="flex items-center space-x-1.5">
                     <CheckBox checked={false} />

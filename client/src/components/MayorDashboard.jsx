@@ -232,6 +232,7 @@ const MayorDashboard = () => {
                          leaveRequest.leaveType === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                          leaveRequest.leaveType === 'special_emergency' ? 'Special Emergency' :
                          leaveRequest.leaveType === 'adoption_leave' ? 'Adoption' :
+                         leaveRequest.leaveType === 'wellness_leave' ? 'Wellness Leave' :
                          leaveRequest.leaveType === 'others_specify' ? 'Others' :
                          leaveRequest.leaveType}
                       </td>

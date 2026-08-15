@@ -43,7 +43,9 @@ const HREmployees = () => {
     start_date: '',
     salary: '',
     user_type: 'employee',
-    appointment_status: 'permanent'
+    appointment_status: 'permanent',
+    // Sec. 2: part-time employees earn leave proportionally to hours (empty = full-time)
+    part_time_weekly_hours: ''
   });
 
   const [editForm, setEditForm] = useState({
@@ -57,7 +59,9 @@ const HREmployees = () => {
     start_date: '',
     salary: '',
     user_type: 'employee',
-    appointment_status: 'permanent'
+    appointment_status: 'permanent',
+    // Sec. 2: part-time employees earn leave proportionally to hours (empty = full-time)
+    part_time_weekly_hours: ''
   });
 
   // Fetch employees
@@ -143,7 +147,8 @@ const HREmployees = () => {
           start_date: user.start_date ? new Date(user.start_date).toISOString().split('T')[0] : '',
           salary: user.salary || '',
           user_type: user.user_type || 'employee',
-          appointment_status: user.appointment_status || 'permanent'
+          appointment_status: user.appointment_status || 'permanent',
+          part_time_weekly_hours: user.part_time_weekly_hours || ''
         });
         setEmployeeToEdit(user);
         setShowEditModal(true);
@@ -211,7 +216,8 @@ const HREmployees = () => {
           start_date: '',
           salary: '',
           user_type: 'employee',
-          appointment_status: 'permanent'
+          appointment_status: 'permanent',
+          part_time_weekly_hours: ''
         });
         fetchEmployees();
       } else {
@@ -652,6 +658,22 @@ const HREmployees = () => {
 
                 <div className="form-control">
                   <label className="label">
+                    <span className="label-text font-medium">Part-Time Hours/Week <span className="text-xs text-gray-400 font-normal">(Sec. 2 — leave accrues proportionally; leave blank for full-time)</span></span>
+                  </label>
+                  <input 
+                    type="number" 
+                    name="part_time_weekly_hours"
+                    value={addForm.part_time_weekly_hours}
+                    onChange={handleAddFormChange}
+                    className="input input-bordered" 
+                    placeholder="e.g. 20"
+                    min="1"
+                    max="39"
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
                     <span className="label-text font-medium">Department</span>
                   </label>
                   <select 
@@ -861,6 +883,22 @@ const HREmployees = () => {
                     <option value="elected_official">Elected Official</option>
                     <option value="other">Other</option>
                   </select>
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Part-Time Hours/Week <span className="text-xs text-gray-400 font-normal">(Sec. 2 — leave accrues proportionally; leave blank for full-time)</span></span>
+                  </label>
+                  <input 
+                    type="number" 
+                    name="part_time_weekly_hours"
+                    value={editForm.part_time_weekly_hours}
+                    onChange={handleEditFormChange}
+                    className="input input-bordered" 
+                    placeholder="e.g. 20"
+                    min="1"
+                    max="39"
+                  />
                 </div>
 
                 <div className="form-control">

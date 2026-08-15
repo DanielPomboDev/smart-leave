@@ -185,6 +185,8 @@ const LeaveRequestDetails = () => {
         return 'Monetization of Leave Credits';
       case 'terminal_leave':
         return 'Terminal Leave';
+      case 'wellness_leave':
+        return 'Wellness Leave';
       default:
         return type;
     }
@@ -336,7 +338,7 @@ const LeaveRequestDetails = () => {
               <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                 <h5 className="font-semibold text-blue-600 mb-3">Number of Working Days</h5>
                 <p className="font-medium text-gray-800 text-lg">
-                  {leaveRequest.number_of_days} day(s)
+                  {leaveRequest.number_of_days === 0.5 ? '½ day' : `${leaveRequest.number_of_days} day(s)`}
                 </p>
               </div>
             </div>
@@ -364,6 +366,16 @@ const LeaveRequestDetails = () => {
                 </div>
               )}
             </div>
+
+            {/* Sec. 49: approval SLA — deemed approved after five (5) working days */}
+            {['pending', 'recommended', 'hr_approved'].includes(leaveRequest.status) && (
+              <div className="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <p className="text-sm text-blue-800">
+                  <i className="fas fa-hourglass-half mr-2"></i>
+                  <strong>Approval SLA:</strong> {Math.max(0, Math.ceil((new Date() - new Date(leaveRequest.createdAt)) / 86400000))} day(s) since this request was filed. Per CSC Sec. 49, an application not acted on within five (5) working days is deemed approved.
+                </p>
+              </div>
+            )}
 
             {/* Status */}
             <div className="mb-6">

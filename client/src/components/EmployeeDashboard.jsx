@@ -1168,6 +1168,20 @@ const EmployeeDashboard = () => {
                         <input 
                           type="radio" 
                           name="otherLeaveType" 
+                          value="wellness_leave" 
+                          className="radio radio-xs radio-primary" 
+                          checked={quickLeaveData.otherLeaveType === 'wellness_leave'}
+                          onChange={(e) => setQuickLeaveData(prev => ({...prev, otherLeaveType: e.target.value}))}
+                        />
+                        <span className="label-text text-gray-700">Wellness Leave</span>
+                      </label>
+                    </div>
+                    
+                    <div className="form-control">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input 
+                          type="radio" 
+                          name="otherLeaveType" 
                           value="others_specify" 
                           className="radio radio-xs radio-primary" 
                           checked={quickLeaveData.otherLeaveType === 'others_specify'}
@@ -1546,6 +1560,7 @@ const EmployeeDashboard = () => {
                          request.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                          request.leave_type === 'special_emergency' ? 'Special Emergency' :
                          request.leave_type === 'adoption_leave' ? 'Adoption' :
+                         request.leave_type === 'wellness_leave' ? 'Wellness Leave' :
                          request.leave_type === 'monetization' ? 'Monetization' :
                          request.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                          request.leave_type === 'others_specify' ? 'Others' :

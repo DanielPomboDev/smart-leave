@@ -91,6 +91,7 @@ const MyLeaveRecord = () => {
       special_leave_benefits_women: 'Special Leave Benefits for Women',
       special_emergency: 'Special Emergency (Calamity)',
       adoption_leave: 'Adoption Leave',
+      wellness_leave: 'Wellness Leave',
       monetization: 'Monetization of Leave Credits',
       terminal_leave: 'Terminal Leave',
       others_specify: 'Others (Specify)'

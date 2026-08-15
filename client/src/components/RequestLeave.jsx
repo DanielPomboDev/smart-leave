@@ -53,6 +53,8 @@ const RequestLeave = () => {
     locationType: '',
     locationSpecify: '',
     commutation: '',
+    // Half-day leave (Sec. 28): single-date request filed as 0.5 working day
+    halfDay: false,
     // Purpose of request (monetization / terminal leave) — mirrors 6.B on CS Form No. 6
     leavePurpose: '',
     // Terminal leave separation context (retirement / resignation / separation)
@@ -140,8 +142,13 @@ const RequestLeave = () => {
         updatedData.endDate = newStartDate;
       }
       
+      // Half-day only applies to a single-date leave
+      if (updatedData.startDate !== updatedData.endDate) {
+        updatedData.halfDay = false;
+      }
+      
       // Recalculate the number of days whenever the start date changes
-      updatedData.numberOfDays = calculateDays(updatedData.startDate, updatedData.endDate);
+      updatedData.numberOfDays = updatedData.halfDay ? 0.5 : calculateDays(updatedData.startDate, updatedData.endDate);
       
       return updatedData;
     });
@@ -171,6 +178,15 @@ const RequestLeave = () => {
         const startDate = name === 'startDate' ? newValue : updatedData.startDate;
         const endDate = name === 'endDate' ? newValue : updatedData.endDate;
         updatedData.numberOfDays = calculateDays(startDate, endDate);
+        // Half-day only applies to a single-date leave
+        if (startDate !== endDate) updatedData.halfDay = false;
+      }
+      
+      // Half-day toggle: a single date filed as 0.5 working day (Sec. 28)
+      if (name === 'halfDay') {
+        updatedData.numberOfDays = newValue
+          ? 0.5
+          : calculateDays(updatedData.startDate, updatedData.endDate);
       }
       
       // Clear other specify field when changing leave type
@@ -241,8 +257,9 @@ const RequestLeave = () => {
             isValid = false;
           }
           
-          // Vacation leave specific validation - requires 5 days advance notice
-          if (formData.leaveType === 'vacation') {
+          // Vacation (Sec. 51) and wellness (CSC MC No. 1, s. 2026) leave require
+          // 5 days advance notice before the start date
+          if (formData.leaveType === 'vacation' || formData.leaveType === 'wellness_leave') {
             const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
             if (daysDifference < 5) {
               setError('This type of leave must be applied at least 5 days before the start date');
@@ -345,6 +362,7 @@ const RequestLeave = () => {
       'special_leave_benefits_women': 'Special Leave Benefits for Women',
       'special_emergency': 'Special Emergency (Calamity)',
       'adoption_leave': 'Adoption Leave',
+      'wellness_leave': 'Wellness Leave',
       'monetization': 'Monetization of Leave Credits',
       'terminal_leave': 'Terminal Leave',
       'others_specify': 'Others (Specify)'
@@ -395,7 +413,9 @@ const RequestLeave = () => {
       dateRange: isPurposeLeaveType(formData.leaveType, formData.leavePurpose)
         ? 'Not applicable (no inclusive dates per CSC MC No. 31)'
         : `${formatDate(formData.startDate)} to ${formatDate(formData.endDate)}`,
-      numberOfDays: `${formData.numberOfDays} day${formData.numberOfDays === 1 ? '' : 's'}`,
+      numberOfDays: formData.numberOfDays === 0.5
+        ? 'Half day (½ day)'
+        : `${formData.numberOfDays} day${formData.numberOfDays === 1 ? '' : 's'}`,
       location: locationText,
       commutation: commutationText
     });
@@ -496,7 +516,9 @@ const RequestLeave = () => {
         end_date: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose)
           ? new Date().toISOString().split('T')[0]
           : submitData.endDate,
-        number_of_days: submitData.numberOfDays,
+        number_of_days: submitData.halfDay ? 0.5 : submitData.numberOfDays,
+        // Half-day leave (Sec. 28)
+        is_half_day: submitData.halfDay || undefined,
         where_spent: whereSpentValue,
         // Monetization / terminal leave are commutation by definition — always requested
         commutation: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose) ? '1' : submitData.commutation,
@@ -639,7 +661,7 @@ const RequestLeave = () => {
 
   // Get minimum start date based on leave type
   const getMinStartDate = () => {
-    if (formData.leaveType === 'vacation') {
+    if (formData.leaveType === 'vacation' || formData.leaveType === 'wellness_leave') {
       const minDate = new Date();
       minDate.setDate(minDate.getDate() + 5);
       return minDate.toISOString().split('T')[0];
@@ -669,7 +691,7 @@ const RequestLeave = () => {
         'May be applied before or after the leave period',
         'Must have available sick leave credits',
         'Specify illness or medical condition',
-        'Medical certificate may be required for extended leave'
+        'Medical certificate required for absences in excess of five (5) successive days (Sec. 53)'
       ]
     },
     mandatory_forced_leave: {
@@ -710,9 +732,9 @@ const RequestLeave = () => {
       icon: 'fa-star',
       color: 'purple',
       requirements: [
-        'Also known as "Incentive Leave" for government employees',
-        '7 days per year for those in hazardous or difficult assignments',
-        'Certification of eligibility from agency head required',
+        'Maximum of three (3) days per calendar year (Sec. 21)',
+        'Apply at least one (1) week before availment, except in emergencies',
+        'Non-cumulative and non-commutable',
         'Specify where the leave will be spent'
       ]
     },
@@ -784,6 +806,19 @@ const RequestLeave = () => {
         'Specify the type of calamity and affected area'
       ]
     },
+    wellness_leave: {
+      title: 'Wellness Leave',
+      icon: 'fa-heart-pulse',
+      color: 'lime',
+      requirements: [
+        'Maximum of five (5) days per calendar year (CSC MC No. 1, s. 2026)',
+        'May be taken for up to three (3) consecutive days at a time, or on separate non-consecutive days',
+        'Apply at least 5 days before the start date',
+        'For mental health care, physical wellness activities, or a general break from work',
+        'Non-cumulative and non-commutable — forfeited if not used within the calendar year',
+        'Does NOT deduct from vacation or sick leave credits'
+      ]
+    },
     adoption_leave: {
       title: 'Adoption Leave',
       icon: 'fa-hand-holding-heart',
@@ -847,6 +882,7 @@ const RequestLeave = () => {
     { value: 'special_leave_benefits_women', label: 'Special Leave Benefits for Women' },
     { value: 'special_emergency', label: 'Special Emergency (Calamity)' },
     { value: 'adoption_leave', label: 'Adoption Leave' },
+    { value: 'wellness_leave', label: 'Wellness Leave' },
     { value: 'others_specify', label: 'Others (Specify)' },
     { value: 'monetization', label: 'Monetization of Leave Credits' },
     { value: 'terminal_leave', label: 'Terminal Leave' }
@@ -855,7 +891,7 @@ const RequestLeave = () => {
   // Required supporting documents per leave type (CS Form No. 6, Revised 2020 practice)
   const leaveTypeRequiredDocuments = {
     vacation: [],
-    sick: ['Medical certificate (for absences of more than one day, or as required by HR)'],
+    sick: ['Medical certificate (required for absences in excess of five (5) successive days — Sec. 53)'],
     mandatory_forced_leave: ['Official directive or memorandum from the head of office'],
     maternity_leave: ['Maternity notification form (MAT-1)', 'SSS documents (if applicable)'],
     paternity_leave: ['Marriage certificate', 'Birth certificate of the child'],
@@ -867,6 +903,7 @@ const RequestLeave = () => {
     special_leave_benefits_women: ['Medical certificate attesting to the gynecological condition'],
     special_emergency: ['Certification from barangay / municipal authorities on the calamity'],
     adoption_leave: ['Court order or placement authority document', 'Birth certificate of the child (if available)'],
+    wellness_leave: [],
     others_specify: ['Supporting documents relevant to the purpose of leave (if any)'],
     monetization: ['Application for monetization of leave credits', 'Certificate of available leave credits from HR'],
     terminal_leave: ['Certificate of retirement / separation from service', 'Certificate of leave credits from HR']
@@ -1240,17 +1277,34 @@ const RequestLeave = () => {
                         </div>
                       </div>
                       
+                      {/* Half-day leave (Sec. 28: 1/4–3/4 of a day counts as half a day) —
+                          only available for a single-date request */}
+                      {formData.startDate && formData.startDate === formData.endDate && (
+                        <div className="form-control">
+                          <label className="label cursor-pointer justify-start gap-2">
+                            <input
+                              type="checkbox"
+                              name="halfDay"
+                              className="checkbox checkbox-sm checkbox-primary"
+                              checked={formData.halfDay}
+                              onChange={handleInputChange}
+                            />
+                            <span className="label-text text-gray-700">Half day (½ day — Sec. 28)</span>
+                          </label>
+                        </div>
+                      )}
+
                       <div className="form-control">
                         <label className="label">
                           <span className="label-text font-medium text-gray-700">Number of Days</span>
                         </label>
                         <input 
                           type="number" 
-                          min="1" 
-                          step="1" 
+                          min="0.5" 
+                          step="0.5" 
                           name="numberOfDays" 
                           className="input input-bordered border-gray-300 focus:border-blue-500 w-full" 
-                          value={formData.numberOfDays}
+                          value={formData.halfDay ? '0.5' : formData.numberOfDays}
                           readOnly
                         />
                       </div>
@@ -1653,7 +1707,7 @@ const RequestLeave = () => {
                         <i className="fas fa-paperclip text-blue-500 mr-2"></i>
                         Supporting Documents
                       </h4>
-                      <span className="text-xs text-gray-500">Optional • Max 5 files • 10MB each</span>
+                      <span className="text-xs text-gray-500">Max 5 files • 10MB each — some leave types require documents before approval</span>
                     </div>
                     <div className="p-4">
                       {/* Guidance per leave type */}
@@ -1711,7 +1765,7 @@ const RequestLeave = () => {
                       )}
                       {documents.length === 0 && (
                         <p className="text-sm text-gray-500 mt-3 text-center">
-                          No files attached yet. Supporting documents are optional but recommended.
+                          No files attached yet. Certain leave types (e.g. sick leave over five (5) days, maternity, paternity, solo parent) require supporting documents before approval.
                         </p>
                       )}
                     </div>
@@ -1813,7 +1867,9 @@ const RequestLeave = () => {
               leave_type: actualLeaveType,
               start_date: submitData.startDate,
               end_date: submitData.endDate,
-              number_of_days: submitData.numberOfDays,
+              number_of_days: submitData.halfDay ? 0.5 : submitData.numberOfDays,
+              // Half-day leave (Sec. 28)
+              is_half_day: submitData.halfDay || undefined,
               where_spent: whereSpentValue,
               // Monetization / terminal leave are commutation by definition — always requested
               commutation: isPurposeLeaveType(submitData.leaveType, submitData.leavePurpose) ? '1' : submitData.commutation,

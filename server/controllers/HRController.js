@@ -6,6 +6,8 @@ const LeaveApproval = require('../models/LeaveApproval');
 const LeaveRecord = require('../models/LeaveRecord');
 const { sendHrApprovedLeaveRequestNotification, sendLeaveStatusUpdateToEmployee, sendLeaveStatusUpdateToDepartmentAdmin } = require('../utils/notificationUtils');
 const { NOTIFICATION_TYPES } = require('../utils/notificationUtils');
+const { getRequiredDocuments } = require('../utils/cscRules');
+const { logAudit } = require('../utils/audit');
 
 // @desc    Get HR dashboard statistics
 // @route   GET /api/hr/dashboard
@@ -520,6 +522,11 @@ const processHRLeaveApproval = async (req, res) => {
       });
     }
 
+    // The employee id (leaveRequest.user_id is populated into a user object here)
+    const employeeId = leaveRequest.user_id && typeof leaveRequest.user_id === 'object'
+      ? leaveRequest.user_id.user_id
+      : leaveRequest.user_id;
+
     // Check if an approval already exists for this leave request and HR manager
     const existingApproval = await LeaveApproval.findOne({
       leave_id: id,
@@ -567,14 +574,18 @@ const processHRLeaveApproval = async (req, res) => {
         }
       }
       
-      // Additional validation for insufficient credits
+      // Additional validation for insufficient credits. Sick leave may draw from the
+      // vacation pool when sick credits are exhausted (Sec. 56 — one-way only).
       if (approved_for === 'with_pay' || approved_for === 'others') {
         const { getLeaveCreditsInfo } = require('./LeaveRecordController');
         const numberOfDays = parseFloat(leaveRequest.number_of_days);
-        const leaveCreditsInfo = await getLeaveCreditsInfo(leaveRequest.user_id.user_id, leaveRequest.leave_type);
+        const leaveCreditsInfo = await getLeaveCreditsInfo(employeeId, leaveRequest.leave_type);
         const hasSufficientCredits = leaveCreditsInfo.hasSufficientCredits;
-        
-        if (!hasSufficientCredits) {
+        const canDrawFromVacation =
+          leaveRequest.leave_type === 'sick' &&
+          (leaveCreditsInfo.vacationBalance ?? 0) >= numberOfDays;
+
+        if (!hasSufficientCredits && !canDrawFromVacation) {
           return res.status(400).json({
             success: false,
             message: `Cannot approve with pay or others due to insufficient leave credits`
@@ -588,6 +599,90 @@ const processHRLeaveApproval = async (req, res) => {
           success: false,
           message: 'Please specify the approval type when selecting "Others"'
         });
+      }
+
+      // ===== CSC compliance checks (Omnibus Rules on Leave) =====
+
+      // 1) Required supporting documents per leave type (Secs. 53, 55 + special laws).
+      //    HR may waive the requirement with a reason — the waiver is audited.
+      const requiredDocs = getRequiredDocuments(leaveRequest.leave_type, leaveRequest);
+      const hasDocuments = (leaveRequest.documents || []).length > 0;
+      const docsWaived = req.body.documents_waived === true;
+      const waiverReason = String(req.body.documents_waiver_reason || '').trim();
+
+      if (requiredDocs.length > 0 && !hasDocuments && !docsWaived) {
+        return res.status(400).json({
+          success: false,
+          message: `This leave type requires supporting documents before approval: ${requiredDocs.join('; ')}. Attach the documents, or waive the requirement with a reason.`
+        });
+      }
+      if (docsWaived && !waiverReason) {
+        return res.status(400).json({ success: false, message: 'Please provide a reason when waiving the document requirement.' });
+      }
+      if (docsWaived && requiredDocs.length > 0) {
+        leaveRequest.documents_waived = {
+          waived: true,
+          reason: waiverReason,
+          waived_by: req.user.user_id,
+          waived_at: new Date()
+        };
+      }
+
+      // 2) LWOP limits (Sec. 57): LWOP in excess of one (1) month requires the clearance
+      //    of the head of agency; LWOP may not exceed one (1) year.
+      if (approved_for === 'without_pay') {
+        const lwopYear = new Date(leaveRequest.start_date).getFullYear();
+        const lwopStart = new Date(lwopYear, 0, 1);
+        const lwopEnd = new Date(lwopYear, 11, 31, 23, 59, 59);
+        const withoutPayApprovals = await LeaveApproval.find({ approval: 'approve', approved_for: 'without_pay' });
+        const withoutPayIds = withoutPayApprovals.map(a => a.leave_id);
+        const withoutPayLeaves = withoutPayIds.length
+          ? await LeaveRequest.find({
+              _id: { $in: withoutPayIds },
+              user_id: employeeId,
+              status: 'approved',
+              start_date: { $gte: lwopStart, $lte: lwopEnd }
+            })
+          : [];
+        const cumulativeLwop = withoutPayLeaves.reduce((s, r) => s + (r.number_of_days || 0), 0) + (leaveRequest.number_of_days || 0);
+
+        if (cumulativeLwop > 365) {
+          return res.status(400).json({
+            success: false,
+            message: 'Per CSC Sec. 57, leave without pay may not exceed one (1) year. This approval would put the employee over the annual limit.'
+          });
+        }
+        if (cumulativeLwop > 30) {
+          const clearanceGranted = req.body.lwop_clearance === true;
+          const clearanceReason = String(req.body.lwop_clearance_reason || '').trim();
+          if (!clearanceGranted) {
+            return res.status(400).json({
+              success: false,
+              message: `Per CSC Sec. 57, leave without pay in excess of one (1) month requires the clearance of the head of agency. The employee's cumulative LWOP this year would be ${cumulativeLwop.toFixed(1)} day(s) — confirm the head-of-agency clearance (with reason) to proceed.`
+            });
+          }
+          if (!clearanceReason) {
+            return res.status(400).json({ success: false, message: 'Please provide a reason when confirming the head-of-agency clearance for LWOP exceeding one month.' });
+          }
+          leaveRequest.lwop_clearance = {
+            required: true,
+            granted: true,
+            reason: clearanceReason,
+            by: req.user.user_id,
+            at: new Date()
+          };
+        }
+      }
+
+      // 3) Sick → vacation one-way draw (Sec. 56): when sick credits are exhausted,
+      //    sick leave may be charged against vacation leave credits.
+      if (leaveRequest.leave_type === 'sick' && approved_for === 'with_pay') {
+        const { getLeaveCreditsInfo } = require('./LeaveRecordController');
+        const info = await getLeaveCreditsInfo(employeeId, 'sick');
+        const days = parseFloat(leaveRequest.number_of_days || 0);
+        if ((info.sickBalance ?? 0) < days && (info.vacationBalance ?? 0) >= days) {
+          leaveRequest.charged_to = 'vacation';
+        }
       }
     }
 
@@ -650,6 +745,22 @@ const processHRLeaveApproval = async (req, res) => {
     }
 
     await leaveRequest.save();
+
+    // Audit CSC compliance actions (document waiver / LWOP clearance / sick→vacation draw)
+    if (leaveRequest.documents_waived?.waived || leaveRequest.lwop_clearance?.granted || leaveRequest.charged_to === 'vacation') {
+      await logAudit({
+        actor: req.user,
+        action: 'other',
+        user_id: employeeId,
+        entity: 'LeaveRequest',
+        entity_id: leaveRequest._id,
+        details: [
+          leaveRequest.documents_waived?.waived ? `Document requirement waived: ${leaveRequest.documents_waived.reason}` : null,
+          leaveRequest.lwop_clearance?.granted ? `LWOP >1 month clearance granted: ${leaveRequest.lwop_clearance.reason}` : null,
+          leaveRequest.charged_to === 'vacation' ? 'Sick leave charged to vacation credits (Sec. 56 draw)' : null
+        ].filter(Boolean).join(' | ')
+      });
+    }
     
     // Send notifications
     try {

@@ -50,6 +50,14 @@ const userSchema = new mongoose.Schema({
     enum: ['permanent', 'temporary', 'co_terminus', 'contractual', 'casual', 'job_order', 'elected_official', 'other'],
     default: 'permanent'
   },
+  // Part-time weekly hours (Sec. 2: part-time employees earn leave proportionally to
+  // hours rendered — e.g. 20 hrs/week earns 7.5 VL + 7.5 SL per year). null/40 = full-time.
+  part_time_weekly_hours: {
+    type: Number,
+    default: null,
+    min: 0,
+    max: 40
+  },
   profile_image: {
     type: String
   },

@@ -183,6 +183,8 @@ const DepartmentLeaveRequests = () => {
         return 'Special Emergency Leave';
       case 'adoption_leave':
         return 'Adoption Leave';
+      case 'wellness_leave':
+        return 'Wellness Leave';
       case 'monetization':
         return 'Monetization of Leave Credits';
       case 'terminal_leave':

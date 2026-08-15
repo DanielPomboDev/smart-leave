@@ -257,8 +257,9 @@ const RequestLeaveAdvanced = () => {
             isValid = false;
           }
           
-          // Vacation leave specific validation - requires 5 days advance notice
-          if (formData.leaveType === 'vacation') {
+          // Vacation (Sec. 51) and wellness (CSC MC No. 1, s. 2026) leave require
+          // 5 days advance notice before the start date
+          if (formData.leaveType === 'vacation' || formData.leaveType === 'wellness_leave') {
             const daysDifference = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
             if (daysDifference < 5) {
               setError('This type of leave must be applied at least 5 days before the start date');
@@ -361,6 +362,7 @@ const RequestLeaveAdvanced = () => {
       'special_leave_benefits_women': 'Special Leave Benefits for Women',
       'special_emergency': 'Special Emergency (Calamity)',
       'adoption_leave': 'Adoption Leave',
+      'wellness_leave': 'Wellness Leave',
       'monetization': 'Monetization of Leave Credits',
       'terminal_leave': 'Terminal Leave',
       'others_specify': 'Others (Specify)'
@@ -664,7 +666,7 @@ const RequestLeaveAdvanced = () => {
 
   // Get minimum start date based on leave type
   const getMinStartDate = () => {
-    if (formData.leaveType === 'vacation') {
+    if (formData.leaveType === 'vacation' || formData.leaveType === 'wellness_leave') {
       const minDate = new Date();
       minDate.setDate(minDate.getDate() + 5);
       return minDate.toISOString().split('T')[0];
@@ -820,6 +822,19 @@ const RequestLeaveAdvanced = () => {
         'Applicable for adoption of a child up to 7 years old'
       ]
     },
+    wellness_leave: {
+      title: 'Wellness Leave',
+      icon: 'fa-heart-pulse',
+      color: 'lime',
+      requirements: [
+        'Maximum of five (5) days per calendar year (CSC MC No. 1, s. 2026)',
+        'May be taken for up to three (3) consecutive days at a time, or on separate non-consecutive days',
+        'Apply at least 5 days before the start date',
+        'For mental health care, physical wellness activities, or a general break from work',
+        'Non-cumulative and non-commutable — forfeited if not used within the calendar year',
+        'Does NOT deduct from vacation or sick leave credits'
+      ]
+    },
     others_specify: {
       title: 'Others (Specify)',
       icon: 'fa-pen',
@@ -872,6 +887,7 @@ const RequestLeaveAdvanced = () => {
     { value: 'special_leave_benefits_women', label: 'Special Leave Benefits for Women' },
     { value: 'special_emergency', label: 'Special Emergency (Calamity)' },
     { value: 'adoption_leave', label: 'Adoption Leave' },
+    { value: 'wellness_leave', label: 'Wellness Leave' },
     { value: 'others_specify', label: 'Others (Specify)' },
     { value: 'monetization', label: 'Monetization of Leave Credits' },
     { value: 'terminal_leave', label: 'Terminal Leave' }
@@ -892,6 +908,7 @@ const RequestLeaveAdvanced = () => {
     special_leave_benefits_women: ['Medical certificate attesting to the gynecological condition'],
     special_emergency: ['Certification from barangay / municipal authorities on the calamity'],
     adoption_leave: ['Court order or placement authority document', 'Birth certificate of the child (if available)'],
+    wellness_leave: [],
     others_specify: ['Supporting documents relevant to the purpose of leave (if any)'],
     monetization: ['Application for monetization of leave credits', 'Certificate of available leave credits from HR'],
     terminal_leave: ['Certificate of retirement / separation from service', 'Certificate of leave credits from HR']

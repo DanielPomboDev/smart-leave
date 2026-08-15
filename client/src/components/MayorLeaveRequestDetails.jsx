@@ -170,6 +170,16 @@ const MayorLeaveRequestDetails = () => {
             {getStatusTitle(leaveRequest.status)}
           </h2>
         </div>
+
+        {/* Sec. 49: approval SLA — deemed approved after five (5) working days */}
+        {leaveRequest.status === 'hr_approved' && (
+          <div className="px-6 py-3 border-b border-gray-200 bg-amber-50">
+            <p className="text-sm text-amber-800">
+              <i className="fas fa-hourglass-half mr-2"></i>
+              <strong>SLA:</strong> {Math.max(0, Math.ceil((new Date() - new Date(leaveRequest.createdAt)) / 86400000))} day(s) since this request was received. Per CSC Sec. 49, an application not acted on within five (5) working days is deemed approved.
+            </p>
+          </div>
+        )}
         
         <div className="p-6">
           <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -222,6 +232,7 @@ const MayorLeaveRequestDetails = () => {
                      leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                      leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency Leave' :
                      leaveRequest.leave_type === 'adoption_leave' ? 'Adoption Leave' :
+                     leaveRequest.leave_type === 'wellness_leave' ? 'Wellness Leave' :
                      leaveRequest.leave_type === 'monetization' ? 'Monetization of Leave Credits' :
                      leaveRequest.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                      leaveRequest.leave_type === 'others_specify' ? 'Others (Specify)' :
@@ -243,7 +254,7 @@ const MayorLeaveRequestDetails = () => {
                 <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                   <h5 className="font-semibold text-blue-600 mb-3">Number of Working Days</h5>
                   <p className="font-medium text-gray-800 text-lg">
-                    {leaveRequest.number_of_days} days
+                    {leaveRequest.number_of_days === 0.5 ? '½ day' : `${leaveRequest.number_of_days} days`}
                   </p>
                 </div>
               </div>
@@ -253,7 +264,7 @@ const MayorLeaveRequestDetails = () => {
                 <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                   <h5 className="font-semibold text-blue-600 mb-3">Where Leave Will Be Spent</h5>
                   <p className="font-medium text-gray-800">
-                    {leaveRequest.where_spent || 'Not specified'}
+                    {leaveRequest.where_spent && leaveRequest.where_spent !== 'not_applicable' ? leaveRequest.where_spent : 'Not applicable'}
                   </p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">

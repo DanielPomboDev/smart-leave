@@ -33,6 +33,7 @@ const HRReports = () => {
     special_leave_benefits_women: 'fa-venus',
     special_emergency: 'fa-house-crack',
     adoption_leave: 'fa-hand-holding-heart',
+    wellness_leave: 'fa-heart-pulse',
     monetization: 'fa-coins',
     terminal_leave: 'fa-flag-checkered',
     others_specify: 'fa-pen'
@@ -52,6 +53,7 @@ const HRReports = () => {
     special_leave_benefits_women: 'fuchsia',
     special_emergency: 'red',
     adoption_leave: 'cyan',
+    wellness_leave: 'lime',
     monetization: 'lime',
     terminal_leave: 'slate',
     others_specify: 'gray'

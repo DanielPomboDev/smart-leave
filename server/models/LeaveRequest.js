@@ -13,7 +13,7 @@ const leaveRequestSchema = new mongoose.Schema({
       'mandatory_forced_leave', 'maternity_leave', 'paternity_leave', 
       'special_privilege_leave', 'solo_parent_leave', 'study_leave', 
       'vawc_leave', 'rehabilitation_privilege', 'special_leave_benefits_women', 
-      'special_emergency', 'adoption_leave', 'others_specify',
+      'special_emergency', 'adoption_leave', 'wellness_leave', 'others_specify',
       'monetization', 'terminal_leave'
     ],
     required: true
@@ -29,6 +29,45 @@ const leaveRequestSchema = new mongoose.Schema({
   number_of_days: {
     type: Number,
     required: true
+  },
+  // Half-day leave (Sec. 28: a fraction of 1/4 or more but less than 3/4 counts as
+  // one-half day). Set for single-date requests filed as 0.5 working days.
+  is_half_day: {
+    type: Boolean,
+    default: false
+  },
+  // Sec. 53: sick leave in excess of five (5) successive days requires a medical
+  // certificate. Flagged at filing, enforced at HR approval.
+  medical_certificate_required: {
+    type: Boolean,
+    default: false
+  },
+  // HR override: required supporting documents waived with a reason (audited)
+  documents_waived: {
+    waived: { type: Boolean, default: false },
+    reason: { type: String },
+    waived_by: { type: String, ref: 'User' },
+    waived_at: { type: Date }
+  },
+  // Sec. 57: leave without pay in excess of one (1) month requires the clearance
+  // of the head of agency; LWOP may not exceed one (1) year.
+  lwop_clearance: {
+    required: { type: Boolean, default: false },
+    granted: { type: Boolean, default: false },
+    reason: { type: String },
+    by: { type: String, ref: 'User' },
+    at: { type: Date }
+  },
+  // Sec. 56: when sick leave credits are exhausted, sick leave may be charged
+  // against vacation leave credits (one-way — vacation can never be charged to sick).
+  charged_to: {
+    type: String,
+    enum: ['vacation', 'sick'],
+    default: null
+  },
+  // Calendar year this mandatory/forced leave counts toward (Sec. 25)
+  forced_leave_year: {
+    type: Number
   },
   where_spent: {
     type: String,

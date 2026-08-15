@@ -6,6 +6,7 @@ const AuditLog = require('../models/AuditLog');
 const { createLeaveRecordValidation, updateLeaveRecordValidation, addUndertimeValidation } = require('../middleware/leaveRecordValidation');
 const { logAudit } = require('../utils/audit');
 const { STATUTORY_ENTITLEMENTS, CREDIT_ACCRUING_STATUSES } = require('../utils/leaveEntitlements');
+const { ILLNESS_LEAVE_TYPES } = require('../utils/cscRules');
 
 // Authorization helpers for leave records.
 // HR may access any employee's record; every other role may only access their own.
@@ -344,15 +345,21 @@ exports.show = async (req, res) => {
       'vacation','special_privilege_leave','study_leave','mandatory_forced_leave',
       'maternity_leave','paternity_leave','solo_parent_leave','vawc_leave',
       'rehabilitation_privilege','special_leave_benefits_women','special_emergency',
-      'adoption_leave','others_specify','monetization','terminal_leave'
+      'adoption_leave','wellness_leave','others_specify','monetization','terminal_leave'
     ];
     const SICK_TYPES = ['sick'];
 
     // Actual deduction: only types that recordLeave deducts on approval reduce balances.
     // Statutory leaves (maternity, paternity, etc.), special privilege, study, mandatory
     // and free-text "Others" are recorded without consuming vacation/sick credits.
+    // Sick leave charged to vacation via the Sec. 56 one-way draw deducts from vacation.
     const DEDUCT_VACATION_TYPES = ['vacation', 'monetization', 'terminal_leave'];
     const DEDUCT_SICK_TYPES = ['sick'];
+    const deductsVacation = (req) =>
+      DEDUCT_VACATION_TYPES.includes(req.leave_type) ||
+      (req.leave_type === 'sick' && req.charged_to === 'vacation');
+    const deductsSick = (req) =>
+      DEDUCT_SICK_TYPES.includes(req.leave_type) && req.charged_to !== 'vacation';
 
     // Only leaves approved by the Mayor are recorded in the leave record.
     // A leave that was approved but later cancelled stays visible with a "cancelled"
@@ -372,8 +379,8 @@ exports.show = async (req, res) => {
         return { vac: req.vacation_days ?? total, sick: req.sick_days ?? 0 };
       }
       return {
-        vac: DEDUCT_VACATION_TYPES.includes(req.leave_type) && total > 0 ? total : 0,
-        sick: DEDUCT_SICK_TYPES.includes(req.leave_type) && total > 0 ? total : 0
+        vac: deductsVacation(req) && total > 0 ? total : 0,
+        sick: deductsSick(req) && total > 0 ? total : 0
       };
     };
 
@@ -399,8 +406,11 @@ exports.show = async (req, res) => {
         const deductsSick     = DEDUCT_SICK_TYPES.includes(req.leave_type);
         const isApproved      = req.status === 'approved';
         const withoutPay      = req.without_pay || false;
-        const creditsDeducted = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
         const splitDeduction  = getSplitDeduction(req, isApproved, withoutPay);
+        // The reported deduction is the ACTUAL credit reduction (vacation + sick split),
+        // not the raw day count — statutory leaves (maternity, paternity, wellness, etc.)
+        // are recorded without consuming vacation/sick credits (0.000 on the record).
+        const creditsDeducted = splitDeduction.vac + splitDeduction.sick;
 
         const beforeVac  = runningVac;
         const beforeSick = runningSick;
@@ -440,8 +450,9 @@ exports.show = async (req, res) => {
       const deductsSick     = DEDUCT_SICK_TYPES.includes(req.leave_type);
       const isApproved = req.status === 'approved';
       const withoutPay = req.without_pay || false;
-      const creditsDeducted = (isApproved && !withoutPay) ? (req.number_of_days || 0) : 0;
       const splitDeduction  = getSplitDeduction(req, isApproved, withoutPay);
+      // Same actual-deduction semantics as the main loop (see above)
+      const creditsDeducted = splitDeduction.vac + splitDeduction.sick;
       const beforeVac  = runningVac;
       const beforeSick = runningSick;
       if (creditsDeducted > 0) {
@@ -462,10 +473,10 @@ exports.show = async (req, res) => {
     const totalUndertimeVac = allLeaveRecords.reduce((s, r) => s + (r.undertime_hours || 0), 0);
 
     const approvedVacUsed = allLeaveRequests
-      .filter(r => r.status === 'approved' && !r.without_pay && DEDUCT_VACATION_TYPES.includes(r.leave_type))
+      .filter(r => r.status === 'approved' && !r.without_pay && deductsVacation(r))
       .reduce((s, r) => s + (r.vacation_days ?? (r.number_of_days || 0)), 0);
     const approvedSickUsed = allLeaveRequests
-      .filter(r => r.status === 'approved' && !r.without_pay && (DEDUCT_SICK_TYPES.includes(r.leave_type) || r.leave_type === 'terminal_leave'))
+      .filter(r => r.status === 'approved' && !r.without_pay && (deductsSick(r) || r.leave_type === 'terminal_leave'))
       .reduce((s, r) => s + (r.leave_type === 'terminal_leave' ? (r.sick_days ?? 0) : (r.number_of_days || 0)), 0);
 
     const vacationSummary = {
@@ -765,6 +776,8 @@ exports.update = async (req, res) => {
     if (undertime_hours !== undefined) leaveRecord.undertime_hours = undertime_hours;
     if (vacation_entries !== undefined) leaveRecord.vacation_entries = vacation_entries;
     if (sick_entries !== undefined) leaveRecord.sick_entries = sick_entries;
+    // Manual edits are never clobbered by the automatic accrual recompute
+    leaveRecord.auto_calculated = false;
     
     // Recalculate balances
     leaveRecord.vacation_balance = leaveRecord.vacation_earned - leaveRecord.vacation_used;
@@ -856,11 +869,15 @@ exports.addUndertime = async (req, res) => {
         sick_earned: 1.25,
         sick_used: 0,
         sick_balance: 1.25,
-        undertime_hours: undertimeToAdd
+        undertime_hours: undertimeToAdd,
+        auto_calculated: false
       });
 
       await leaveRecord.save();
     }
+    // Manual undertime edits are never clobbered by the automatic accrual recompute
+    leaveRecord.auto_calculated = false;
+    await leaveRecord.save();
 
     await logAudit({
       actor: req.user,
@@ -943,6 +960,8 @@ exports.addCredits = async (req, res) => {
     // Update only the fields provided, rounded to 3 decimal places
     if (vacation_earned !== undefined) leaveRecord.vacation_earned = Math.round(vacation_earned * 1000) / 1000;
     if (sick_earned !== undefined) leaveRecord.sick_earned = Math.round(sick_earned * 1000) / 1000;
+    // Manual credit edits are never clobbered by the automatic accrual recompute
+    leaveRecord.auto_calculated = false;
 
     // Recalculate balances
     leaveRecord.vacation_balance = Math.round((leaveRecord.vacation_earned - leaveRecord.vacation_used) * 1000) / 1000;
@@ -974,7 +993,298 @@ exports.addCredits = async (req, res) => {
   }
 };
 
-// Calculate and award monthly leave credits
+// ===== Monthly accrual engine (Secs. 27/28 of the Omnibus Rules on Leave) =====
+
+// Calendar days of overlap between a leave range and a month window
+const overlapCalendarDays = (leaveStart, leaveEnd, monthStart, monthEnd) => {
+  const s = new Date(Math.max(new Date(leaveStart), monthStart));
+  const e = new Date(Math.min(new Date(leaveEnd), monthEnd));
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return 0;
+  return Math.round((e - s) / 86400000) + 1;
+};
+
+// Approved without-pay days overlapping a month, split by illness vs non-illness.
+// Sec. 28: LWOP for any reason OTHER than illness does not count as actual service;
+// unpaid sick leave does count. The LeaveApproval record set by HR is the authoritative
+// source of the without-pay decision (not the request's auto-set flag).
+const computeMonthLwop = async (userId, month, year) => {
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59);
+
+  const withoutPayApprovals = await LeaveApproval.find({ approval: 'approve', approved_for: 'without_pay' });
+  const withoutPayIds = withoutPayApprovals.map(a => a.leave_id);
+  if (!withoutPayIds.length) return { nonIllnessLwopDays: 0, illnessLwopDays: 0 };
+
+  const requests = await LeaveRequest.find({
+    _id: { $in: withoutPayIds },
+    user_id: userId,
+    status: 'approved',
+    start_date: { $lte: monthEnd },
+    end_date: { $gte: monthStart }
+  });
+
+  let nonIllness = 0;
+  let illness = 0;
+  for (const r of requests) {
+    const overlap = overlapCalendarDays(r.start_date, r.end_date, monthStart, monthEnd);
+    if (ILLNESS_LEAVE_TYPES.includes(r.leave_type)) illness += overlap;
+    else nonIllness += overlap;
+  }
+  return { nonIllnessLwopDays: nonIllness, illnessLwopDays: illness };
+};
+
+// Days of the month before the employee's appointment date (mid-month hires are
+// prorated — they do not earn a full month of credits in their first month).
+const computePreAppointmentDays = (user, month, year) => {
+  if (!user || !user.start_date) return 0;
+  const startDate = new Date(user.start_date);
+  if (isNaN(startDate.getTime())) return 0;
+  if (startDate.getFullYear() !== year || startDate.getMonth() + 1 !== month) return 0;
+  return Math.max(0, startDate.getDate() - 1);
+};
+
+// Sec. 2: part-time employees earn leave credits proportionally to hours rendered
+// (20 hrs/week → 7.5 VL + 7.5 SL per year, i.e. half the full-time rate).
+const getPartTimeMultiplier = (user) => {
+  const hours = user && user.part_time_weekly_hours;
+  if (hours && hours > 0 && hours < 40) return hours / 40;
+  return 1;
+};
+
+// Round to the nearest 0.5 so the CSC proration table rows match exactly
+const roundHalf = (n) => Math.max(0, Math.min(30, Math.round(n * 2) / 2));
+
+// Recompute one employee's monthly earned credits from actual service.
+//   force: recompute even manually-edited records (used by the HR batch button);
+//   otherwise only auto-calculated records are recomputed so HR corrections survive.
+// Returns the leave record, or null when nothing applies (non-accruing appointment,
+// or a month before the appointment with no existing record).
+exports.recomputeMonthCredits = async (userId, month, year, actor = null, force = false) => {
+  const user = await User.findOne({ user_id: userId });
+  if (!user) return null;
+
+  const accruesCredits = CREDIT_ACCRUING_STATUSES.includes(user.appointment_status || 'permanent');
+
+  let leaveRecord = await LeaveRecord.findOne({ user_id: userId, month, year });
+  if (!leaveRecord) {
+    // Don't create records for months before the employee's appointment, or for
+    // non-accruing appointments (contractual / JO) that never earn credits.
+    const monthEnd = new Date(year, month, 0, 23, 59, 59);
+    if (user.start_date && new Date(user.start_date) > monthEnd) return null;
+    if (!accruesCredits) return null;
+    leaveRecord = new LeaveRecord({
+      user_id: userId,
+      month,
+      year,
+      vacation_earned: 0,
+      vacation_used: 0,
+      vacation_balance: 0,
+      sick_earned: 0,
+      sick_used: 0,
+      sick_balance: 0,
+      undertime_hours: 0,
+      lwop_days: 0,
+      vacation_entries: [],
+      sick_entries: [],
+      auto_calculated: true
+    });
+  }
+
+  if (!accruesCredits) {
+    leaveRecord.vacation_earned = 0;
+    leaveRecord.sick_earned = 0;
+    leaveRecord.lwop_days = 0;
+    leaveRecord.auto_calculated = true;
+  } else if (force || leaveRecord.auto_calculated !== false) {
+    const { nonIllnessLwopDays } = await computeMonthLwop(userId, month, year);
+    const preAppointmentDays = computePreAppointmentDays(user, month, year);
+    const daysPresent = roundHalf(30 - nonIllnessLwopDays - preAppointmentDays);
+    const prorated = getProratedCredits(daysPresent, 30 - daysPresent);
+    const multiplier = getPartTimeMultiplier(user);
+    // Secs. 27/28: BOTH vacation and sick credits are earned on actual service,
+    // so sick credits are prorated on the same basis as vacation.
+    leaveRecord.vacation_earned = Math.round(prorated * multiplier * 1000) / 1000;
+    leaveRecord.sick_earned = Math.round(prorated * multiplier * 1000) / 1000;
+    leaveRecord.lwop_days = Math.round(nonIllnessLwopDays * 1000) / 1000;
+    leaveRecord.auto_calculated = true;
+  }
+
+  // Carry balances forward from the previous month
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const prevRecord = await LeaveRecord.findOne({ user_id: userId, month: prevMonth, year: prevYear });
+  const prevVacationBalance = prevRecord ? prevRecord.vacation_balance : 0;
+  const prevSickBalance = prevRecord ? prevRecord.sick_balance : 0;
+
+  leaveRecord.vacation_balance = Math.round((prevVacationBalance + leaveRecord.vacation_earned - leaveRecord.vacation_used) * 1000) / 1000;
+  leaveRecord.sick_balance = Math.round((prevSickBalance + leaveRecord.sick_earned - leaveRecord.sick_used) * 1000) / 1000;
+
+  await leaveRecord.save();
+
+  await logAudit({
+    actor,
+    action: 'calculate_credits',
+    user_id: userId,
+    entity_id: leaveRecord._id,
+    after: {
+      month, year,
+      lwop_days: leaveRecord.lwop_days,
+      vacation_earned: leaveRecord.vacation_earned,
+      sick_earned: leaveRecord.sick_earned
+    },
+    details: `${force ? 'Manual' : 'Automatic'} monthly credit calculation for ${month}/${year}`
+  });
+
+  return leaveRecord;
+};
+
+// Accrue every month from the floor year up to the previous month for all employees.
+// Idempotent: recomputes auto-calculated records and creates missing ones. Runs on
+// server start and daily so credits cannot silently lapse when HR forgets to click.
+exports.accrueCreditsUpTo = async (now = new Date(), actor = null) => {
+  const START_YEAR = 2024;
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const users = await User.find({});
+
+  let processed = 0;
+  for (let year = START_YEAR; year <= currentYear; year++) {
+    const maxMonth = year === currentYear ? currentMonth - 1 : 12; // current month accrues when it ends
+    for (let month = 1; month <= maxMonth; month++) {
+      for (const user of users) {
+        const record = await exports.recomputeMonthCredits(user.user_id, month, year, actor, false);
+        if (record) processed++;
+      }
+    }
+  }
+  return { processed };
+};
+
+// Manual trigger for the up-to-now automatic accrual (HR fallback)
+exports.accrueNow = async (req, res) => {
+  if (req.user.user_type !== 'hr') {
+    return res.status(403).json({ success: false, message: 'Access denied. HR access required.' });
+  }
+  try {
+    const { processed } = await exports.accrueCreditsUpTo(new Date(), req.user);
+    res.json({ success: true, message: `Automatic accrual complete (${processed} month-record(s) processed).` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error running automatic accrual: ' + error.message });
+  }
+};
+
+// Mandatory/forced leave tracker (Sec. 25): employees with 10+ days vacation leave
+// must take 5 working days of forced leave per year; forfeited if not taken.
+exports.getForcedLeaveStatus = async (req, res) => {
+  if (req.user.user_type !== 'hr') {
+    return res.status(403).json({ success: false, message: 'Access denied. HR access required.' });
+  }
+  const year = parseInt(req.query.year) || new Date().getFullYear();
+
+  const users = await User.find({}).populate('department_id');
+  const allRecords = await LeaveRecord.find({});
+  const balanceByUser = {};
+  allRecords.forEach(rec => {
+    const b = balanceByUser[rec.user_id] || { vE: 0, vU: 0 };
+    b.vE += rec.vacation_earned || 0;
+    b.vU += rec.vacation_used || 0;
+    balanceByUser[rec.user_id] = b;
+  });
+
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+  const forcedLeaves = await LeaveRequest.find({
+    leave_type: 'mandatory_forced_leave',
+    status: 'approved',
+    start_date: { $gte: yearStart, $lte: yearEnd }
+  });
+  // LeaveRequest.find() populates user_id into a full user object — extract the raw id
+  const rawUserId = (r) => r.user_id && typeof r.user_id === 'object' ? r.user_id.user_id : r.user_id;
+  const takenByUser = {};
+  forcedLeaves.forEach(r => {
+    const id = rawUserId(r);
+    takenByUser[id] = (takenByUser[id] || 0) + (r.number_of_days || 0);
+  });
+
+  const employees = users.map(u => {
+    const bal = balanceByUser[u.user_id] || { vE: 0, vU: 0 };
+    const vacationBalance = bal.vE - bal.vU;
+    const taken = takenByUser[u.user_id] || 0;
+    const eligible = vacationBalance >= 10;
+    let statusLabel;
+    if (!eligible) statusLabel = 'Below 10 days VL — optional';
+    else if (taken >= 5) statusLabel = 'Completed';
+    else if (taken > 0) statusLabel = `Needs ${Math.round((5 - taken) * 1000) / 1000} more day(s)`;
+    else statusLabel = 'Not taken — forfeited if not taken this year (Sec. 25)';
+    return {
+      user_id: u.user_id,
+      name: `${u.first_name}${u.middle_initial ? ' ' + u.middle_initial + '.' : ''} ${u.last_name}`.trim(),
+      department: u.department_id ? (u.department_id.name || '—') : '—',
+      appointment_status: u.appointment_status,
+      vacation_balance: Math.round(vacationBalance * 1000) / 1000,
+      eligible,
+      taken_days: Math.round(taken * 1000) / 1000,
+      required_done: taken >= 5,
+      status_label: statusLabel
+    };
+  });
+
+  res.json({ success: true, year, employees });
+};
+
+// Wellness leave usage tracker (CSC MC No. 1, s. 2026): every eligible employee is
+// entitled to five (5) days of wellness leave per calendar year — non-cumulative,
+// non-commutable, and forfeited if not used within the year. Shows HR who has used
+// their days and who still has remaining entitlement.
+exports.getWellnessLeaveStatus = async (req, res) => {
+  if (req.user.user_type !== 'hr') {
+    return res.status(403).json({ success: false, message: 'Access denied. HR access required.' });
+  }
+  const year = parseInt(req.query.year) || new Date().getFullYear();
+
+  const users = await User.find({}).populate('department_id');
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+  const wellnessLeaves = await LeaveRequest.find({
+    leave_type: 'wellness_leave',
+    status: 'approved',
+    start_date: { $gte: yearStart, $lte: yearEnd }
+  });
+
+  // LeaveRequest.find() populates user_id into a full user object — extract the raw id
+  const rawUserId = (r) => r.user_id && typeof r.user_id === 'object' ? r.user_id.user_id : r.user_id;
+  const usedByUser = {};
+  const requestsByUser = {};
+  wellnessLeaves.forEach(r => {
+    const id = rawUserId(r);
+    usedByUser[id] = (usedByUser[id] || 0) + (r.number_of_days || 0);
+    (requestsByUser[id] = requestsByUser[id] || []).push({
+      start_date: new Date(r.start_date).toISOString().split('T')[0],
+      end_date: new Date(r.end_date).toISOString().split('T')[0],
+      days: r.number_of_days
+    });
+  });
+
+  const employees = users.map(u => {
+    const used = Math.round((usedByUser[u.user_id] || 0) * 1000) / 1000;
+    const remaining = Math.max(0, Math.round((5 - used) * 1000) / 1000);
+    return {
+      user_id: u.user_id,
+      name: `${u.first_name}${u.middle_initial ? ' ' + u.middle_initial + '.' : ''} ${u.last_name}`.trim(),
+      department: u.department_id ? (u.department_id.name || '—') : '—',
+      appointment_status: u.appointment_status,
+      used_days: used,
+      remaining_days: remaining,
+      fully_used: used >= 5,
+      requests: requestsByUser[u.user_id] || []
+    };
+  });
+
+  res.json({ success: true, year, employees });
+};
+
+// Calculate and award monthly leave credits (manual HR batch — kept as an explicit,
+// audited fallback to the automatic job)
 exports.calculateCredits = async (req, res) => {
     if (denyUnlessHr(req, res)) return;
     const { month, year } = req.body;
@@ -985,95 +1295,12 @@ exports.calculateCredits = async (req, res) => {
 
     try {
         const users = await User.find();
-
+        let processed = 0;
         for (const user of users) {
-            // Calculate LWOP days
-            const leaveRequests = await LeaveRequest.find({
-                user_id: user.user_id,
-                status: 'approved',
-                start_date: {
-                    $gte: new Date(year, month - 1, 1),
-                    $lt: new Date(year, month, 1)
-                }
-            });
-
-            let lwopDays = 0;
-            for (const req of leaveRequests) {
-                const approval = await LeaveApproval.findOne({ 
-                    leave_id: req._id, 
-                    approval: 'approve', 
-                    approved_for: 'without_pay' 
-                });
-                if (approval) {
-                    lwopDays += req.number_of_days;
-                }
-            }
-
-            // Get or create leave record
-            let leaveRecord = await LeaveRecord.findOne({ user_id: user.user_id, month, year });
-            if (!leaveRecord) {
-                leaveRecord = new LeaveRecord({
-                    user_id: user.user_id,
-                    month,
-                    year,
-                    vacation_earned: 0,
-                    vacation_used: 0,
-                    vacation_balance: 0,
-                    sick_earned: 0,
-                    sick_used: 0,
-                    sick_balance: 0,
-                    undertime_hours: 0,
-                    lwop_days: 0,
-                    vacation_entries: [],
-                    sick_entries: []
-                });
-            }
-
-            // Calculate prorated credits
-            const workingDaysInMonth = 30;
-            const daysPresent = Math.max(0, workingDaysInMonth - lwopDays);
-            const proratedVacationCredits = getProratedCredits(daysPresent, lwopDays);
-
-            // Only credit-accruing appointments (permanent, temporary, co-terminus,
-            // casual, elected) earn monthly vacation/sick credits. Contractual and
-            // job-order (JO/COS) workers do not accrue credits.
-            const accruesCredits = CREDIT_ACCRUING_STATUSES.includes(user.appointment_status || 'permanent');
-
-            // Update leave record
-            leaveRecord.lwop_days = lwopDays;
-            leaveRecord.vacation_earned = accruesCredits ? proratedVacationCredits : 0;
-            leaveRecord.sick_earned = accruesCredits ? 1.250 : 0;
-
-            // Get previous month's balance
-            const prevMonth = month === 1 ? 12 : month - 1;
-            const prevYear = month === 1 ? year - 1 : year;
-            const prevRecord = await LeaveRecord.findOne({ user_id: user.user_id, month: prevMonth, year: prevYear });
-
-            const prevVacationBalance = prevRecord ? prevRecord.vacation_balance : 0;
-            const prevSickBalance = prevRecord ? prevRecord.sick_balance : 0;
-
-            leaveRecord.vacation_balance = prevVacationBalance + leaveRecord.vacation_earned - leaveRecord.vacation_used;
-            leaveRecord.sick_balance = prevSickBalance + leaveRecord.sick_earned - leaveRecord.sick_used;
-
-            await leaveRecord.save();
-
-            await logAudit({
-              actor: req.user,
-              action: 'calculate_credits',
-              user_id: user.user_id,
-              entity_id: leaveRecord._id,
-              after: {
-                month, year,
-                lwop_days: leaveRecord.lwop_days,
-                vacation_earned: leaveRecord.vacation_earned,
-                sick_earned: leaveRecord.sick_earned
-              },
-              details: `Monthly credit calculation for ${month}/${year}`
-            });
+            const record = await exports.recomputeMonthCredits(user.user_id, month, year, req.user, true);
+            if (record) processed++;
         }
-
-        res.json({ success: true, message: 'Leave credits calculated successfully' });
-
+        res.json({ success: true, message: `Leave credits calculated successfully for ${processed} employee(s).` });
     } catch (error) {
         res.status(500).json({ message: 'Error calculating leave credits', error: error.message });
     }

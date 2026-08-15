@@ -9,6 +9,7 @@ const {
 const User = require('../models/User');
 const { getLeaveCreditsInfo } = require('./LeaveRecordController');
 const { getHolidayDates } = require('../utils/holidayUtils');
+const { requiresMedicalCertificate } = require('../utils/cscRules');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinary');
@@ -93,6 +94,105 @@ const hasOverlappingLeave = async (userId, startDate, endDate, excludeId = null)
   }
 };
 
+// Statutory eligibility limits enforced at filing (RA 8187 / RA 11210 / RA 8972 /
+// CSC MC No. 14 s. 1999). Returns an error message string, or null when eligible.
+const checkStatutoryEligibility = async (user, leaveType, numberOfDays, startDate) => {
+  const days = parseFloat(numberOfDays);
+  const start = new Date(startDate);
+  const year = start.getFullYear();
+
+  // Paternity — Sec. 19 / RA 8187: 7 working days for the first FOUR deliveries only
+  if (leaveType === 'paternity_leave') {
+    if (days > 7) {
+      return 'Per RA 8187 (Sec. 19, Omnibus Rules on Leave), paternity leave is seven (7) working days per delivery.';
+    }
+    const deliveriesAvailed = await LeaveRequest.countDocuments({
+      user_id: user.user_id,
+      leave_type: 'paternity_leave',
+      status: { $nin: ['cancelled', 'disapproved'] }
+    });
+    if (deliveriesAvailed >= 4) {
+      return 'Per RA 8187 / CSC Sec. 19, paternity leave may be availed of for only the first four (4) deliveries. You have already availed of the maximum.';
+    }
+  }
+
+  // Solo parent — RA 8972: 7 days per calendar year
+  if (leaveType === 'solo_parent_leave') {
+    const usedThisYear = await getYearlyLeaveDays(user.user_id, 'solo_parent_leave', year);
+    if (usedThisYear + days > 7) {
+      return `Per RA 8972, solo parent leave is seven (7) days per calendar year. You have ${usedThisYear.toFixed(1)} day(s) used; this request would exceed the annual limit.`;
+    }
+  }
+
+  // Maternity — RA 11210: 105 days per pregnancy + 30-day unpaid extension
+  if (leaveType === 'maternity_leave') {
+    if (days > 135) {
+      return 'Per RA 11210, maternity leave is up to 105 days, extendable by 30 days without pay (maximum 135 days).';
+    }
+  }
+
+  // Study leave — CSC MC No. 14 s. 1999: 6 months (180 days), requires at least
+  // one year of service, availed once per school year, with a return-service obligation.
+  if (leaveType === 'study_leave') {
+    if (days > 180) {
+      return 'Per CSC MC No. 14 s. 1999, study leave may be granted for a maximum of six (6) months (180 days).';
+    }
+    if (!user.start_date) {
+      return 'Study leave requires at least one (1) year of service — no appointment date is on file for this employee.';
+    }
+    const serviceYears = (start - new Date(user.start_date)) / (365.25 * 86400000);
+    if (serviceYears < 1) {
+      return 'Per CSC MC No. 14 s. 1999, study leave requires at least one (1) year of service.';
+    }
+    const existingStudyLeave = await LeaveRequest.findOne({
+      user_id: user.user_id,
+      leave_type: 'study_leave',
+      status: { $nin: ['cancelled', 'disapproved'] }
+    });
+    if (existingStudyLeave) {
+      return 'Study leave may be availed of only once per school year — you already have a study leave request on file.';
+    }
+  }
+
+  // Wellness leave — CSC MC No. 1, s. 2026: maximum of five (5) days per calendar
+  // year (non-cumulative, non-commutable, forfeited if unused), at most three (3)
+  // consecutive days at a time, and applications must be filed at least five (5)
+  // days before the intended date of availment (emergency cases: filed upon return).
+  if (leaveType === 'wellness_leave') {
+    if (days > 5) {
+      return 'Per CSC MC No. 1, s. 2026, wellness leave is a maximum of five (5) days per calendar year.';
+    }
+    if (days > 3) {
+      return 'Per CSC MC No. 1, s. 2026, wellness leave may be taken for a maximum of three (3) consecutive days at a time.';
+    }
+    const usedThisYear = await getYearlyLeaveDays(user.user_id, 'wellness_leave', year);
+    if (usedThisYear + days > 5) {
+      return `Per CSC MC No. 1, s. 2026, wellness leave is five (5) days per calendar year (non-cumulative and forfeited if unused). You have ${usedThisYear.toFixed(1)} day(s) used; this request would exceed the annual limit.`;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
+    const daysAhead = Math.ceil((startDay - today) / 86400000);
+    if (daysAhead < 5) {
+      return 'Per CSC MC No. 1, s. 2026, wellness leave applications must be filed at least five (5) days before the intended date of availment (except in emergencies, when filing is done immediately upon return to work).';
+    }
+  }
+
+  return null;
+};
+
+// Sum approved/pending days of a leave type in a calendar year (for annual caps)
+const getYearlyLeaveDays = async (userId, leaveType, year) => {
+  const requests = await LeaveRequest.find({
+    user_id: userId,
+    leave_type: leaveType,
+    status: { $nin: ['cancelled', 'disapproved'] },
+    start_date: { $gte: new Date(year, 0, 1), $lte: new Date(year, 11, 31, 23, 59, 59) }
+  });
+  return requests.reduce((sum, r) => sum + (r.number_of_days || 0), 0);
+};
+
 // @desc    Create a new leave request
 // @route   POST /api/leave-requests
 // @access  Private
@@ -107,6 +207,7 @@ const createLeaveRequest = async (req, res) => {
       commutation,
       location_specify,
       separation_type,
+      is_half_day,
       role_based_approval,
       requester_role
     } = req.body;
@@ -163,15 +264,26 @@ const createLeaveRequest = async (req, res) => {
       });
     }
 
+    // Half-day leave (Sec. 28): a single-date request filed as 0.5 working day.
+    const isHalfDay = is_half_day === true || is_half_day === '1' || is_half_day === 'true';
+    if (isHalfDay && effectiveStartDate !== effectiveEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Half-day leave applies to a single date only. Please select the same start and end date.'
+      });
+    }
+
     // CS Form 6 6.C counts WORKING days (Mon–Fri, inclusive, excluding non-working
     // holidays) — recompute authoritatively so the stored day count matches the form
     // even if the client computes differently. Purpose leaves (monetization / terminal)
     // are the exception: the number of days is entered directly by the employee and is
-    // NOT derived from a date range (CSC MC No. 31).
+    // NOT derived from a date range (CSC MC No. 31). Half-day leaves are 0.5 by definition.
     const holidayDates = await getHolidayDatesForRange(effectiveStartDate, effectiveEndDate);
     const computedDays = isPurposeLeave
       ? null
-      : countWorkingDays(effectiveStartDate, effectiveEndDate, holidayDates);
+      : isHalfDay
+        ? 0.5
+        : countWorkingDays(effectiveStartDate, effectiveEndDate, holidayDates);
     const effectiveNumberOfDays = computedDays !== null ? computedDays : parseFloat(number_of_days);
 
     // Check employee's leave credits
@@ -232,6 +344,12 @@ const createLeaveRequest = async (req, res) => {
           message: 'Per CSC rules, monetization of leave credits may be availed of only once a year. You already have a monetization request this year.'
         });
       }
+    }
+
+    // Statutory eligibility limits (RA 8187 / RA 11210 / RA 8972 / CSC MC No. 14 s. 1999)
+    const eligibilityError = await checkStatutoryEligibility(req.user, leave_type, numberOfDaysFloat, effectiveStartDate);
+    if (eligibilityError) {
+      return res.status(400).json({ success: false, message: eligibilityError });
     }
 
     // Terminal leave (CSC MC No. 14 s. 1999, as amended): granted only upon actual
@@ -322,7 +440,12 @@ const createLeaveRequest = async (req, res) => {
       leave_type,
       start_date: effectiveStartDate,
       end_date: effectiveEndDate,
-      number_of_days: parseInt(effectiveNumberOfDays),
+      number_of_days: parseFloat(effectiveNumberOfDays),
+      is_half_day: isHalfDay,
+      // Sec. 53: sick leave in excess of five (5) successive days needs a medical certificate
+      medical_certificate_required: requiresMedicalCertificate({ leave_type, start_date: effectiveStartDate, end_date: effectiveEndDate }),
+      // Sec. 25: track the calendar year this mandatory/forced leave counts toward
+      forced_leave_year: leave_type === 'mandatory_forced_leave' ? new Date(effectiveStartDate).getFullYear() : undefined,
       where_spent: formattedWhereSpent,
       // Monetization / terminal leave ARE commutation (cash conversions per CSC MC No. 31
       // and MC No. 14 s. 1999) — commutation is always requested for these types.
@@ -532,12 +655,16 @@ const returnLeaveCredits = async (leaveRequest) => {
       // Recalculate balance based on earned minus used
       leaveRecord.vacation_balance = leaveRecord.vacation_earned - leaveRecord.vacation_used;
     }
-    // For sick leave - return credits from sick credits
+    // For sick leave - return credits from sick credits (or from vacation when the
+    // leave was charged to vacation via the Sec. 56 one-way draw)
     else if (leaveRequest.leave_type === 'sick') {
-      // Return the deducted days back to sick credits
-      leaveRecord.sick_used = Math.max(0, leaveRecord.sick_used - leaveRequest.number_of_days);
-      // Recalculate balance based on earned minus used
-      leaveRecord.sick_balance = leaveRecord.sick_earned - leaveRecord.sick_used;
+      if (leaveRequest.charged_to === 'vacation') {
+        leaveRecord.vacation_used = Math.max(0, leaveRecord.vacation_used - leaveRequest.number_of_days);
+        leaveRecord.vacation_balance = leaveRecord.vacation_earned - leaveRecord.vacation_used;
+      } else {
+        leaveRecord.sick_used = Math.max(0, leaveRecord.sick_used - leaveRequest.number_of_days);
+        leaveRecord.sick_balance = leaveRecord.sick_earned - leaveRecord.sick_used;
+      }
     }
 
     // Instead of removing the entry, mark it as cancelled in the entries array

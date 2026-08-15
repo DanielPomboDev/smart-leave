@@ -19,6 +19,10 @@ Built with the **MERN** stack: **MongoDB, Express.js, React, Node.js**.
 - Email notifications (optional, Brevo)
 - JWT authentication and role-based authorization
 
+## Roadmap — CSC Compliance Backlog
+
+See **[`docs/FEATURES_TO_ADD.md`](docs/FEATURES_TO_ADD.md)** for the prioritized list of features and fixes needed to bring the system fully in line with the CSC rules on leave (enforce medical-certificate and document rules, half-day leave, mandatory forced-leave tracking, approval SLA, LWOP limits, automatic credit accrual, and more).
+
 ## Tech Stack
 
 | Layer | Technology |

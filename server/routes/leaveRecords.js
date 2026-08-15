@@ -16,6 +16,12 @@ router.get('/current', leaveRecordController.getCurrentLeaveCredits);
 // GET /api/leave-records/entitlements/:userId - Get statutory leave entitlements for an employee (before /:userId)
 router.get('/entitlements/:userId', leaveRecordController.getEntitlements);
 
+// GET /api/leave-records/forced-leave-status - Mandatory forced leave tracker (Sec. 25) (before /:userId)
+router.get('/forced-leave-status', leaveRecordController.getForcedLeaveStatus);
+
+// GET /api/leave-records/wellness-status - Wellness leave usage tracker (CSC MC No. 1, s. 2026) (before /:userId)
+router.get('/wellness-status', leaveRecordController.getWellnessLeaveStatus);
+
 // GET /api/leave-records/audit-logs - Get audit logs for leave-record changes (before /:userId)
 router.get('/audit-logs', leaveRecordController.getAuditLogs);
 
@@ -39,5 +45,8 @@ router.post('/add-credits', addLeaveCreditsValidation, leaveRecordController.add
 
 // POST /api/leave-records/calculate-credits - Calculate and award monthly leave credits
 router.post('/calculate-credits', leaveRecordController.calculateCredits);
+
+// POST /api/leave-records/accrue - Run the up-to-now automatic accrual (HR fallback)
+router.post('/accrue', leaveRecordController.accrueNow);
 
 module.exports = router;

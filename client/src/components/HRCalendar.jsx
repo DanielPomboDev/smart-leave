@@ -20,7 +20,7 @@ const TYPE_ABBREV = {
   paternity_leave: 'PL', special_privilege_leave: 'SPL', solo_parent_leave: 'SPL2',
   study_leave: 'StL', vawc_leave: 'VAWC', rehabilitation_privilege: 'RHb',
   special_leave_benefits_women: 'SLW', special_emergency: 'SE', adoption_leave: 'AL',
-  monetization: 'Mtz', terminal_leave: 'TL', others_specify: 'Oth'
+  wellness_leave: 'WL', monetization: 'Mtz', terminal_leave: 'TL', others_specify: 'Oth'
 };
 
 const HRCalendar = () => {

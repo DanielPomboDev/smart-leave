@@ -11,6 +11,43 @@ const VACATION_POOL_TYPES = ['vacation', 'special_privilege_leave', 'study_leave
 // vacation/sick credits, so only sick leave draws from the sick pool.
 const SICK_POOL_TYPES = ['sick'];
 
+// Required supporting documents per leave type (mirrors server/utils/cscRules.js)
+const REQUIRED_DOCUMENT_LABELS = {
+  sick: 'Medical certificate (required for absences in excess of five (5) successive days — Sec. 53)',
+  mandatory_forced_leave: 'Official directive or memorandum from the head of office',
+  maternity_leave: 'Maternity notification form (MAT-1)',
+  paternity_leave: 'Marriage certificate; Birth certificate of the child',
+  special_privilege_leave: 'Certification of eligibility from the head of agency',
+  solo_parent_leave: 'Valid Solo Parent ID; Certification of eligibility as solo parent',
+  study_leave: 'Certificate of enrollment / registration from the school; Program of study or endorsement',
+  vawc_leave: 'Barangay Protection Order (BPO) or certification; Police / medical report (if applicable)',
+  rehabilitation_privilege: 'Medical certification for rehabilitation treatment',
+  special_leave_benefits_women: 'Medical certificate attesting to the gynecological condition',
+  special_emergency: 'Certification from barangay / municipal authorities on the calamity',
+  adoption_leave: 'Court order or placement authority document; Birth certificate of the child (if available)',
+  monetization: 'Application for monetization of leave credits; Certificate of available leave credits from HR',
+  terminal_leave: 'Certificate of retirement / separation from service; Certificate of leave credits from HR'
+};
+
+// Number of successive (calendar) days covered by the application (Sec. 53: MC at > 5)
+const successiveCalendarDays = (leaveRequest) => {
+  if (!leaveRequest) return 0;
+  const s = new Date(leaveRequest.start_date);
+  const e = new Date(leaveRequest.end_date);
+  if (isNaN(s) || isNaN(e) || e < s) return 0;
+  return Math.round((e - s) / 86400000) + 1;
+};
+
+// Required documents for this request (sick requires the MC only beyond 5 successive days)
+const getRequiredDocsForRequest = (leaveRequest) => {
+  if (!leaveRequest) return [];
+  const type = leaveRequest.leave_type;
+  if (type === 'sick') {
+    return successiveCalendarDays(leaveRequest) > 5 ? [REQUIRED_DOCUMENT_LABELS.sick] : [];
+  }
+  return REQUIRED_DOCUMENT_LABELS[type] ? REQUIRED_DOCUMENT_LABELS[type].split('; ').map(s => s.trim()) : [];
+};
+
 const HRLeaveRequestDetails = () => {
   const [leaveRequest, setLeaveRequest] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +57,11 @@ const HRLeaveRequestDetails = () => {
     approved_for: 'with_pay',
     approved_for_other: '',
     disapproved_due_to: '',
-    credits_certified: false
+    credits_certified: false,
+    documents_waived: false,
+    documents_waiver_reason: '',
+    lwop_clearance: false,
+    lwop_clearance_reason: ''
   });
   const [errors, setErrors] = useState({});
   const [currentStep, setCurrentStep] = useState(1);
@@ -227,6 +268,14 @@ const HRLeaveRequestDetails = () => {
         if (approvalData.approved_for === 'others' && (!approvalData.approved_for_other || approvalData.approved_for_other.trim() === '')) {
           newErrors.approved_for_other = 'Please specify the approval type when selecting "Others"';
         }
+
+        // CSC compliance: a document waiver and an LWOP clearance both require a reason
+        if (approvalData.documents_waived && (!approvalData.documents_waiver_reason || approvalData.documents_waiver_reason.trim() === '')) {
+          newErrors.documents_waiver_reason = 'Please provide a reason for waiving the document requirement';
+        }
+        if (approvalData.lwop_clearance && (!approvalData.lwop_clearance_reason || approvalData.lwop_clearance_reason.trim() === '')) {
+          newErrors.lwop_clearance_reason = 'Please provide the clearance reference / reason';
+        }
       } 
       // If disapproving, require reason
       else if (approvalData.approval === 'disapprove' && (!approvalData.disapproved_due_to || approvalData.disapproved_due_to.trim() === '')) {
@@ -367,6 +416,19 @@ const HRLeaveRequestDetails = () => {
   // Full commuted balance (VL + SL) — the basis for the terminal leave value estimate
   const terminalTotalDays = terminalVacationDays + terminalSickDays;
 
+  // CSC compliance state for this request
+  const requiredDocs = getRequiredDocsForRequest(leaveRequest);
+  const hasDocuments = (leaveRequest.documents || []).length > 0;
+  const docsMissing = requiredDocs.length > 0 && !hasDocuments;
+  const isSickOver5Days = leaveRequest.leave_type === 'sick' && successiveCalendarDays(leaveRequest) > 5;
+  // Sec. 56 one-way draw — sick leave may be charged against vacation when sick credits are exhausted
+  const canDrawFromVacation =
+    leaveRequest.leave_type === 'sick' &&
+    !hasSufficientCredits &&
+    (leaveRequest.user_id?.vacation_balance || 0) >= (leaveRequest.number_of_days || 0);
+  // Sec. 49: 5-working-day approval SLA (calendar-day estimate shown for transparency)
+  const slaDays = Math.max(0, Math.ceil((new Date() - new Date(leaveRequest.createdAt)) / 86400000));
+
   return (
     <Layout title="Approve Leave Request">
       <div className="card bg-white shadow-md mb-6">
@@ -375,6 +437,18 @@ const HRLeaveRequestDetails = () => {
             <i className="fas fa-check-circle text-green-500 mr-2"></i>
             Leave Approval Process
           </h2>
+
+          {/* Sec. 49: approval SLA — deemed approved after five (5) working days */}
+          {['pending', 'recommended', 'hr_approved'].includes(leaveRequest.status) && (
+            <div className={`alert ${slaDays > 7 ? 'alert-warning' : 'alert-info'} shadow-lg mb-6`}>
+              <div>
+                <i className={`fas ${slaDays > 7 ? 'fa-hourglass-end' : 'fa-hourglass-half'}`}></i>
+                <span>
+                  <strong>SLA:</strong> {slaDays} day(s) since this request was received. Per CSC Sec. 49, an application not acted on within five (5) working days is deemed approved.
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Notice for insufficient credits */}
           {!hasSufficientCredits && (
@@ -464,6 +538,7 @@ const HRLeaveRequestDetails = () => {
                          leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                          leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency Leave' :
                          leaveRequest.leave_type === 'adoption_leave' ? 'Adoption Leave' :
+                         leaveRequest.leave_type === 'wellness_leave' ? 'Wellness Leave' :
                          leaveRequest.leave_type === 'monetization' ? 'Monetization of Leave Credits' :
                          leaveRequest.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                          leaveRequest.leave_type === 'others_specify' ? 'Others (Specify)' :
@@ -492,10 +567,9 @@ const HRLeaveRequestDetails = () => {
                   </div>
 
                   {/* Additional Details */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
-                      <h5 className="font-semibold text-blue-600 mb-3">Where Leave Will Be Spent</h5>
-                      <p className="font-medium text-gray-800">{leaveRequest.where_spent}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">                        <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                          <h5 className="font-semibold text-blue-600 mb-3">Where Leave Will Be Spent</h5>
+                          <p className="font-medium text-gray-800">{leaveRequest.where_spent && leaveRequest.where_spent !== 'not_applicable' ? leaveRequest.where_spent : 'Not applicable'}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                       <h5 className="font-semibold text-blue-600 mb-3">Commutation</h5>
@@ -614,6 +688,32 @@ const HRLeaveRequestDetails = () => {
                     </label>
                   </div>
                 </div>
+
+                  {/* Required-document compliance (Secs. 53/55 + special laws) */}
+                  {requiredDocs.length > 0 && (
+                    <div className={`p-4 rounded-lg border mb-4 ${hasDocuments ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-300'}`}>
+                      <h5 className="font-semibold mb-2">
+                        <i className={`fas fa-paperclip mr-2 ${hasDocuments ? 'text-green-600' : 'text-amber-600'}`}></i>
+                        Required Supporting Documents
+                      </h5>
+                      <ul className="text-sm list-disc list-inside space-y-1 mb-2">
+                        {requiredDocs.map((doc, i) => <li key={i}>{doc}</li>)}
+                      </ul>
+                      <p className={`text-sm ${hasDocuments ? 'text-green-700' : 'text-amber-700'}`}>
+                        {hasDocuments
+                          ? 'Documents are attached — the requirement is satisfied.'
+                          : 'No documents attached — approval will be blocked unless the requirement is waived with a reason.'}
+                      </p>
+                    </div>
+                  )}
+                  {isSickOver5Days && !hasDocuments && (
+                    <div className="p-4 rounded-lg border border-amber-300 bg-amber-50 mb-4">
+                      <p className="text-sm text-amber-800">
+                        <i className="fas fa-file-medical mr-2"></i>
+                        <strong>Sec. 53:</strong> this sick leave exceeds five (5) successive days and requires a proper medical certificate.
+                      </p>
+                    </div>
+                  )}
 
                 <div className="flex justify-end mt-6">
                   {/* Navigation is always allowed so processed requests can be reviewed;
@@ -816,6 +916,81 @@ const HRLeaveRequestDetails = () => {
                               )}
                             </div>
                           )}
+
+                          {/* Sec. 56: sick → vacation one-way draw when sick credits are exhausted */}
+                          {canDrawFromVacation && approvalData.approved_for === 'with_pay' && (
+                            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              <p className="text-sm text-blue-800">
+                                <i className="fas fa-info-circle mr-1"></i>
+                                Sick leave credits are exhausted but vacation credits are available — per CSC Sec. 56, this sick leave may be charged against vacation leave (one-way draw).
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Secs. 53/55: missing required documents — HR waiver with reason */}
+                          {docsMissing && (
+                            <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg">
+                              <p className="text-sm font-semibold text-amber-800 mb-1">
+                                <i className="fas fa-exclamation-triangle mr-1"></i>
+                                Required documents are missing
+                              </p>
+                              <ul className="text-xs text-amber-800 list-disc list-inside mb-2">
+                                {requiredDocs.map((doc, i) => <li key={i}>{doc}</li>)}
+                              </ul>
+                              <label className="flex items-start gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-sm checkbox-warning mt-0.5"
+                                  checked={approvalData.documents_waived}
+                                  onChange={(e) => handleApprovalChange('documents_waived', e.target.checked)}
+                                />
+                                <span className="text-sm">Waive the document requirement (with reason)</span>
+                              </label>
+                              {approvalData.documents_waived && (
+                                <input
+                                  type="text"
+                                  className={`input input-bordered input-sm w-full mt-2 ${errors.documents_waiver_reason ? 'input-error' : ''}`}
+                                  placeholder="Reason for waiver (audited)"
+                                  value={approvalData.documents_waiver_reason}
+                                  onChange={(e) => handleApprovalChange('documents_waiver_reason', e.target.value)}
+                                />
+                              )}
+                              {errors.documents_waiver_reason && (
+                                <div className="text-red-500 text-sm mt-1">{errors.documents_waiver_reason}</div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Sec. 57: LWOP limits — head-of-agency clearance beyond one month */}
+                          {approvalData.approved_for === 'without_pay' && (
+                            <div className="mt-3 p-3 bg-orange-50 border border-orange-300 rounded-lg">
+                              <p className="text-sm text-orange-800">
+                                <i className="fas fa-info-circle mr-1"></i>
+                                Per CSC Sec. 57, leave without pay in excess of one (1) month requires the clearance of the head of agency, and LWOP may not exceed one (1) year.
+                              </p>
+                              <label className="flex items-start gap-2 mt-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-sm checkbox-warning mt-0.5"
+                                  checked={approvalData.lwop_clearance}
+                                  onChange={(e) => handleApprovalChange('lwop_clearance', e.target.checked)}
+                                />
+                                <span className="text-sm">Head-of-agency clearance confirmed (required if cumulative LWOP exceeds 1 month)</span>
+                              </label>
+                              {approvalData.lwop_clearance && (
+                                <input
+                                  type="text"
+                                  className={`input input-bordered input-sm w-full mt-2 ${errors.lwop_clearance_reason ? 'input-error' : ''}`}
+                                  placeholder="Clearance reference / reason (audited)"
+                                  value={approvalData.lwop_clearance_reason}
+                                  onChange={(e) => handleApprovalChange('lwop_clearance_reason', e.target.value)}
+                                />
+                              )}
+                              {errors.lwop_clearance_reason && (
+                                <div className="text-red-500 text-sm mt-1">{errors.lwop_clearance_reason}</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -925,6 +1100,9 @@ const HRLeaveRequestDetails = () => {
                              leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                              leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency Leave' :
                              leaveRequest.leave_type === 'adoption_leave' ? 'Adoption Leave' :
+                             leaveRequest.leave_type === 'wellness_leave' ? 'Wellness Leave' :
+                             leaveRequest.leave_type === 'monetization' ? 'Monetization of Leave Credits' :
+                             leaveRequest.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                              leaveRequest.leave_type === 'others_specify' ? 'Others (Specify)' :
                              leaveRequest.leave_type}
                           </p>
@@ -952,7 +1130,7 @@ const HRLeaveRequestDetails = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                           <h5 className="font-semibold text-blue-600 mb-3">Where Leave Will Be Spent</h5>
-                          <p className="font-medium text-gray-800">{leaveRequest.where_spent}</p>
+                          <p className="font-medium text-gray-800">{leaveRequest.where_spent && leaveRequest.where_spent !== 'not_applicable' ? leaveRequest.where_spent : 'Not applicable'}</p>
                         </div>
                         <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                           <h5 className="font-semibold text-blue-600 mb-3">Commutation</h5>
@@ -1008,9 +1186,9 @@ const HRLeaveRequestDetails = () => {
                           <p className="text-sm text-gray-500 mt-1" id="hrDecisionDetails">
                             {approvalData.approval === 'approve' 
                               ? (approvalData.approved_for === 'with_pay' 
-                                  ? 'Approved for days with pay' 
+                                  ? `Approved for ${leaveRequest.number_of_days} day(s) with pay` 
                                   : approvalData.approved_for === 'without_pay'
-                                  ? 'Approved for days without pay'
+                                  ? `Approved for ${leaveRequest.number_of_days} day(s) without pay`
                                   : approvalData.approved_for_other || 'Others (specify)')
                               : approvalData.disapproved_due_to || '—'}
                           </p>

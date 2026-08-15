@@ -122,12 +122,20 @@ class MayorController {
         
         vacationEntries.push(leaveEntry);
       }
-      // For sick leave - record and deduct from sick credits
+      // For sick leave - record and deduct from sick credits (or from vacation when
+      // the leave was charged to vacation via the Sec. 56 one-way draw)
       else if (leaveRequest.leave_type === 'sick') {
+        const chargeToVacation = leaveRequest.charged_to === 'vacation';
+
         // Deduct at approval for leaves with pay
         if (isLeaveWithPay) {
-          leaveRecord.sick_used += leaveRequest.number_of_days;
-          leaveRecord.sick_balance -= leaveRequest.number_of_days;
+          if (chargeToVacation) {
+            leaveRecord.vacation_used += leaveRequest.number_of_days;
+            leaveRecord.vacation_balance -= leaveRequest.number_of_days;
+          } else {
+            leaveRecord.sick_used += leaveRequest.number_of_days;
+            leaveRecord.sick_balance -= leaveRequest.number_of_days;
+          }
         }
         
         // Track LWOP days for leave without pay
@@ -135,7 +143,7 @@ class MayorController {
           leaveRecord.lwop_days = (leaveRecord.lwop_days || 0) + leaveRequest.number_of_days;
         }
         
-        sickEntries.push(leaveEntry);
+        (chargeToVacation ? vacationEntries : sickEntries).push(leaveEntry);
       }
       // For other special leaves that would normally use vacation credits - just record without deduction
       else if (leaveRequest.leave_type === 'special_privilege_leave' || 
@@ -423,11 +431,24 @@ class MayorController {
           number_of_days: numberOfDays,
           without_pay: withoutPay,
           start_date: startDate,
-          end_date: endDate
+          end_date: endDate,
+          charged_to: leaveRequest.charged_to || null
         };
         
         // Record the leave (always do this for approved leaves)
         await MayorController.recordLeave(simplifiedLeaveRequest, hasSufficientCredits);
+
+        // Recompute-on-change (Secs. 27/28): a late approval can change the month's
+        // actual-service computation (e.g. a without-pay approval landing after the
+        // month's credits were already calculated). Best-effort; only affects
+        // auto-calculated records so HR corrections are never clobbered.
+        try {
+          const { recomputeMonthCredits } = require('./LeaveRecordController');
+          const d = new Date(startDate);
+          await recomputeMonthCredits(userId, d.getMonth() + 1, d.getFullYear());
+        } catch (recomputeError) {
+          console.error('Error recomputing month credits:', recomputeError);
+        }
       }
       
       // Send notifications

@@ -70,7 +70,20 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/smartleave')
-.then(() => console.log('Connected to MongoDB'))
+.then(() => {
+  console.log('Connected to MongoDB');
+
+  // Automatic monthly credit accrual (CSC Secs. 27/28) — runs on server start and
+  // once a day so credits cannot silently lapse when the manual batch is forgotten.
+  const { accrueCreditsUpTo } = require('./controllers/LeaveRecordController');
+  const runAutoAccrual = () => {
+    accrueCreditsUpTo(new Date())
+      .then(({ processed }) => console.log(`Automatic accrual pass complete (${processed} month-record(s) processed)`))
+      .catch(err => console.error('Automatic accrual pass failed:', err));
+  };
+  runAutoAccrual();
+  setInterval(runAutoAccrual, 24 * 60 * 60 * 1000);
+})
 .catch((error) => console.error('MongoDB connection error:', error));
 
 // Routes

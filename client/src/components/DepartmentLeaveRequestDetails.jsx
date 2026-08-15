@@ -229,6 +229,16 @@ const DepartmentLeaveRequestDetails = () => {
             Department Leave Recommendation Process
           </h2>
 
+          {/* Sec. 49: approval SLA — deemed approved after five (5) working days */}
+          {leaveRequest.status === 'pending' && (
+            <div className="alert alert-info mb-4">
+              <i className="fas fa-hourglass-half"></i>
+              <span>
+                <strong>SLA:</strong> {Math.max(0, Math.ceil((new Date() - new Date(leaveRequest.createdAt)) / 86400000))} day(s) since received. Per CSC Sec. 49, an application not acted on within five (5) working days is deemed approved.
+              </span>
+            </div>
+          )}
+
           {/* Step Indicator */}
           <div className="w-full py-4">
             <ul className="steps steps-horizontal w-full">
@@ -290,6 +300,7 @@ const DepartmentLeaveRequestDetails = () => {
                      leaveRequest.leave_type === 'special_leave_benefits_women' ? 'Special Leave Benefits Women' :
                      leaveRequest.leave_type === 'special_emergency' ? 'Special Emergency Leave' :
                      leaveRequest.leave_type === 'adoption_leave' ? 'Adoption Leave' :
+                     leaveRequest.leave_type === 'wellness_leave' ? 'Wellness Leave' :
                      leaveRequest.leave_type === 'monetization' ? 'Monetization of Leave Credits' :
                      leaveRequest.leave_type === 'terminal_leave' ? 'Terminal Leave' :
                      leaveRequest.leave_type === 'others_specify' ? 'Others (Specify)' :
@@ -311,7 +322,7 @@ const DepartmentLeaveRequestDetails = () => {
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                   <h5 className="font-semibold text-blue-600 mb-3">Number of Days</h5>
-                  <p className="font-medium text-gray-800 text-lg">{leaveRequest.number_of_days} days</p>
+                  <p className="font-medium text-gray-800 text-lg">{leaveRequest.number_of_days === 0.5 ? '½ day' : `${leaveRequest.number_of_days} days`}</p>
                 </div>
               </div>
 
@@ -319,7 +330,7 @@ const DepartmentLeaveRequestDetails = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                   <h5 className="font-semibold text-blue-600 mb-3">Where Leave Will Be Spent</h5>
-                  <p className="font-medium text-gray-800">{leaveRequest.where_spent}</p>
+                  <p className="font-medium text-gray-800">{leaveRequest.where_spent && leaveRequest.where_spent !== 'not_applicable' ? leaveRequest.where_spent : 'Not applicable'}</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                   <h5 className="font-semibold text-blue-600 mb-3">Commutation</h5>

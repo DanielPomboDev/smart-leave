@@ -107,7 +107,9 @@ const createHREmployee = async (req, res) => {
       position, 
       start_date, 
       salary, 
-      user_type 
+      user_type,
+      appointment_status,
+      part_time_weekly_hours
     } = req.body;
 
     // Validate user_type
@@ -151,6 +153,9 @@ const createHREmployee = async (req, res) => {
       salary,
       user_type,
       appointment_status: appointment_status || 'permanent',
+      part_time_weekly_hours: part_time_weekly_hours !== undefined && part_time_weekly_hours !== null && part_time_weekly_hours !== ''
+        ? Math.min(40, Math.max(0, parseFloat(part_time_weekly_hours)))
+        : null,
       password: hashedPassword,
       // Force a password change on first login — the default password is public
       mustChangePassword: true
@@ -232,10 +237,10 @@ const updateHREmployee = async (req, res) => {
       email, 
       department_id, 
       position, 
-      start_date, 
-      salary, 
+      start_date,      salary,
       user_type,
-      appointment_status
+      appointment_status,
+      part_time_weekly_hours
     } = req.body;
 
     // Validate user_type
@@ -297,6 +302,11 @@ const updateHREmployee = async (req, res) => {
     user.salary = salary;
     user.user_type = user_type;
     if (appointment_status) user.appointment_status = appointment_status;
+    if (part_time_weekly_hours !== undefined && part_time_weekly_hours !== null && part_time_weekly_hours !== '') {
+      user.part_time_weekly_hours = Math.min(40, Math.max(0, parseFloat(part_time_weekly_hours)));
+    } else if (part_time_weekly_hours === '' || part_time_weekly_hours === null) {
+      user.part_time_weekly_hours = null;
+    }
 
     await user.save();
 

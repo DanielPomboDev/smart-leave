@@ -55,6 +55,13 @@ const leaveRecordSchema = new mongoose.Schema({
   lwop_days: {
     type: Number,
     default: 0
+  },
+  // True when the monthly credits were computed by the automated accrual job or the
+  // HR "Calculate Credits" batch. Manually edited records (addCredits / create/update)
+  // are flagged false so the recompute-on-change job never clobbers HR corrections.
+  auto_calculated: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

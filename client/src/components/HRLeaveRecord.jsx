@@ -112,6 +112,7 @@ const HRLeaveRecord = () => {
     { value: 'special_leave_benefits_women', label: 'Special Leave Benefits for Women' },
     { value: 'special_emergency', label: 'Special Emergency (Calamity)' },
     { value: 'adoption_leave', label: 'Adoption Leave' },
+    { value: 'wellness_leave', label: 'Wellness Leave' },
     { value: 'monetization', label: 'Monetization of Leave Credits' },
     { value: 'terminal_leave', label: 'Terminal Leave' },
     { value: 'others_specify', label: 'Others (Specify)' }
@@ -807,6 +808,7 @@ const HRLeaveRecord = () => {
                                  vacation.type === 'special_leave_benefits_women' ? 'Special Leave Benefits for Women' :
                                  vacation.type === 'special_emergency' ? 'Special Emergency Leave' :
                                  vacation.type === 'adoption_leave' ? 'Adoption Leave' :
+                                 vacation.type === 'wellness_leave' ? 'Wellness Leave' :
                                  vacation.type === 'monetization' ? 'Monetization of Leave Credits' :
                                  vacation.type === 'terminal_leave' ? 'Terminal Leave' :
                                  vacation.type === 'others_specify' ? 'Others (Specify)' :
@@ -902,6 +904,7 @@ const HRLeaveRecord = () => {
                                  sick.type === 'special_leave_benefits_women' ? 'Special Leave Benefits for Women' :
                                  sick.type === 'special_emergency' ? 'Special Emergency Leave' :
                                  sick.type === 'adoption_leave' ? 'Adoption Leave' :
+                                 sick.type === 'wellness_leave' ? 'Wellness Leave' :
                                  sick.type === 'monetization' ? 'Monetization of Leave Credits' :
                                  sick.type === 'terminal_leave' ? 'Terminal Leave' :
                                  sick.type === 'mandatory_forced_leave' ? 'Mandatory/Forced Leave' :
