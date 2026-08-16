@@ -1,27 +1,52 @@
 # SmartLeave — Leave Management System (MERN)
 
-A web-based leave management system for **LGU San Julian, Eastern Samar**. Employees file leave requests, department heads recommend them, HR verifies credits and documents, and the mayor gives final approval — all with automatic leave-record tracking and CS Form 6 generation.
+A web-based leave management system for **LGU San Julian, Eastern Samar**. Employees
+file leave requests, department heads recommend them, HR verifies credits and
+documents, and the mayor gives final approval — all with automatic leave-record
+accounting and official **CS Form No. 6** generation.
 
 Built with the **MERN** stack: **MongoDB, Express.js, React, Node.js**.
 
-> This README explains how to **run the system on your own localhost** for development. For the full IT handover guide (repository transfer, secrets, data backup, production deployment), see **[`HANDOVER.md`](HANDOVER.md)**.
+> This repository is the primary source of SmartLeave. It contains **no production
+> secrets** — environment files are git-ignored, and the database password, JWT
+> secret, and Cloudinary keys live only in the deployment dashboards (Render/Vercel).
+> The guide below explains how to run the system on your own localhost; for the
+> developer backlog notes see **`docs/FEATURES_TO_ADD.md`**.
 
 ---
 
 ## Features
 
-- **4 user roles** with separate dashboards: Employee, Department Admin, HR Manager, Mayor
-- Leave request workflow with a guided review stepper for each approval stage
-- Vacation / Sick / Undertime leave types with earned-credit tracking
-- Monthly and overall **leave records** with balances (approval-only entries, cancelled entries flagged)
-- **CS Form 6** digital form with drawn/uploaded signatures
-- Profile signatures, profile pictures, and supporting document uploads
-- Email notifications (optional, Brevo)
-- JWT authentication and role-based authorization
-
-## Roadmap — CSC Compliance Backlog
-
-See **[`docs/FEATURES_TO_ADD.md`](docs/FEATURES_TO_ADD.md)** for the prioritized list of features and fixes needed to bring the system fully in line with the CSC rules on leave (enforce medical-certificate and document rules, half-day leave, mandatory forced-leave tracking, approval SLA, LWOP limits, automatic credit accrual, and more).
+- **4 user roles** with separate dashboards: Employee, Department Admin (Head),
+  HR Manager, and Mayor.
+- **17 leave types**, each CSC-compliant: Vacation, Sick, Mandatory/Forced,
+  Maternity, Paternity, Special Privilege, Solo Parent, Study, 10-Day VAWC,
+  Rehabilitation Privilege, Special Leave Benefits for Women, Special Emergency
+  (Calamity), Adoption, **Wellness Leave (CSC MC No. 1, s. 2026)**, Others
+  (specify), Monetization of Leave Credits, and Terminal Leave.
+- **Approval chain** — Department Head → HR → Mayor — with the **Sec. 49 SLA**:
+  a request unacted within **5 working days** is deemed approved (SLA banner on
+  every approval screen).
+- **Automatic monthly credit accrual** — 1.25 VL + 1.25 SL per month of actual
+  service, prorated for LWOP and mid-month hires via the CSC table, proportional
+  for part-time employees (Sec. 2), and idempotent (never double-credits).
+- **Half-day leave (Sec. 28)** — filed as 0.5 day, rendered as "½ day" on CS Form 6.
+- **Compliance enforcement** — medical certificate for sick leave over 5 days
+  (Sec. 53), per-type supporting documents with audited waivers, statutory limits
+  (maternity 105 days, paternity 4 deliveries, study leave 180 days, wellness
+  5 days/year, etc.), LWOP clearance (Sec. 57), and the sick→vacation draw (Sec. 56).
+- **Official CS Form No. 6** (Application for Leave, Revised 2020) with embedded
+  digital signatures (draw or upload) and signed-PDF upload for the permanent record.
+- **Leave Records** — monthly ledgers with earned/used/balance, undertime, manual
+  corrections (never overwritten by the automatic job), audit trail, and the
+  Wellness + Mandatory Forced-Leave trackers.
+- **Reports & CSV export** — department breakdown and employee ledger.
+- **Leave calendar & holidays** — month grid, "Who's On Leave", recurring/one-off
+  holidays (including Local Holiday / Special Working day handling).
+- **Notifications** — bell with unread badge, full inbox page (filters, pagination,
+  delete, mark-read, click-to-open the request), plus optional **email copies** (Brevo).
+- **Security** — JWT auth, role-based authorization, rate-limited login, hardened
+  headers (helmet + CSP).
 
 ## Tech Stack
 
@@ -30,17 +55,17 @@ See **[`docs/FEATURES_TO_ADD.md`](docs/FEATURES_TO_ADD.md)** for the prioritized
 | Frontend | React 19, Vite 6, Tailwind CSS, daisyUI, React Router 7 |
 | Backend | Node.js, Express 5, Mongoose (MongoDB ODM) |
 | Database | MongoDB |
-| File storage | Cloudinary (profile pictures, leave documents) |
-| Notifications | Email via Brevo (optional), Firebase (currently disabled) |
+| File storage | Cloudinary (profile pictures, leave documents, signatures) |
+| Notifications | Email via Brevo (optional) |
 
 ## Project Structure
 
 ```
-smart-leave-mern/
+smart-leave/
 ├── client/                        # React frontend
 │   ├── src/
-│   │   ├── components/            # One file per page/module (HRLeaveRecord.jsx, MayorLeaveRequestDetails.jsx, ...)
-│   │   ├── services/              # API calls (api.js, mayorService.js, ...)
+│   │   ├── components/            # One file per page/module
+│   │   ├── services/              # API calls
 │   │   ├── App.jsx                # Routes for each user type
 │   │   └── main.jsx
 │   ├── vite.config.js             # Dev server on port 3000; proxies /api -> localhost:5000
@@ -49,13 +74,13 @@ smart-leave-mern/
 │   ├── server.js                  # Entry point: Express app + route registration
 │   ├── routes/                    # API route definitions
 │   ├── controllers/               # Business logic (Leave, HR, Mayor, LeaveRecord, ...)
-│   ├── models/                    # Mongoose schemas (User, LeaveRequest, LeaveRecord, Department)
+│   ├── models/                    # Mongoose schemas (User, LeaveRequest, LeaveRecord, ...)
 │   ├── middleware/                # Auth, upload, validation
-│   ├── config/ + utils/           # Cloudinary, email, helpers
-│   ├── create-all-users.js        # Seed script (default test accounts)
+│   ├── config/ + utils/           # Cloudinary, email, CSC rules helpers
+│   ├── create-all-users.js        # First-run seed script (creates department + 4 accounts)
 │   └── package.json
 ├── render.yaml                    # Backend deployment config (Render)
-└── HANDOVER.md                    # IT handover & production guide
+└── docs/                          # Feature notes
 ```
 
 ---
@@ -65,18 +90,12 @@ smart-leave-mern/
 | Tool | Version | Notes |
 |---|---|---|
 | [Node.js](https://nodejs.org) | **v20 LTS** (v18+ works, v24 tested) | Includes npm |
-| [MongoDB](https://www.mongodb.com/try/download/community) | v6+ (v4.4+ works) | Community Server is fine |
+| [MongoDB](https://www.mongodb.com/try/download/community) | v6+ (v4.4+ works) | Community Server, or MongoDB Atlas free tier |
 | [Git](https://git-scm.com) | any recent | Clone the repo |
 
-Optionally install [MongoDB Compass](https://www.mongodb.com/products/compass) to inspect data visually.
-
-Verify your installation:
-
-```bash
-node --version   # v20.x
-npm --version    # 10.x
-git --version
-```
+> **Internet note:** the one-time steps (`npm install`, creating a free Atlas
+> account) need an internet connection — do them once on a machine with good
+> internet; afterwards the system runs fully on the office network.
 
 ---
 
@@ -86,14 +105,15 @@ git --version
 
 ```bash
 git clone <repository-url>
-cd smart-leave-mern
+cd smart-leave
 ```
 
 ### Step 2. Start MongoDB
 
 **Option A — Local MongoDB (recommended for development)**
 
-Install MongoDB Community Server. On Windows it registers as a service automatically; verify it's listening:
+Install MongoDB Community Server. On Windows it registers as a service
+automatically; verify it's listening:
 
 ```bash
 # Windows
@@ -102,7 +122,8 @@ netstat -an | findstr 27017
 netstat -an | grep 27017
 ```
 
-The app connects to `mongodb://localhost:27017/smartleave` by default — no configuration needed.
+The app connects to `mongodb://localhost:27017/smartleave` by default — no
+configuration needed.
 
 **Option B — MongoDB Atlas (free tier)**
 
@@ -117,7 +138,7 @@ cd server
 npm install
 ```
 
-Create a file named **`.env`** inside `server/` (it is git-ignored — never commit it):
+Create a file named **`.env`** inside `server/` (git-ignored — never commit it):
 
 ```bash
 # ===== REQUIRED =====
@@ -126,7 +147,7 @@ PORT=5000
 MONGODB_URI=mongodb://localhost:27017/smartleave
 JWT_SECRET=change-me-to-a-long-random-string
 
-# Cloudinary — required for profile picture & leave document uploads
+# Cloudinary — required for profile picture, signature & leave document uploads
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
@@ -139,15 +160,14 @@ EMAIL_FROM=smartleave@example.com
 FRONTEND_URL=http://localhost:3000
 ```
 
-> **Important:** the frontend proxies `/api` requests to **port 5000**. If `PORT` is set to anything else, the app will not work. Set `PORT=5000` for local development.
-
 Generate a strong `JWT_SECRET`:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Create a free Cloudinary account at https://cloudinary.com and copy the API keys from the Dashboard. **Without them, uploads (profile pictures, leave documents) will fail** — everything else still works.
+Create a free Cloudinary account at https://cloudinary.com and copy the API keys
+from the Dashboard. **Without them, uploads fail — everything else still works.**
 
 Start the backend:
 
@@ -157,14 +177,8 @@ npm run dev     # development — auto-restarts on file changes
 npm start       # plain node, no auto-reload
 ```
 
-You should see:
-
-```
-Connected to MongoDB
-Server is running on port 5000
-```
-
-Verify at http://localhost:5000 → `{"message":"SmartLeave API is running"}`.
+You should see `Connected to MongoDB` and `Server is running on port 5000`.
+Verify at http://localhost:5000.
 
 ### Step 4. Set up the frontend
 
@@ -188,18 +202,18 @@ Start the frontend:
 npm run dev
 ```
 
-Open **http://localhost:3000** — you should see the SmartLeave login page. The Vite dev server automatically proxies `/api` calls to the backend on port 5000.
+Open **http://localhost:3000** — the Vite dev server proxies `/api` calls to the
+backend on port 5000. **Both servers must run at the same time (two terminals).**
 
-> Both servers must run at the same time — use **two terminals**.
-
-### Step 5. Seed test accounts
+### Step 5. Create the first accounts
 
 ```bash
 cd server
 node create-all-users.js
 ```
 
-This creates one department and four accounts (existing users are skipped):
+This creates one department and four accounts (existing users are skipped).
+Every account uses the default password **`password123`**:
 
 | Role | User ID | Password |
 |---|---|---|
@@ -208,90 +222,42 @@ This creates one department and four accounts (existing users are skipped):
 | HR Manager | `HR001` | `password123` |
 | Mayor | `MA001` | `password123` |
 
-Log in at http://localhost:3000 to see each role's dashboard.
+Log in as `HR001` first, then add your real staff under **Employees**.
+Accounts created by HR are forced to change their password on first login.
 
-> **Security:** these are public default credentials for local development only. **Real staff accounts created via HR → Employees are created with the default password `password` and are forced to change it on first login** — they cannot use the system until they do. Never commit real credentials to the repo.
+> **Security:** these are default credentials for initial setup only. Change the
+> passwords on first login and never commit real credentials to the repo.
 
 ---
 
 ## Security Checklist (before deploying)
 
-- `server/.env` and `client/.env` are git-ignored — never commit them. Use the `.env.example` templates and generate a strong `JWT_SECRET` (the server refuses to start without one).
-- Keep dependencies patched: `cd server && npm audit` and `cd client && npm audit` should report no vulnerabilities.
-- Login is rate-limited (20 attempts / 15 min / IP) and the API sets hardened headers (helmet).
-- The Firebase keys in an old `client/.env` are unused legacy config; the file is no longer tracked. If push notifications are re-enabled, rotate those keys.
+- `server/.env` and `client/.env` are git-ignored — never commit them. Use the
+  `.env.example` templates and generate a strong `JWT_SECRET` (the server refuses
+  to start without one).
+- Keep dependencies patched: `cd server && npm audit` and `cd client && npm audit`.
+- Login is rate-limited (20 attempts / 15 min / IP) and the API sets hardened
+  headers (helmet + CSP).
 
 ---
 
-## Verify the Full Workflow
+## Deploying Your Own Cloud Instance (optional)
 
-A quick smoke test that the whole stack is wired correctly:
+If you want the office to access the system from any device (not just one PC):
 
-1. Log in as `EMP001` → **File Leave** (e.g., 1-day Vacation) → attach a supporting document.
-2. Log in as `DA001` → review and **recommend** it.
-3. Log in as `HR001` → verify credits and **approve**.
-4. Log in as `MA001` → **final approve**.
-5. Log in as `EMP001` → confirm the request shows **Approved**, the leave record shows the deduction, and **View CS Form 6** renders (drawn/uploaded signature).
-
----
-
-## Adding Features — Developer Notes
-
-**Stack conventions:**
-
-- Backend is **CommonJS** (`require` / `module.exports`); frontend is **ES modules**.
-- New endpoints: route in `server/routes/` → logic in `server/controllers/` → validation in `server/middleware/`.
-- New data: schema in `server/models/` (models are auto-loaded from `server/models/index.js`).
-- New pages: component in `client/src/components/` → route in `client/src/App.jsx`.
-- API calls go through `client/src/services/` (axios, base URL from `VITE_API_URL` or the Vite proxy).
-- Style with Tailwind/daisyUI — reuse existing classes.
-
-**Useful scripts (run from `server/`):**
-
-```bash
-node check-users.js     # list all users
-node list-users.js      # list users with roles
-node create-user.js     # create a single user (edit the file first)
-```
-
----
-
-## Deployment (Production)
-
-The production stack is **Vercel (free)** for the frontend, **Render (free)** for the backend API, and **MongoDB Atlas (M0 free)** for the database. [`vercel.json`](client/vercel.json) lives in `client/` (where Vercel reads it) and `render.yaml` sits in the repo root — deploy from GitHub and the platforms pick up the config.
-
-### 1. MongoDB Atlas
-
-1. Create a free **M0** cluster at https://www.mongodb.com/atlas.
-2. Database Access → add a database user (keep the username/password; the URI embeds them).
-3. Network Access → allow `0.0.0.0/0` (free tier; tighten later if you can).
-4. Connect → Drivers → copy the connection string (`mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority`).
-
-### 2. Render (backend)
-
-1. New → Web Service → connect the GitHub repo → Render reads [`render.yaml`](render.yaml).
-2. First deploy will succeed only after secrets are filled in — open the service's **Environment** tab and set:
-   - `MONGODB_URI` — the Atlas connection string from step 1
-   - `JWT_SECRET` — `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (the server refuses to start without it)
-   - `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` (required for uploads)
-   - `BREVO_API_KEY` (optional, for email notifications)
-3. Render sets `PORT` itself — the server already honors it.
-4. Note: the free plan **sleeps after ~15 min idle** and cold-starts slowly (~30–60 s on the first request after a nap).
-
-### 3. Vercel (frontend)
-
-1. New Project → import the GitHub repo → Vercel reads [`client/vercel.json`](client/vercel.json) (root `client`, builds with `npm run build`, serves `dist`).
-2. Add the environment variable `VITE_API_URL=https://<your-service>.onrender.com` (the Render API URL).
-3. Deploy — the SPA routing rewrite and security headers (CSP, nosniff, HSTS-compatible) are already configured.
-4. CORS already allows any `*.vercel.app` domain, so preview deployments and the production domain work without changes. If you attach a **custom domain**, add it to the `allowedOrigins` list in `server/server.js`.
-
-### Verify
-
-- `curl https://<your-service>.onrender.com/` → `{"message":"SmartLeave API is running"}`
-- Log in at the Vercel URL; uploads (Cloudinary) and emails (Brevo, if set) work from the deployed API.
-- Before deploying, click-test the exact production bundle locally: build with the production API URL (`VITE_API_URL=https://<your-service>.onrender.com npm run build`), then `node server/scripts/csp-test-server.js` and open http://localhost:8080 — it serves `client/dist` with the same CSP/security headers `vercel.json` applies.
-
-Before deploying, review the **Security** checklist below.
+1. **MongoDB Atlas** — create a free M0 cluster, a database user, and allow
+   `0.0.0.0/0` under Network Access. Copy the connection string.
+2. **Render (backend)** — create a free account, **New → Web Service → connect
+   this GitHub repo**, root directory `server`, build `npm install`, start
+   `npm start`. Set the environment variables from Step 3 (including the Atlas
+   `MONGODB_URI`). You get an API URL like `https://yourapp.onrender.com`.
+3. **Vercel (frontend)** — create a free account, **Add New → Project → connect
+   this repo** (framework: Vite), set `VITE_API_URL` to your Render URL, deploy.
+4. Run `create-all-users.js` once against the Atlas database (or register users
+   through the HR account after first login).
+5. `render.yaml` in the repo root is the Render blueprint; `client/vercel.json`
+   holds the Vercel config — both are picked up automatically when you connect
+   the repo.
 
 ---
 
@@ -299,12 +265,12 @@ Before deploying, review the **Security** checklist below.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Pages load but no data / requests fail | Server not running, or wrong `PORT` | Check `server/.env` has `PORT=5000`; server terminal shows "Server is running on port 5000" |
-| `ECONNREFUSED` on port 27017 | MongoDB not running | Install/start MongoDB; verify with `netstat -an \| findstr 27017` (Windows) |
-| Signature image upload fails | File too large (>5 MB) or server JSON limit | Use a smaller PNG/JPG (under 5 MB) |
-| Profile picture / document uploads fail | Cloudinary keys missing or wrong | Fill `CLOUDINARY_*` in `server/.env` and restart the server |
-| Port 3000 or 5000 already in use | Another process | `netstat -ano \| findstr :3000` (Windows) → kill the PID, or change the port in both places |
-| Frontend on another machine can't reach the API | Vite proxy only works on localhost | Set `VITE_API_URL` to the machine's LAN IP and allow that origin in `server.js` CORS |
+| Pages load but no data / requests fail | Server not running, or wrong `PORT` | Check `server/.env` has `PORT=5000` |
+| `ECONNREFUSED` on port 27017 | MongoDB not running | Install/start MongoDB; `netstat -an \| findstr 27017` (Windows) |
+| Signature / document uploads fail | Cloudinary keys missing or wrong | Fill `CLOUDINARY_*` in `server/.env` and restart |
+| Web shows API errors after deploy | Wrong `VITE_API_URL` | Set it to the deployed API URL and rebuild |
+| Can't log in | Accounts are created by HR only | Run `node create-all-users.js` first, then add staff via HR |
+| Forgot a password | No self-service reset | Ask HR — accounts are managed in **Employees** |
 
 ---
 
