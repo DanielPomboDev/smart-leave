@@ -124,10 +124,12 @@ const checkStatutoryEligibility = async (user, leaveType, numberOfDays, startDat
     }
   }
 
-  // Maternity — RA 11210: 105 days per pregnancy + 30-day unpaid extension
+  // Maternity — RA 11210: 105 days with pay; solo parents +15 days with pay
+  // (120 total); an additional 30-day extension is allowed only without pay
+  // (maximum 135 days).
   if (leaveType === 'maternity_leave') {
     if (days > 135) {
-      return 'Per RA 11210, maternity leave is up to 105 days, extendable by 30 days without pay (maximum 135 days).';
+      return 'Per RA 11210, maternity leave is 105 days with pay (120 days for solo parents), extendable by up to 30 days without pay (maximum 135 days).';
     }
   }
 

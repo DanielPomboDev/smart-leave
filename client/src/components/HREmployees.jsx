@@ -45,7 +45,10 @@ const HREmployees = () => {
     user_type: 'employee',
     appointment_status: 'permanent',
     // Sec. 2: part-time employees earn leave proportionally to hours (empty = full-time)
-    part_time_weekly_hours: ''
+    part_time_weekly_hours: '',
+    // RA 8972: solo parents qualify for the solo parent leave and the +15 paid
+    // maternity days under RA 11210.
+    solo_parent: false
   });
 
   const [editForm, setEditForm] = useState({
@@ -61,7 +64,10 @@ const HREmployees = () => {
     user_type: 'employee',
     appointment_status: 'permanent',
     // Sec. 2: part-time employees earn leave proportionally to hours (empty = full-time)
-    part_time_weekly_hours: ''
+    part_time_weekly_hours: '',
+    // RA 8972: solo parents qualify for the solo parent leave and the +15 paid
+    // maternity days under RA 11210.
+    solo_parent: false
   });
 
   // Fetch employees
@@ -148,7 +154,8 @@ const HREmployees = () => {
           salary: user.salary || '',
           user_type: user.user_type || 'employee',
           appointment_status: user.appointment_status || 'permanent',
-          part_time_weekly_hours: user.part_time_weekly_hours || ''
+          part_time_weekly_hours: user.part_time_weekly_hours || '',
+          solo_parent: user.solo_parent || false
         });
         setEmployeeToEdit(user);
         setShowEditModal(true);
@@ -480,6 +487,9 @@ const HREmployees = () => {
                           <span className={`badge badge-sm ${employee.appointment_status === 'job_order' || employee.appointment_status === 'contractual' ? 'badge-warning' : 'badge-outline'}`}>
                             {(employee.appointment_status || 'permanent').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                           </span>
+                          {employee.solo_parent && (
+                            <span className="badge badge-sm badge-info ml-1">Solo Parent</span>
+                          )}
                         </td>
                         <td>{employee.department_id?.name || 'N/A'}</td>
                         <td>
@@ -670,6 +680,19 @@ const HREmployees = () => {
                     min="1"
                     max="39"
                   />
+                </div>
+
+                <div className="form-control">
+                  <label className="label cursor-pointer justify-start space-x-2">
+                    <input 
+                      type="checkbox" 
+                      name="solo_parent"
+                      className="checkbox checkbox-primary checkbox-sm"
+                      checked={addForm.solo_parent}
+                      onChange={(e) => setAddForm({ ...addForm, solo_parent: e.target.checked })}
+                    />
+                    <span className="label-text font-medium">Solo Parent <span className="text-xs text-gray-400 font-normal">(RA 8972 — qualifies for solo parent leave and the +15 paid maternity days)</span></span>
+                  </label>
                 </div>
 
                 <div className="form-control">
@@ -899,6 +922,19 @@ const HREmployees = () => {
                     min="1"
                     max="39"
                   />
+                </div>
+
+                <div className="form-control">
+                  <label className="label cursor-pointer justify-start space-x-2">
+                    <input 
+                      type="checkbox" 
+                      name="solo_parent"
+                      className="checkbox checkbox-primary checkbox-sm"
+                      checked={editForm.solo_parent}
+                      onChange={(e) => setEditForm({ ...editForm, solo_parent: e.target.checked })}
+                    />
+                    <span className="label-text font-medium">Solo Parent <span className="text-xs text-gray-400 font-normal">(RA 8972 — qualifies for solo parent leave and the +15 paid maternity days)</span></span>
+                  </label>
                 </div>
 
                 <div className="form-control">

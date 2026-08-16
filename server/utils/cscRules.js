@@ -1,5 +1,6 @@
 // Central CSC compliance helpers — Omnibus Rules on Leave (CSC MC No. 41, s. 1998),
-// RA 8187, RA 11210, RA 8972, RA 9262, RA 9710, RA 11642, CSC MC No. 14 s. 1999.
+// RA 8187, RA 11210, RA 8972, RA 9262, RA 9710, RA 8552, CSC MC No. 14 s. 1999,
+// CSC MC No. 1 s. 2026 (Wellness Leave).
 // Single source of truth for the rules enforced across filing, approval, and accrual.
 
 // Leave types that draw from vacation credits (mirrors LeaveRecordController.getLeaveCreditsInfo)
@@ -117,7 +118,7 @@ const STATUTORY_LIMITS = {
   mandatory_forced_leave: { minDaysPerYear: 5, eligibleVlBalance: 10, law: 'Sec. 25' },
   vawc_leave: { maxDaysPerOccurrence: 10, law: 'RA 9262' },
   special_leave_benefits_women: { maxDaysPerOccurrence: 60, law: 'RA 9710' },
-  adoption_leave: { maxDaysPerOccurrence: 60, law: 'RA 11642' },
+  adoption_leave: { maxDaysPerOccurrence: 60, law: 'RA 8552 / CSC Res. No. 2100020' },
   rehabilitation_privilege: { maxDaysPerOccurrence: 180, law: 'Sec. 55' },
   // CSC MC No. 1, s. 2026: Wellness Leave — 5 days/year (non-cumulative, non-commutable,
   // forfeited if unused), max 3 consecutive days at a time, filed 5 days in advance.

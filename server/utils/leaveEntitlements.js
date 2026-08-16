@@ -30,27 +30,27 @@ const STATUTORY_ENTITLEMENTS = {
   special_privilege_leave: {
     days: 3,
     label: 'Special Privilege Leave',
-    law: 'CSC MC No. 41 s. 1998'
+    law: 'Sec. 21'
   },
   mandatory_forced_leave: {
     days: 5,
     label: 'Mandatory/Forced Leave',
-    law: 'CSC MC No. 41 s. 1998'
+    law: 'Sec. 25'
   },
   adoption_leave: {
     days: 60,
     label: 'Adoption Leave',
-    law: 'RA 11642'
+    law: 'RA 8552 / CSC Res. No. 2100020'
   },
   rehabilitation_privilege: {
     days: 180,
     label: 'Rehabilitation Privilege',
-    law: 'CSC MC No. 41 s. 1998'
+    law: 'Sec. 55'
   },
   study_leave: {
     days: 180,
     label: 'Study Leave',
-    law: 'CSC MC No. 41 s. 1998'
+    law: 'CSC MC No. 14 s. 1999'
   }
 };
 

@@ -109,7 +109,8 @@ const createHREmployee = async (req, res) => {
       salary, 
       user_type,
       appointment_status,
-      part_time_weekly_hours
+      part_time_weekly_hours,
+      solo_parent
     } = req.body;
 
     // Validate user_type
@@ -156,6 +157,7 @@ const createHREmployee = async (req, res) => {
       part_time_weekly_hours: part_time_weekly_hours !== undefined && part_time_weekly_hours !== null && part_time_weekly_hours !== ''
         ? Math.min(40, Math.max(0, parseFloat(part_time_weekly_hours)))
         : null,
+      solo_parent: solo_parent === true || solo_parent === 'true',
       password: hashedPassword,
       // Force a password change on first login — the default password is public
       mustChangePassword: true
@@ -240,7 +242,8 @@ const updateHREmployee = async (req, res) => {
       start_date,      salary,
       user_type,
       appointment_status,
-      part_time_weekly_hours
+      part_time_weekly_hours,
+      solo_parent
     } = req.body;
 
     // Validate user_type
@@ -301,14 +304,16 @@ const updateHREmployee = async (req, res) => {
     user.start_date = start_date;
     user.salary = salary;
     user.user_type = user_type;
-    if (appointment_status) user.appointment_status = appointment_status;
-    if (part_time_weekly_hours !== undefined && part_time_weekly_hours !== null && part_time_weekly_hours !== '') {
-      user.part_time_weekly_hours = Math.min(40, Math.max(0, parseFloat(part_time_weekly_hours)));
-    } else if (part_time_weekly_hours === '' || part_time_weekly_hours === null) {
-      user.part_time_weekly_hours = null;
-    }
+    if (appointment_status) user.appointment_status = appointment_status;      if (part_time_weekly_hours !== undefined && part_time_weekly_hours !== null && part_time_weekly_hours !== '') {
+        user.part_time_weekly_hours = Math.min(40, Math.max(0, parseFloat(part_time_weekly_hours)));
+      } else if (part_time_weekly_hours === '' || part_time_weekly_hours === null) {
+        user.part_time_weekly_hours = null;
+      }
+      if (solo_parent !== undefined && solo_parent !== null) {
+        user.solo_parent = solo_parent === true || solo_parent === 'true';
+      }
 
-    await user.save();
+      await user.save();
 
     // If user_id was changed, update all related leave requests
     if (oldUserId !== user_id) {
