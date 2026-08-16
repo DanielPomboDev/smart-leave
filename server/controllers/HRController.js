@@ -409,7 +409,7 @@ const getHRLeaveRequest = async (req, res) => {
     // Get the leave request with user and department information
     const leaveRequest = await LeaveRequest.findById(id).populate({
       path: 'user_id',
-      select: 'first_name last_name middle_initial department_id position user_id profile_image salary',
+      select: 'first_name last_name middle_initial department_id position user_id profile_image salary solo_parent',
       populate: {
         path: 'department_id',
         select: 'name'
@@ -589,6 +589,28 @@ const processHRLeaveApproval = async (req, res) => {
           return res.status(400).json({
             success: false,
             message: `Cannot approve with pay or others due to insufficient leave credits`
+          });
+        }
+      }
+
+      // Maternity pay-tier rule (RA 11210): 105 days with pay, +15 days with pay
+      // for solo parents (120 total), and any remaining extension without pay
+      // (maximum 135). The with-pay/others options cannot exceed the paid tier.
+      if (leaveRequest.leave_type === 'maternity_leave' && (approved_for === 'with_pay' || approved_for === 'others')) {
+        const maternityDays = parseFloat(leaveRequest.number_of_days);
+        const isSoloParent = leaveRequest.user_id &&
+          typeof leaveRequest.user_id === 'object' &&
+          leaveRequest.user_id.solo_parent === true;
+        if (maternityDays > 105 && !isSoloParent) {
+          return res.status(400).json({
+            success: false,
+            message: 'Per RA 11210, maternity leave beyond 105 days may be approved with pay only for solo parents (up to 120 days); the rest must be approved without pay (maximum 135 days).'
+          });
+        }
+        if (maternityDays > 120) {
+          return res.status(400).json({
+            success: false,
+            message: 'Per RA 11210, at most 120 days of maternity leave can be approved with pay (105 + 15 for solo parents); days beyond that are the without-pay extension (maximum 135 days).'
           });
         }
       }

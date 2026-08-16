@@ -205,6 +205,19 @@ const HRLeaveRequestDetails = () => {
               approved_for: 'without_pay'
             }));
           }
+          
+          // Maternity beyond the paid tier (RA 11210) also defaults to 'without_pay'
+          const lr = response.data.leaveRequest;
+          if (lr && lr.leave_type === 'maternity_leave') {
+            const days = parseFloat(lr.number_of_days || 0);
+            const solo = lr.user_id && lr.user_id.solo_parent === true;
+            if (days > (solo ? 120 : 105)) {
+              setApprovalData(prev => ({
+                ...prev,
+                approved_for: 'without_pay'
+              }));
+            }
+          }
         } else {
           setError(response.data.message || 'Failed to load leave request details');
         }
@@ -221,6 +234,16 @@ const HRLeaveRequestDetails = () => {
     }
   }, [id]);
 
+  // RA 11210 maternity pay tiers: 105 days with pay, +15 days with pay for
+  // solo parents (120 total), and beyond that only the without-pay extension
+  // (maximum 135 days).
+  const isMaternity = leaveRequest?.leave_type === 'maternity_leave';
+  const maternityDays = isMaternity ? parseFloat(leaveRequest?.number_of_days || 0) : 0;
+  const isMaternitySoloParent = leaveRequest?.user_id?.solo_parent === true;
+  const maternityWithPayAllowed = !isMaternity ||
+    maternityDays <= 105 ||
+    (isMaternitySoloParent && maternityDays <= 120);
+
   const handleApprovalChange = (field, value) => {
     setApprovalData(prev => {
       const newData = {
@@ -228,8 +251,9 @@ const HRLeaveRequestDetails = () => {
         [field]: value
       };
       
-      // Prevent selecting 'with_pay' when user has insufficient credits
-      if (field === 'approved_for' && value === 'with_pay' && !hasSufficientCredits) {
+      // Prevent selecting 'with_pay' when the employee has insufficient credits
+      // or the maternity leave exceeds the paid tier (RA 11210).
+      if (field === 'approved_for' && value === 'with_pay' && (!hasSufficientCredits || (isMaternity && !maternityWithPayAllowed))) {
         // Keep the previous value or default to 'without_pay'
         newData[field] = prev.approved_for !== 'with_pay' ? prev.approved_for : 'without_pay';
       }
@@ -855,6 +879,29 @@ const HRLeaveRequestDetails = () => {
                   {/* Sub-options for Approval */}
                   {approvalData.approval === 'approve' && (
                     <div id="approvalOptionsContainer" className="ml-6 border-l-2 border-green-200 pl-4 mb-4">
+                      {isMaternity && (
+                        <div className={`alert ${maternityWithPayAllowed ? 'alert-info' : 'alert-warning'} text-sm mb-4`}>
+                          <div>
+                            <strong>RA 11210 — Maternity pay tiers:</strong>
+                            <ul className="list-disc ml-5 mt-1 space-y-0.5">
+                              <li>Up to 105 days with pay</li>
+                              <li>+15 days with pay for solo parents (120 total)</li>
+                              <li>Beyond that: without-pay extension only (max 135)</li>
+                            </ul>
+                            {maternityDays > 105 && (
+                              <p className="mt-2">
+                                {isMaternitySoloParent
+                                  ? `Employee is a solo parent — up to 120 days may be approved with pay.`
+                                  : `Employee is NOT a solo parent — only the first 105 days may be approved with pay; the rest must be without pay.`}
+                              </p>
+                            )}
+                            {maternityDays > 120 && (
+                              <p className="mt-1 font-medium">This request exceeds 120 days — it can only be approved <u>without pay</u>.</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="form-control">
                         <label className="label">
                           <span className="label-text font-medium">Approval Type:</span>
@@ -868,11 +915,14 @@ const HRLeaveRequestDetails = () => {
                               className="radio radio-sm radio-success" 
                               checked={approvalData.approved_for === 'with_pay'}
                               onChange={(e) => handleApprovalChange('approved_for', e.target.value)}
-                              disabled={!hasSufficientCredits}
+                              disabled={!hasSufficientCredits || (isMaternity && !maternityWithPayAllowed)}
                             />
                             <span>Approved for {leaveRequest.number_of_days} day(s) with pay</span>
                             {!hasSufficientCredits && (
                               <span className="badge badge-warning ml-2">Insufficient credits</span>
+                            )}
+                            {isMaternity && !maternityWithPayAllowed && (
+                              <span className="badge badge-warning ml-2">Beyond paid tier (RA 11210)</span>
                             )}
                           </label>
                           <label className="flex items-center space-x-2 cursor-pointer">
@@ -894,11 +944,14 @@ const HRLeaveRequestDetails = () => {
                               className="radio radio-sm radio-info" 
                               checked={approvalData.approved_for === 'others'}
                               onChange={(e) => handleApprovalChange('approved_for', e.target.value)}
-                              disabled={!hasSufficientCredits}
+                              disabled={!hasSufficientCredits || (isMaternity && !maternityWithPayAllowed)}
                             />
                             <span>Others (specify)</span>
                             {!hasSufficientCredits && (
                               <span className="badge badge-warning ml-2">Insufficient credits</span>
+                            )}
+                            {isMaternity && !maternityWithPayAllowed && (
+                              <span className="badge badge-warning ml-2">Beyond paid tier (RA 11210)</span>
                             )}
                           </label>
                           {approvalData.approved_for === 'others' && (

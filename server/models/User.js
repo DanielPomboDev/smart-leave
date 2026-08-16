@@ -58,6 +58,12 @@ const userSchema = new mongoose.Schema({
     min: 0,
     max: 40
   },
+  // Solo parent (RA 8972): qualifies for the 7-day solo parent leave and the
+  // additional 15 days of paid maternity leave under RA 11210 (105 + 15 = 120).
+  solo_parent: {
+    type: Boolean,
+    default: false
+  },
   profile_image: {
     type: String
   },
