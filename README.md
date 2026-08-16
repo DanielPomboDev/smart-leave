@@ -11,8 +11,6 @@ Built with the **MERN** stack: **MongoDB, Express.js, React, Node.js**.
 > **no production data and no secrets** — the database password, JWT secret, and
 > Cloudinary keys live only in the donor's deployment dashboards. You create your
 > own database and accounts during setup (see [Setup](#setup--run-on-localhost)).
-> For an LGU handover summary, see **`docs/FEATURES_TO_ADD.md`** and the feature
-> list below.
 
 ---
 
@@ -80,8 +78,7 @@ smart-leave/
 │   ├── config/ + utils/           # Cloudinary, email, CSC rules helpers
 │   ├── create-all-users.js        # First-run seed script (creates department + 4 accounts)
 │   └── package.json
-├── render.yaml                    # Backend deployment config (Render)
-└── docs/                          # Feature notes
+└── render.yaml                    # Backend deployment config (Render)
 ```
 
 ---
