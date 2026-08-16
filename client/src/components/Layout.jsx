@@ -79,10 +79,17 @@ const Layout = ({ children, title = "Dashboard" }) => {
       }
     };
 
+    // Keep the bell badge in sync when notifications change (e.g. inbox page actions)
+    const handleNotificationsChanged = () => {
+      fetchNotificationCount();
+    };
+
     window.addEventListener('profileUpdated', handleProfileUpdate);
+    window.addEventListener('notificationsChanged', handleNotificationsChanged);
 
     return () => {
       window.removeEventListener('profileUpdated', handleProfileUpdate);
+      window.removeEventListener('notificationsChanged', handleNotificationsChanged);
       clearInterval(interval); // Clean up interval
     };
   }, [navigate, location]);
@@ -114,6 +121,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/department_admin/request-leave" },
           { label: "Leave History", icon: "fas fa-history", route: "/department_admin/leave-history" },
           { label: "My Leave Record", icon: "fas fa-clipboard-list", route: "/department_admin/my-leave-record" },
+          { label: "Notifications", icon: "fas fa-bell", route: "/department_admin/notifications" },
           { label: "Leave Requests", icon: "fas fa-tasks", route: "/department/leave-requests" },
           { label: "Leave Calendar", icon: "fas fa-calendar-days", route: "/department/calendar" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
@@ -124,6 +132,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Dashboard", icon: "fas fa-home", route: "/hr/dashboard" },
           { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/hr/request-leave" },
           { label: "Leave History", icon: "fas fa-history", route: "/hr/leave-history" },
+          { label: "Notifications", icon: "fas fa-bell", route: "/hr/notifications" },
           { label: "Employees", icon: "fas fa-users", route: "/hr/employees" },
           { label: "Leave Records", icon: "fas fa-file-alt", route: "/hr/leave-records" },
           { label: "Leave Calendar", icon: "fas fa-calendar-days", route: "/hr/calendar" },
@@ -139,6 +148,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/mayor/request-leave" },
           { label: "Leave History", icon: "fas fa-history", route: "/mayor/leave-history" },
           { label: "My Leave Record", icon: "fas fa-clipboard-list", route: "/mayor/my-leave-record" },
+          { label: "Notifications", icon: "fas fa-bell", route: "/mayor/notifications" },
           { label: "Leave Requests", icon: "fas fa-tasks", route: "/mayor/leave-requests" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }
@@ -148,6 +158,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
           { label: "Dashboard", icon: "fas fa-home", route: "/employee/dashboard" },
           { label: "Leave History", icon: "fas fa-history", route: "/employee/leave-history" },
           { label: "My Leave Record", icon: "fas fa-clipboard-list", route: "/employee/my-leave-record" },
+          { label: "Notifications", icon: "fas fa-bell", route: "/employee/notifications" },
           { label: "Request Leave", icon: "fas fa-calendar-plus", route: "/employee/request-leave" },
           { label: "Profile", icon: "fas fa-user", route: "/employee/profile" },
           { label: "Settings", icon: "fas fa-cog", route: "/employee/settings" }

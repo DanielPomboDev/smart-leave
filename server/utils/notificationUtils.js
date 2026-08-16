@@ -29,6 +29,7 @@ const sendNewLeaveRequestNotification = async (leaveRequest, departmentAdminId) 
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
+    leave_request_id: leaveRequest._id ? leaveRequest._id.toString() : undefined,
     start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -77,6 +78,7 @@ const sendRecommendedLeaveRequestNotification = async (leaveRequest, hrId) => {
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
+    leave_request_id: leaveRequest._id ? leaveRequest._id.toString() : undefined,
     start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -124,6 +126,7 @@ const sendHrApprovedLeaveRequestNotification = async (leaveRequest, mayorId) => 
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     requester_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
+    leave_request_id: leaveRequest._id ? leaveRequest._id.toString() : undefined,
     start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -204,6 +207,7 @@ const sendLeaveStatusUpdateToEmployee = async (leaveRequest, notificationType) =
     recipient_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
+    leave_request_id: leaveRequest._id ? leaveRequest._id.toString() : undefined,
     start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -286,6 +290,7 @@ const sendLeaveStatusUpdateToDepartmentAdmin = async (leaveRequest, notification
     recipient_name: '', // Will be set when sending email
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
+    leave_request_id: leaveRequest._id ? leaveRequest._id.toString() : undefined,
     start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -355,6 +360,7 @@ const sendLeaveStatusUpdateToHR = async (leaveRequest, notificationType, hrId) =
     recipient_name: '', // Will be set when sending email
     employee_name: `${leaveRequest.user_id.first_name} ${leaveRequest.user_id.last_name}`,
     leave_type: leaveRequest.leave_type,
+    leave_request_id: leaveRequest._id ? leaveRequest._id.toString() : undefined,
     start_date: new Date(leaveRequest.start_date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',

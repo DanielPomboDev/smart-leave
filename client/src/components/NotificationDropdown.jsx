@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../services/notificationService';
+import { useNavigate } from 'react-router-dom';
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification } from '../services/notificationService';
 
 const NotificationDropdown = ({ userId, userType, notificationCount, fetchNotificationCount }) => {
   const [notifications, setNotifications] = useState([]);
@@ -7,6 +8,7 @@ const NotificationDropdown = ({ userId, userType, notificationCount, fetchNotifi
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
+  const navigate = useNavigate();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -52,6 +54,31 @@ const NotificationDropdown = ({ userId, userType, notificationCount, fetchNotifi
       }
     }
     setIsOpen(false);
+
+    // Open the related leave request when the notification carries its ID.
+    const requestId = notification.data && notification.data.leave_request_id;
+    if (requestId) {
+      const base =
+        userType === 'department_admin' ? '/department' :
+        userType === 'hr' ? '/hr' :
+        userType === 'mayor' ? '/mayor' :
+        '/employee';
+      const path = userType === 'mayor'
+        ? `/mayor/leave-requests/${requestId}`
+        : `${base}/leave-request/${requestId}`;
+      navigate(path);
+    }
+  };
+
+  const handleDeleteNotification = async (e, notification) => {
+    e.stopPropagation();
+    try {
+      await deleteNotification(notification._id);
+      setNotifications(prev => prev.filter(n => n._id !== notification._id));
+      fetchNotificationCount(); // Refetch notifications and update count
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   };
 
   const handleMarkAllAsRead = async () => {
@@ -130,13 +157,24 @@ const NotificationDropdown = ({ userId, userType, notificationCount, fetchNotifi
                   }`}
                   onClick={() => handleNotificationClick(notification)}
                 >
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-start">
                     <p className="text-sm font-medium text-gray-900">
                       {notification.data.message}
                     </p>
-                    {!notification.readAt && (
-                      <span className="h-2 w-2 bg-blue-500 rounded-full"></span>
-                    )}
+                    <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                      {!notification.readAt && (
+                        <span className="h-2 w-2 bg-blue-500 rounded-full"></span>
+                      )}
+                      <button
+                        type="button"
+                        className="text-gray-400 hover:text-red-500 text-xs leading-none p-0.5"
+                        onClick={(e) => handleDeleteNotification(e, notification)}
+                        aria-label="Delete notification"
+                        title="Delete notification"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     {formatDate(notification.createdAt)}
@@ -153,6 +191,23 @@ const NotificationDropdown = ({ userId, userType, notificationCount, fetchNotifi
             )}
           </div>
 
+          <div className="p-2 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                const inboxPath =
+                  userType === 'department_admin' ? '/department_admin/notifications' :
+                  userType === 'hr' ? '/hr/notifications' :
+                  userType === 'mayor' ? '/mayor/notifications' :
+                  '/employee/notifications';
+                navigate(inboxPath);
+              }}
+              className="w-full text-center text-sm text-blue-600 hover:text-blue-800 py-1.5 rounded-md hover:bg-blue-50"
+            >
+              View all notifications
+            </button>
+          </div>
         </div>
       )}
     </div>

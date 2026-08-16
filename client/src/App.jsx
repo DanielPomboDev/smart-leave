@@ -24,6 +24,7 @@ import HRCalendar from './components/HRCalendar.jsx';
 import MayorDashboard from './components/MayorDashboard.jsx';
 import MayorLeaveRequests from './components/MayorLeaveRequests.jsx';
 import MayorLeaveRequestDetails from './components/MayorLeaveRequestDetails.jsx';
+import NotificationsInbox from './components/NotificationsInbox.jsx';
 import './App.css';
 
 function App() {
@@ -55,6 +56,12 @@ function App() {
           <Route path="/mayor/dashboard" element={<MayorDashboard />} />
           <Route path="/mayor/leave-requests" element={<MayorLeaveRequests />} />
           <Route path="/mayor/leave-requests/:id" element={<MayorLeaveRequestDetails />} />
+          
+          {/* Notifications inbox (all roles) */}
+          <Route path="/employee/notifications" element={<NotificationsInbox />} />
+          <Route path="/department_admin/notifications" element={<NotificationsInbox />} />
+          <Route path="/hr/notifications" element={<NotificationsInbox />} />
+          <Route path="/mayor/notifications" element={<NotificationsInbox />} />
           
           {/* Role-based leave request routes */}
           <Route path="/department_admin/request-leave" element={<RequestLeaveAdvanced />} />
